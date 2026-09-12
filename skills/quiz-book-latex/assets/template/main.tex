@@ -1,0 +1,24 @@
+%!TEX encoding = UTF-8 Unicode
+\documentclass[10pt,a4paper,openany]{ltjsbook}
+\input{resources/preamble}
+
+\title{問題集タイトル}
+\author{著者}
+\date{\today}
+\newcommand{\QuizCreationDate}{\today}
+\newcommand{\QuizGenerationTool}{使用ツール名}
+\newcommand{\QuizGenerationModel}{使用モデル名}
+
+\begin{document}
+\frontmatter
+\maketitle
+\mainmatter
+
+\input{contents/introduction}
+
+\part*{問題一覧}
+\input{contents/question-list}
+
+\part*{解説}
+\input{contents/explanations}
+\end{document}

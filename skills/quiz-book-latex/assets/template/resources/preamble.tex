@@ -1,0 +1,57 @@
+%!TEX encoding = UTF-8 Unicode
+%!TEX root = ../main.tex
+\usepackage{luatexja-fontspec}
+\IfFontExistsTF{Times}{
+  \setmainfont[BoldFont=Times Bold,ItalicFont=Times Italic,BoldItalicFont=Times Bold Italic]{Times}
+}{\setmainfont{TeX Gyre Termes}}
+\IfFontExistsTF{Helvetica Neue}{\setsansfont{Helvetica Neue}}{\setsansfont{TeX Gyre Heros}}
+\IfFontExistsTF{HiraMinProN-W3}{
+  \setmainjfont[BoldFont=HiraginoSans-W6]{HiraMinProN-W3}
+}{\setmainjfont[BoldFont=HaranoAjiGothic-Medium]{HaranoAjiMincho-Regular}}
+\renewcommand{\headfont}{\bfseries\sffamily}
+
+\usepackage[top=20truemm,bottom=20truemm,inner=20truemm,outer=20truemm]{geometry}
+\usepackage{array,booktabs,longtable}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{xurl}
+\usepackage[unicode,colorlinks=true,linkcolor=blue,urlcolor=blue,citecolor=blue]{hyperref}
+\usepackage[backend=biber,style=authoryear,sorting=none,url=true,doi=true]{biblatex}
+\addbibresource{resources/references.bib}
+\DeclareFieldFormat[misc]{url}{\url{#1}}
+\DeclareBibliographyDriver{misc}{%
+  \usebibmacro{begentry}%
+  \printfield{note}%
+  \printtext{\addspace}%
+  \printfield{url}%
+  \usebibmacro{finentry}%
+}
+
+\setlength{\parindent}{1\zw}
+\setlength{\parskip}{0.25\baselineskip}
+\setcounter{secnumdepth}{-1}
+\emergencystretch=2\zw
+\urlstyle{same}
+
+\newcommand{\tightlist}{\setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+\newcommand{\QuizReferences}[1]{%
+  \begin{itemize}[leftmargin=1.5em]
+    \forcsvlist{\item\fullcite}{#1}%
+  \end{itemize}%
+}
+\newcommand{\QuizQuestion}[4]{%
+  \clearpage
+  \section{第#1問}%
+  \label{explanation:#1}%
+  \noindent\textbf{問題}\quad #2\par
+  \medskip
+  \noindent\textbf{解答}\quad #3\par
+  \smallskip
+  \noindent\hyperref[question:#1]{問題一覧のページ：p.~\pageref*{question:#1}}\par
+  \medskip
+  #4%
+}
+
+\newcolumntype{Q}{>{\raggedright\arraybackslash}p{96truemm}}
+\newcolumntype{A}{>{\raggedright\arraybackslash}p{33truemm}}
+\newcolumntype{P}{>{\centering\arraybackslash}p{20truemm}}

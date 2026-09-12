@@ -1,6 +1,6 @@
 # Agent Skillsでの利用
 
-このディレクトリでは、日本語の競技クイズを作成する `generate-quiz` を配布しています。[Agent Skills](https://agentskills.io) 形式におおむね準拠しています。
+このディレクトリでは、日本語の競技クイズを作成する `generate-quiz` を配布しています。あわせて、生成した問題をLaTeX問題集として組版する付属スキル `quiz-book-latex` も収録しています。どちらも[Agent Skills](https://agentskills.io) 形式におおむね準拠しています。
 
 ## generate-quiz
 
@@ -63,3 +63,38 @@ generate-quiz/
 ```
 
 `SKILL.md` は工程制御、`references/` は詳細な定義と判断基準を担います。ファセットカタログは1ファイル最大約260KBあるため、作問時には `scripts/facet_node.py` で必要なノードのブロックだけを取り出します。
+
+## quiz-book-latex
+
+`generate-quiz` で作成したMarkdown群を、問題一覧と問別解説を備えたLaTeX問題集へ組版する付属スキルです。
+
+### インストール
+
+手動でインストールする場合は、リポジトリのルートで次を実行します。
+
+```bash
+cp -r skills/quiz-book-latex ~/.agents/skills/
+```
+
+プロジェクト単位で使う場合は `<プロジェクト>/.agents/skills/` に置きます。他のAI agentでは、それぞれのドキュメントに従ってskillの配置先に置いてください。
+
+Pandoc 3以降、LuaLaTeX、`latexmk`、Biberが必要です。
+
+### 使い方
+
+`generate-quiz` 形式のMarkdownを格納したディレクトリと、出力先を指定して問題集の作成を依頼します。問題・解答一覧、全付帯情報を含む問別解説、印刷可能なページ参照とPDF内リンク、BibLaTeXによる参考文献を備えたLaTeXプロジェクトとPDFを作成します。
+
+```text
+quiz-book-latexを使って quizzes/ から quiz-book/ に問題集を作って
+```
+
+### 配布ファイル
+
+```text
+quiz-book-latex/
+  SKILL.md        問題集生成の工程制御
+  agents/         UI表示用メタデータ
+  assets/         LaTeXプロジェクトのテンプレート
+  references/     入力Markdownの形式
+  scripts/        入力検証・変換・PDF生成
+```
