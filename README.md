@@ -1,12 +1,13 @@
 # generate-quiz
 
-日本語の競技クイズ（早押しクイズ）の問題を作成するAgent Skillを収めたリポジトリです。
+日本語の競技クイズ（早押しクイズ）の問題を作成するAgent Skillと、ChatGPTのGPTs用の指示文・参照資料を収めたリポジトリです。
 
 ## 利用方法
 
 | 利用環境 | 設定・利用手順 | インストール・登録するファイル |
 |---|---|---|
 | Agent Skills対応のAI agent | [skills/README.md](skills/README.md) | `skills/generate-quiz/` |
+| ChatGPTのGPTs | [GPT/README.md](GPT/README.md) | `GPT/generate-quiz/` |
 
 ## 作問の既定動作
 
@@ -93,6 +94,11 @@ skills/
     SKILL.md
     references/
     scripts/
+GPT/
+  README.md                ChatGPTの設定・利用手順
+  generate-quiz/           ChatGPTへ登録する設定一式
+    Instructions.txt
+    knowledge/
 tests/                     開発用の回帰テスト
 ```
 
@@ -100,7 +106,9 @@ tests/                     開発用の回帰テスト
 
 ## 開発
 
-工程制御は `skills/generate-quiz/SKILL.md` で管理します。題材選定・履歴は `selection_and_history_spec.md`、問題文生成は `quiz_generation_spec.md`、裏取り・正誤判定は `verification_and_judging_spec.md` に定義します。
+共通の作問規則や分類を変更するときは、`skills/generate-quiz/references/` と `GPT/generate-quiz/knowledge/` の両方へ反映します。それぞれの配置先だけで利用できるよう、カタログと仕様を各ディレクトリに保持しています。
+
+工程制御は `skills/generate-quiz/SKILL.md` と `GPT/generate-quiz/Instructions.txt` で管理し、実行環境に応じて更新します。題材選定・履歴は `selection_and_history_spec.md`、問題文生成は `quiz_generation_spec.md`、裏取り・正誤判定は `verification_and_judging_spec.md` に定義します。
 
 Agent Skillsに同梱するPythonスクリプトの回帰テストは、リポジトリのルートで実行します。
 
