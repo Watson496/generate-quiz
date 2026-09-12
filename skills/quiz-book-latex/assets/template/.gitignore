@@ -1,0 +1,16 @@
+.DS_Store
+.texlive-cache/
+*.aux
+*.bbl
+*.bcf
+*.blg
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.run.xml
+*.synctex
+*.synctex.gz
+*.synctex\(busy\)
+*.toc
+*.pdf

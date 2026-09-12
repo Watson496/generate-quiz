@@ -9,6 +9,8 @@
 | Agent Skills対応のAI agent | [skills/README.md](skills/README.md) | `skills/generate-quiz/` |
 | ChatGPTのGPTs | [GPT/README.md](GPT/README.md) | `GPT/generate-quiz/` |
 
+Agent Skills版には、生成した問題群をLaTeX問題集へ組版する付属スキル [`quiz-book-latex`](skills/quiz-book-latex/) も収録しています。導入方法と依存関係は[Agent Skillsでの利用](skills/README.md#quiz-book-latex)を参照してください。
+
 ## 作問の既定動作
 
 デフォルトでは、以下の要素を満たすような形で作問を行います。
@@ -92,6 +94,12 @@ skills/
   README.md                Agent Skillsのインストール・利用手順
   generate-quiz/           インストールするスキル一式
     SKILL.md
+    references/
+    scripts/
+  quiz-book-latex/         付属のLaTeX問題集生成スキル
+    SKILL.md
+    agents/
+    assets/
     references/
     scripts/
 GPT/

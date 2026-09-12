@@ -1,0 +1,3 @@
+interface:
+  display_name: "クイズ問題集LaTeX"
+  short_description: "Markdownから相互リンク付きのクイズ問題集を作成"
