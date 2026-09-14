@@ -304,6 +304,29 @@ class LengthCheckTest(SkillCase):
             self.assertIn("ACCEPTANCE\t1.0000", r.stdout)
             self.assertIn("MODE\tsoft", r.stdout)
 
+    def test_soft_verdict_can_be_replayed_with_same_draw(self):
+        for skill in self.for_each_skill():
+            first = run(skill, "length_check.py", "あ" * 50)
+            draw = [ln for ln in first.stdout.splitlines()
+                    if ln.startswith("DRAW")][0].split("\t")[1]
+            replay = run(skill, "length_check.py", "--draw", draw, "あ" * 50)
+            first_verdict = [ln for ln in first.stdout.splitlines()
+                             if ln.startswith("VERDICT")][0]
+            replay_verdict = [ln for ln in replay.stdout.splitlines()
+                              if ln.startswith("VERDICT")][0]
+            self.assertEqual(replay.returncode, first.returncode)
+            self.assertEqual(replay_verdict, first_verdict)
+            self.assertIn(f"DRAW\t{draw}", replay.stdout)
+
+    def test_draw_must_be_in_unit_interval_and_soft_mode(self):
+        for skill in self.for_each_skill():
+            self.assertEqual(run(skill, "length_check.py", "--draw", "-0.1", "あ" * 50).returncode, 2)
+            self.assertEqual(run(skill, "length_check.py", "--draw", "1", "あ" * 50).returncode, 2)
+            self.assertEqual(
+                run(skill, "length_check.py", "--draw", "0.5", "--max", "60", "あ" * 50).returncode,
+                2,
+            )
+
     def test_hard_max_violation_exits_1(self):
         for skill in self.for_each_skill():
             r = run(skill, "length_check.py", "--max", "60", "あ" * 72)
