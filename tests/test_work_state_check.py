@@ -67,6 +67,20 @@ def complete_state():
             ),
             **(
                 {
+                    "question_form": "SC",
+                    "question_phrase": "は何でしょう？",
+                    "nucleus": "錯視",
+                    "otoshi": "同じ長さの線分が矢羽の向きで異なる長さに見える錯視",
+                    "otoshi_clue_ids": ["C1"],
+                    "otoshi_direct_description": "錯視の図形条件と知覚結果を直接示す",
+                    "connective_scan": "連用中止・テ形接続はない",
+                    "connective_forms": [],
+                }
+                if check_id == "structure"
+                else {}
+            ),
+            **(
+                {
                     "blind_candidates": [],
                     "semantic_candidates": ["一般名称"],
                     "target_knowledge_required": "対象固有の対応知識が必要",
@@ -108,13 +122,22 @@ def complete_state():
                 for role, agent in agents.items()
             },
         },
-        "answer_target": "対象",
-        "draft": {"version": 2, "text": "問題文は何でしょう？"},
+        "answer_target": "ミュラー・リヤー錯視",
+        "draft": {
+            "version": 2,
+            "text": "同じ長さの線分が矢羽の向きで異なる長さに見える錯視は何でしょう？",
+        },
         "sources": [
             {
                 "id": "S1",
                 "citation": "資料名",
-                "quotes": [{"id": "Q1", "text": "対象の説明", "location": "第一節"}],
+                "quotes": [
+                    {
+                        "id": "Q1",
+                        "text": "同じ長さの線分が矢羽の向きで異なる長さに見える錯視",
+                        "location": "第一節",
+                    }
+                ],
             }
         ],
         "propositions": [
@@ -122,8 +145,8 @@ def complete_state():
                 "id": "P1",
                 "status": "active",
                 "draft_version": 2,
-                "claim": "対象は事物である",
-                "passage": "対象である事物",
+                "claim": "ミュラー・リヤー錯視では同じ長さの線分が矢羽の向きで異なる長さに見える",
+                "passage": "同じ長さの線分が矢羽の向きで異なる長さに見える錯視",
                 "evidence_ids": evidence,
                 "reason": "引用が直接述べる",
                 "inference_type": "direct",
@@ -135,7 +158,8 @@ def complete_state():
             {
                 "id": "C1",
                 "status": "active",
-                "text": "対象である事物",
+                "text": "同じ長さの線分が矢羽の向きで異なる長さに見える錯視",
+                "directly_describes_target": True,
                 "proposition_ids": ["P1"],
                 "checks": {
                     "centrality": copy.deepcopy(clue_check),
@@ -143,6 +167,8 @@ def complete_state():
                         **clue_check,
                         "comparison_scope": "同じ上位分類",
                         "competitors": ["近接候補"],
+                        "standalone_sufficient": True,
+                        "depends_on_clue_ids": [],
                     },
                     "familiarity": copy.deepcopy(clue_check),
                 },
@@ -161,7 +187,7 @@ def complete_state():
         "answers": [
             {
                 "id": "A1",
-                "answer": "対象",
+                "answer": "ミュラー・リヤー錯視",
                 "judgment": "correct",
                 "reason": "標準名称である",
                 "evidence_ids": evidence,
@@ -432,6 +458,123 @@ class TestWorkState:
     def test_complete_state_passes(self, run_script, complete_state, stage):
         """各項目が完了した状態は指定工程で合格する。"""
         assert check_state(run_script, stage, complete_state).returncode == 0
+
+    def test_clue_rejects_quasi_uniqueness_depending_on_another_clue(
+        self, run_script, complete_state
+    ):
+        """他の手掛かりに依存する準一意性を単独の評価として認めない。"""
+        check = complete_state["clues"][0]["checks"]["quasi_uniqueness"]
+        check["depends_on_clue_ids"] = ["C2"]
+        assert check_state(run_script, "audit", complete_state).returncode == 1
+
+    def test_otoshi_requires_directly_descriptive_clue(
+        self, run_script, complete_state
+    ):
+        """落としに含む手掛かりは対象を直接説明する。"""
+        complete_state["clues"][0]["directly_describes_target"] = False
+        assert check_state(run_script, "audit", complete_state).returncode == 1
+
+    @pytest.mark.parametrize(
+        "nucleus", ["もの", "こと", "さま", "用語", "名前", "名称", "通称", "題名"]
+    )
+    def test_otoshi_rejects_generic_nucleus(self, run_script, complete_state, nucleus):
+        """代名詞的な核名詞や名称の種類だけを示す核名詞を拒否する。"""
+        complete_state["draft"]["text"] = (
+            f"同じ長さの線分が矢羽の向きで異なる長さに見える{nucleus}は何でしょう？"
+        )
+        structure = next(
+            check for check in complete_state["checks"] if check["id"] == "structure"
+        )
+        structure["nucleus"] = nucleus
+        structure["otoshi"] = f"同じ長さの線分が矢羽の向きで異なる長さに見える{nucleus}"
+        result = check_state(run_script, "audit", complete_state)
+        assert result.returncode == 1
+        assert "nucleusが解答対象の上位分類ではない" in result.stderr
+
+    def test_structure_rejects_question_form_mismatch(self, run_script, complete_state):
+        """質問表現と構文型の不一致を拒否する。"""
+        complete_state["draft"]["text"] = (
+            "同じ長さの線分が矢羽の向きで異なる長さに見える錯視を何というでしょう？"
+        )
+        structure = next(
+            check for check in complete_state["checks"] if check["id"] == "structure"
+        )
+        structure["question_phrase"] = "を何というでしょう？"
+        assert check_state(run_script, "audit", complete_state).returncode == 1
+
+    @pytest.mark.parametrize("pronoun", ["誰", "どこ", "どちら"])
+    def test_structure_rejects_sc_question_marked_as_ov(
+        self, run_script, complete_state, pronoun
+    ):
+        """SC型の各疑問詞をOV型として記録した状態を拒否する。"""
+        complete_state["draft"]["text"] = (
+            f"同じ長さの線分が矢羽の向きで異なる長さに見える錯視は{pronoun}でしょう？"
+        )
+        structure = next(
+            check for check in complete_state["checks"] if check["id"] == "structure"
+        )
+        structure.update(question_form="OV", question_phrase=f"は{pronoun}でしょう？")
+        result = check_state(run_script, "audit", complete_state)
+        assert result.returncode == 1
+        assert "question_formが質問形式と一致しない" in result.stderr
+
+    def test_structure_rejects_otoshi_before_later_modifier(
+        self, run_script, complete_state
+    ):
+        """最後端の付随説明より前の句を落としとは扱わない。"""
+        complete_state["draft"]["text"] = (
+            "流体のエネルギーを軸動力に変える原動機で、圧力が低下するものを何というでしょう？"
+        )
+        structure = next(
+            check for check in complete_state["checks"] if check["id"] == "structure"
+        )
+        structure.update(
+            question_form="OV",
+            question_phrase="を何というでしょう？",
+            nucleus="原動機",
+            otoshi="流体のエネルギーを軸動力に変える原動機",
+        )
+        assert check_state(run_script, "audit", complete_state).returncode == 1
+
+    def test_structure_accepts_ov_post_limiter(self, run_script, complete_state):
+        """OV型では落としの後に名称を限定する表現を置ける。"""
+        complete_state["draft"]["text"] = (
+            "同じ長さの線分が矢羽の向きで異なる長さに見える錯視を、一般に何というでしょう？"
+        )
+        structure = next(
+            check for check in complete_state["checks"] if check["id"] == "structure"
+        )
+        structure.update(question_form="OV", question_phrase="何というでしょう？")
+        assert check_state(run_script, "audit", complete_state).returncode == 0
+
+    def test_structure_requires_connective_scan(self, run_script, complete_state):
+        """接続箇所がない場合も走査結果を要求する。"""
+        structure = next(
+            check for check in complete_state["checks"] if check["id"] == "structure"
+        )
+        del structure["connective_scan"]
+        assert check_state(run_script, "audit", complete_state).returncode == 1
+
+    def test_structure_rejects_connection_without_semantic_relation(
+        self, run_script, complete_state
+    ):
+        """接続箇所に定められた意味関係がない状態を拒否する。"""
+        structure = next(
+            check for check in complete_state["checks"] if check["id"] == "structure"
+        )
+        structure["connective_forms"] = [
+            {
+                "passage": "創設され、調査する制度",
+                "left_predication": "制度が創設された",
+                "right_predication": "制度が調査する",
+                "left_subject": "制度",
+                "right_subject": "制度",
+                "tense_aspect": "成立時点と恒常的機能",
+                "relation": "unrelated",
+                "reason": "同じ制度の別属性である",
+            }
+        ]
+        assert check_state(run_script, "audit", complete_state).returncode == 1
 
     def test_generation_requires_pending_audit(self, run_script, complete_state):
         """生成工程では各項目の監査結果が未判定でなければならない。"""

@@ -16,6 +16,7 @@ selection、generation、audit、finalのいずれかを指定する。
 
 import argparse
 import json
+import re
 import sys
 import unicodedata
 from pathlib import Path
@@ -402,9 +403,104 @@ def validate_sources_propositions_and_clues(state, version, stage):
                 required_list(
                     check.get("competitors"), f"{cname}.competitors", nonempty=True
                 )
+                require_condition(
+                    check.get("standalone_sufficient") is True,
+                    f"{cname}.standalone_sufficientがtrueではない",
+                )
+                require_condition(
+                    not required_list(
+                        check.get("depends_on_clue_ids"),
+                        f"{cname}.depends_on_clue_ids",
+                    ),
+                    f"{cname}が他の手掛かりに依存している",
+                )
             require_stage_completion(check, cname, stage)
     require_condition(active_clues, "activeな手掛かりがない")
     return quote_ids, active_props, active_clues
+
+
+def validate_structure_check(item, name, draft_text, active_clues):
+    form = required_text(item, "question_form", name)
+    require_condition(form in {"SC", "OV"}, f"{name}.question_formが不正である")
+    phrase = required_text(item, "question_phrase", name)
+    require_condition(phrase in draft_text, f"{name}.question_phraseが問題文にない")
+    if re.search(r"を何(?:と|て)?(?:いう|呼ぶ|言う)", phrase):
+        require_condition(form == "OV", f"{name}.question_formが質問形式と一致しない")
+    if re.search(r"は(?:何|誰|どこ|どちら)(?:でしょう|ですか)", phrase):
+        require_condition(form == "SC", f"{name}.question_formが質問形式と一致しない")
+    nucleus = required_text(item, "nucleus", name)
+    otoshi = required_text(item, "otoshi", name)
+    required_text(item, "otoshi_direct_description", name)
+    require_condition(
+        nucleus
+        not in {
+            "もの",
+            "物",
+            "こと",
+            "事",
+            "さま",
+            "様",
+            "用語",
+            "言葉",
+            "名称",
+            "名前",
+            "通称",
+            "題名",
+        },
+        f"{name}.nucleusが解答対象の上位分類ではない",
+    )
+    require_condition(
+        otoshi.endswith(nucleus) and otoshi in draft_text,
+        f"{name}.otoshiが完成稿の核名詞句で終わらない",
+    )
+    before_question = draft_text.split(phrase, 1)[0]
+    if form == "SC":
+        require_condition(
+            before_question.rstrip("、， ").endswith(otoshi),
+            f"{name}.otoshiが核名詞句の直前にない",
+        )
+    else:
+        after_otoshi = draft_text.rsplit(otoshi, 1)[1]
+        require_condition(
+            after_otoshi.startswith(("を", "のことを")),
+            f"{name}.otoshiが核名詞句の直前にない",
+        )
+    otoshi_clue_ids = referenced_ids(
+        item, "otoshi_clue_ids", {x["id"] for x in active_clues}, name
+    )
+    for clue in active_clues:
+        if clue["id"] not in otoshi_clue_ids:
+            continue
+        require_condition(
+            clue["text"] in otoshi,
+            f"{name}.otoshiに手掛かり{clue['id']}の本文がない",
+        )
+        require_condition(
+            clue.get("directly_describes_target") is True,
+            f"clues.{clue['id']}が対象を直接説明する手掛かりとして確認されていない",
+        )
+    required_text(item, "connective_scan", name)
+    connective_forms = required_list(
+        item.get("connective_forms"), f"{name}.connective_forms"
+    )
+    for index, connection in enumerate(connective_forms):
+        cname = f"{name}.connective_forms[{index}]"
+        require_condition(isinstance(connection, dict), f"{cname}が辞書ではない")
+        for key in (
+            "passage",
+            "left_predication",
+            "right_predication",
+            "left_subject",
+            "right_subject",
+            "tense_aspect",
+        ):
+            required_text(connection, key, cname)
+        require_condition(
+            connection.get("relation")
+            in {"parallel", "sequence", "reason", "contrast", "means", "condition"},
+            f"{cname}.relationが不正である",
+        )
+        required_text(connection, "reason", cname)
 
 
 def validate_work_state(state, stage):
@@ -467,6 +563,8 @@ def validate_work_state(state, stage):
                 len(item["alternatives"]) >= MIN_EXPRESSION_ALTERNATIVES,
                 f"{name}.alternativesは二案以上必要である",
             )
+        if item["id"] == "structure":
+            validate_structure_check(item, name, draft["text"], active_clues)
         if item["id"] == "answer_exposure":
             required_list(item.get("blind_candidates"), f"{name}.blind_candidates")
             required_list(
@@ -533,7 +631,7 @@ def main():
     except StateError as error:
         print(f"不合格: {error}", file=sys.stderr)
         return EXIT_STATE_INVALID
-    print("合格")
+    print("状態の形式と参照関係の検査に合格")
     return EXIT_OK
 
 
