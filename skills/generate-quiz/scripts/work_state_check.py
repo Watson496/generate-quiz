@@ -17,6 +17,7 @@ selection、generation、audit、finalのいずれかを指定する。
 import argparse
 import json
 import sys
+import unicodedata
 from pathlib import Path
 
 REQUIRED_CHECK_IDS = {
@@ -129,6 +130,80 @@ def require_stage_completion(obj, name, stage):
         require_condition(audit == "passed", f"{name}が監査に合格していない")
 
 
+def normalize_candidate_name(value):
+    normalized = unicodedata.normalize("NFKC", value).casefold()
+    return "".join(
+        char
+        for char in normalized
+        if char not in " \t\r\n・･‐‑‒–—―-_=＝()（）[]［］{}｛｝"
+    )
+
+
+def validate_name_formation(item, name):
+    require_condition(isinstance(item, dict), f"{name}はオブジェクトでなければならない")
+    candidate_name = required_text(item, "name", name)
+    required_text(item, "formation_rule", name)
+    components = required_list(
+        item.get("components"), f"{name}.components", nonempty=True
+    )
+    for index, component in enumerate(components):
+        component_name = f"{name}.components[{index}]"
+        require_condition(
+            isinstance(component, dict),
+            f"{component_name}はオブジェクトでなければならない",
+        )
+        required_text(component, "form", component_name)
+        required_text(component, "source", component_name)
+        require_condition(
+            component.get("knowledge")
+            in {"surface", "general_language", "general_domain", "target_association"},
+            f"{component_name}.knowledgeが不正である",
+        )
+    requires_target = item.get("requires_target_association")
+    require_condition(
+        isinstance(requires_target, bool), f"{name}.requires_target_associationがない"
+    )
+    if requires_target:
+        required_text(item, "target_association_step", name)
+    return candidate_name, requires_target
+
+
+def validate_exposure_precheck(item, name, *, require_formation=False):
+    precheck = item.get("exposure_precheck")
+    require_condition(isinstance(precheck, dict), f"{name}.exposure_precheckがない")
+    check_name = f"{name}.exposure_precheck"
+    for key in ("representative_descriptions", "accepted_names"):
+        values = required_list(precheck.get(key), f"{check_name}.{key}", nonempty=True)
+        for index, value in enumerate(values):
+            require_condition(
+                isinstance(value, str) and value.strip(),
+                f"{check_name}.{key}[{index}]がない",
+            )
+    accepted_names = {
+        normalize_candidate_name(value) for value in precheck["accepted_names"]
+    }
+    formations = required_list(
+        precheck.get("formations"),
+        f"{check_name}.formations",
+        nonempty=require_formation,
+    )
+    exposed = False
+    for index, formation in enumerate(formations):
+        candidate_name, requires_target = validate_name_formation(
+            formation, f"{check_name}.formations[{index}]"
+        )
+        if (
+            normalize_candidate_name(candidate_name) in accepted_names
+            and not requires_target
+        ):
+            exposed = True
+    require_condition(
+        precheck.get("status") == ("rejected" if exposed else "passed"),
+        f"{check_name}.statusが名称形成の分析と一致しない",
+    )
+    return exposed
+
+
 def validate_selection_state(state):
     required_text(state, "facet", "selection")
     entries, entry_ids = records_with_ids(
@@ -161,9 +236,42 @@ def validate_selection_state(state):
         required_text(item, "label", name)
         referenced_ids(item, "coverage_area_ids", area_ids, name)
         referenced_ids(item, "discovery_entry_point_ids", entry_ids, name)
+        disposition = item.get("disposition")
         require_condition(
-            item.get("expanded") is True, f"{name}から探索を展開していない"
+            disposition in {"eligible", "excluded"}, f"{name}.dispositionが不正である"
         )
+        if disposition == "eligible":
+            require_condition(
+                item.get("expanded") is True, f"{name}から探索を展開していない"
+            )
+            require_condition(
+                not validate_exposure_precheck(item, name),
+                f"{name}は代表説明から正答名を形成できるため選択対象にできない",
+            )
+        else:
+            code = item.get("exclusion_code")
+            require_condition(
+                code
+                in {
+                    "out_of_scope",
+                    "duplicate",
+                    "no_japanese_context",
+                    "prohibited_format",
+                    "unavoidable_exposure",
+                },
+                f"{name}.exclusion_codeが不正である",
+            )
+            required_text(item, "exclusion_reason", name)
+            if code == "duplicate":
+                merged_into = required_text(item, "merged_into", name)
+                require_condition(
+                    merged_into in candidate_ids, f"{name}.merged_intoが存在しない"
+                )
+            if code == "unavoidable_exposure":
+                require_condition(
+                    validate_exposure_precheck(item, name, require_formation=True),
+                    f"{name}.exposure_precheckが解答露出による除外を示していない",
+                )
     frontier = required_id_list(state.get("frontier_ids"), "frontier_ids")
     require_condition(
         not (set(frontier) - candidate_ids), "frontier_idsに存在しない候補がある"
