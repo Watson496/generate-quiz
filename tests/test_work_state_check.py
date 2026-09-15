@@ -482,6 +482,39 @@ class TestWorkState:
         assert "空でない文字列ID" in result.stderr
         assert "Traceback" not in result.stderr
 
+    def test_simple_proposition_can_omit_verification_elements(
+        self, run_script, complete_state
+    ):
+        """単純な命題には形式的な検証要素を要求しない。"""
+        assert "verification_elements" not in complete_state["propositions"][0]
+        assert check_state(run_script, "audit", complete_state).returncode == 0
+
+    def test_recorded_verification_elements_require_valid_evidence(
+        self, run_script, complete_state
+    ):
+        """記録した各検証要素の引用IDを検査する。"""
+        proposition = complete_state["propositions"][0]
+        proposition["claim"] = "市が住民に賞状を贈った"
+        proposition["passage"] = "市が住民に賞状を贈った"
+        complete_state["sources"][0]["quotes"][0]["text"] = proposition["claim"]
+        proposition["verification_elements"] = [
+            {
+                "text": "贈った主体は市",
+                "reason": "引用が直接述べる",
+                "inference_type": "direct",
+                "evidence_ids": ["Q1"],
+            },
+            {
+                "text": "贈った相手は住民",
+                "reason": "引用が直接述べる",
+                "inference_type": "direct",
+                "evidence_ids": ["Q2"],
+            },
+        ]
+        result = check_state(run_script, "audit", complete_state)
+        assert result.returncode == 1
+        assert "verification_elements[1].evidence_ids" in result.stderr
+
     def test_audit_requires_passed_check(self, run_script, complete_state):
         """未合格の検査項目を含む状態を監査で拒否する。"""
         complete_state["checks"][0]["audit"] = "missing"
