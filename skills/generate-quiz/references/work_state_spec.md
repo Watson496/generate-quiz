@@ -103,7 +103,7 @@
 - 直接記載、演繹、解釈、複数資料の総合の別
 - 未解決の反例または対抗候補がないこと
 
-日本語としての自然さなど、通常は外部資料を必要としない項目では、資料中の情報に代えて、実際に比較した二つ以上の問題文案と判断理由を記録する。解答露出では、解答を伏せた検査で挙がった候補と、問題文の意味および語形成から生じる候補を分け、正解へ至るために対象固有の知識が必要かを記録する。
+日本語としての自然さなど、通常は外部資料を必要としない項目では、資料中の情報に代えて、実際に比較した二つ以上の問題文案と判断理由を記録する。解答露出では、解答を伏せた検査で挙がった候補と、問題文の意味および語形成から生じる候補を分ける。各候補について、名称を形成する要素、その入手元、形成規則、名称候補の形成に対象との対応知識が必要か、形成後に標準名称だと確認するためだけに対応知識が必要かを別々に記録する。形成に対応知識が必要な場合は、その知識なしには選べない名称要素も記録する。
 
 生成側の必要な検査単位がすべて完了するまで、監査へ渡さない。
 
@@ -167,7 +167,7 @@ JSON manifestは、検査対象を具体的な内容へ結び付け、確定的�
     {"id": "D2", "label": "有機化学工業", "basis": "事典の区分", "explored": true, "entry_point_ids": ["E2"]}
   ],
   "candidates": [
-    {"id": "K1", "label": "候補", "coverage_area_ids": ["D1"], "discovery_entry_point_ids": ["E1"], "disposition": "eligible", "expanded": true, "exposure_precheck": {"representative_descriptions": ["対象を表す代表説明"], "accepted_names": ["候補"], "formations": [], "status": "passed"}}
+    {"id": "K1", "label": "候補", "coverage_area_ids": ["D1"], "discovery_entry_point_ids": ["E1"], "disposition": "eligible", "expanded": true, "exposure_precheck": {"representative_descriptions": ["対象を表す代表説明"], "accepted_names": ["候補"], "formations": [{"name": "候補", "formation_rule": "対象との対応を知って名称を想起する", "components": [{"form": "候補", "source": "対象と名称要素の既知の対応", "knowledge": "target_association"}], "formation_requires_target_association": true, "formation_target_association_step": "名称要素『候補』を選ぶ", "standard_name_confirmation_requires_target_association": true}], "status": "passed"}}
   ],
   "frontier_ids": [],
   "saturated": true

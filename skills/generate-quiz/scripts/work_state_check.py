@@ -160,16 +160,30 @@ def validate_name_formation(item, name):
             in {"surface", "general_language", "general_domain", "target_association"},
             f"{component_name}.knowledgeが不正である",
         )
-    requires_target = item.get("requires_target_association")
+    requires_target = item.get("formation_requires_target_association")
     require_condition(
-        isinstance(requires_target, bool), f"{name}.requires_target_associationがない"
+        isinstance(requires_target, bool),
+        f"{name}.formation_requires_target_associationがない",
+    )
+    component_requires_target = any(
+        component.get("knowledge") == "target_association" for component in components
+    )
+    require_condition(
+        requires_target == component_requires_target,
+        f"{name}.formation_requires_target_associationが構成要素の分析と一致しない",
+    )
+    require_condition(
+        isinstance(
+            item.get("standard_name_confirmation_requires_target_association"), bool
+        ),
+        f"{name}.standard_name_confirmation_requires_target_associationがない",
     )
     if requires_target:
-        required_text(item, "target_association_step", name)
+        required_text(item, "formation_target_association_step", name)
     return candidate_name, requires_target
 
 
-def validate_exposure_precheck(item, name, *, require_formation=False):
+def validate_exposure_precheck(item, name):
     precheck = item.get("exposure_precheck")
     require_condition(isinstance(precheck, dict), f"{name}.exposure_precheckがない")
     check_name = f"{name}.exposure_precheck"
@@ -186,18 +200,28 @@ def validate_exposure_precheck(item, name, *, require_formation=False):
     formations = required_list(
         precheck.get("formations"),
         f"{check_name}.formations",
-        nonempty=require_formation,
+        nonempty=True,
     )
     exposed = False
+    formation_names = []
     for index, formation in enumerate(formations):
         candidate_name, requires_target = validate_name_formation(
             formation, f"{check_name}.formations[{index}]"
         )
+        formation_names.append(normalize_candidate_name(candidate_name))
         if (
             normalize_candidate_name(candidate_name) in accepted_names
             and not requires_target
         ):
             exposed = True
+    require_condition(
+        len(formation_names) == len(set(formation_names)),
+        f"{check_name}.formationsに同じ名称が重複している",
+    )
+    require_condition(
+        accepted_names <= set(formation_names),
+        f"{check_name}.accepted_namesの全名称を分析していない",
+    )
     require_condition(
         precheck.get("status") == ("rejected" if exposed else "passed"),
         f"{check_name}.statusが名称形成の分析と一致しない",
@@ -270,7 +294,7 @@ def validate_selection_state(state):
                 )
             if code == "unavoidable_exposure":
                 require_condition(
-                    validate_exposure_precheck(item, name, require_formation=True),
+                    validate_exposure_precheck(item, name),
                     f"{name}.exposure_precheckが解答露出による除外を示していない",
                 )
     frontier = required_id_list(state.get("frontier_ids"), "frontier_ids")
@@ -566,11 +590,32 @@ def validate_work_state(state, stage):
         if item["id"] == "structure":
             validate_structure_check(item, name, draft["text"], active_clues)
         if item["id"] == "answer_exposure":
-            required_list(item.get("blind_candidates"), f"{name}.blind_candidates")
-            required_list(
+            blind = required_list(
+                item.get("blind_candidates"), f"{name}.blind_candidates"
+            )
+            semantic = required_list(
                 item.get("semantic_candidates"), f"{name}.semantic_candidates"
             )
             required_text(item, "target_knowledge_required", name)
+            correct = {
+                normalize_candidate_name(answer["answer"])
+                for answer in answers
+                if answer.get("judgment") == "correct"
+            }
+            for key, candidates in (
+                ("blind_candidates", blind),
+                ("semantic_candidates", semantic),
+            ):
+                for index, candidate in enumerate(candidates):
+                    cname = f"{name}.{key}[{index}]"
+                    candidate_name, requires_target = validate_name_formation(
+                        candidate, cname
+                    )
+                    require_condition(
+                        normalize_candidate_name(candidate_name) not in correct
+                        or requires_target,
+                        f"{cname}は正解と一致し、対象との対応知識なしに名称候補を形成できる",
+                    )
         if item["id"] != "expression.naturalness":
             referenced_ids(item, "evidence_ids", quote_ids, name)
         require_stage_completion(item, name, stage)
