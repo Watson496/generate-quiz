@@ -10,9 +10,9 @@
 
 GPTの名称は任意に設定できます。編集画面で、次の3つを設定します。
 
-Instructions欄には [generate-quiz/Instructions.txt](generate-quiz/Instructions.txt) の内容をそのまま貼り付けます。設計目標は6,500文字以内、編集画面の上限は8,000文字で、現在は5,547文字（UTF-8で15,689バイト）です。
+Instructions欄には [generate-quiz/Instructions.txt](generate-quiz/Instructions.txt) の内容をそのまま貼り付けます。設計目標は6,500文字以内、編集画面の上限は8,000文字で、現在は3,799文字（UTF-8で9,951バイト）です。
 
-Knowledgeには `generate-quiz/knowledge/` の16ファイルだけを登録します。元のYAML、ZIP、旧プロンプト、参考論文、評価ファイルは登録しません。ファセットカタログは、元YAMLの分類内容・コード・階層・注記を保ったまま、GPTが親ノードと直接の子を一度に取得しやすいMarkdownブロックへ変換したものです。subjectのみ最上位コードごとに9分割し、place・time・typeは各1ファイルにしています。
+Knowledgeには `generate-quiz/knowledge/` の18ファイルだけを登録します。元のYAML、ZIP、旧プロンプト、参考論文、評価ファイルは登録しません。ファセットカタログは、元YAMLの分類内容・コード・階層・注記を保ったまま、GPTが親ノードと直接の子を一度に取得しやすいMarkdownブロックへ変換したものです。subjectのみ最上位コードごとに9分割し、place・time・typeは各1ファイルにしています。
 
 登録するファイルは次のとおりです。
 
@@ -30,12 +30,14 @@ facet_subject_8.md
 facet_subject_9.md
 facet_time.md
 facet_type.md
+output_structure_spec.md
 quiz_generation_spec.md
 selection_and_history_spec.md
 verification_and_judging_spec.md
+work_state_template.md
 ```
 
-Capabilitiesは「Web Search」と「Code Interpreter & Data Analysis」を有効にします。Web Searchは毎問の裏取り、手掛かり単位の比較対象・対抗候補探索、情報選択の確認、難易度の校正に使います。Code InterpreterのPythonは、ファセットと題材の重み付き乱択、履歴補正、文字数の計測と確率的な採否判定に使います。
+Capabilitiesは「Web Search」と「Code Interpreter & Data Analysis」を有効にします。Web Searchは毎問の裏取り、手掛かり単位の比較対象・対抗候補探索、情報選択の確認、難易度の校正に使います。Code InterpreterのPythonは、ファセットと題材の重み付き乱択、履歴補正、文字数の計測と確率的な採否判定、作業状態の確定的な検査に使います。
 
 ### 使い方
 
@@ -71,7 +73,7 @@ Capabilitiesは「Web Search」と「Code Interpreter & Data Analysis」を有�
 ```text
 generate-quiz/
   Instructions.txt  GPTのInstructions欄に貼り付ける工程制御
-  knowledge/        Knowledgeへ登録する16ファイル
+  knowledge/        Knowledgeへ登録する18ファイル
 ```
 
-`Instructions.txt` は工程制御、`knowledge/` は詳細な定義と判断基準を担います。Knowledgeの内訳は、ファセット索引と分類カタログの13ファイル、および題材選定・履歴、問題文生成、裏取り・正誤判定の3つの仕様です。
+`Instructions.txt`は工程、状態遷移、各段階の完了条件を担います。`knowledge/`は詳細な定義と判断基準、作業状態の定型を担います。Knowledgeの内訳は、ファセット索引と分類カタログの13ファイル、題材選定・履歴、問題文生成、裏取り・正誤判定、最終出力の4つの仕様、および作業状態の定型です。
