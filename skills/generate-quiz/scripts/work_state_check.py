@@ -25,6 +25,25 @@ from urllib.parse import urlsplit
 
 import facet_node
 
+FINAL_HEADINGS = (
+    "問題",
+    "解答",
+    "補足",
+    "別解",
+    "正誤判定基準",
+    "題材選択",
+    "難易度",
+    "裏取り",
+    "手掛かりの設計",
+    "問題の成立性",
+    "問題文の構成",
+    "問題文の表現",
+    "問題文の長さ",
+    "解答と正誤判定",
+    "参考文献",
+)
+
+
 REQUIRED_CHECK_IDS = {
     "difficulty.beginner",
     "difficulty.general",
@@ -1096,6 +1115,36 @@ def validate_final_input(state, version, active_props, active_clues, difficulty_
     )
 
 
+def validate_final_sections(output, state):
+    """完成稿の見出し、問題、解答と作業用情報の混入を確認する。"""
+    headings = list(re.finditer(r"^##[ \t]+([^\n]+)$", output, re.MULTILINE))
+    names = [match.group(1).strip() for match in headings]
+    require_condition(
+        names == list(FINAL_HEADINGS), "最終出力の見出しに欠落・重複・順序違いがある"
+    )
+    require_condition(
+        not output[: headings[0].start()].strip(), "最終出力の先頭に作業用記録がある"
+    )
+    sections = {}
+    for index, match in enumerate(headings):
+        end = headings[index + 1].start() if index + 1 < len(headings) else len(output)
+        body = output[match.end() : end].strip()
+        require_condition(bool(body), f"最終出力の「{names[index]}」が空である")
+        sections[names[index]] = body
+    require_condition(
+        re.sub(r"\s+", "", sections["問題"])
+        == re.sub(r"\s+", "", state["draft"]["text"]),
+        "最終出力の問題文が現行版と一致しない",
+    )
+    require_condition(
+        state["answer_target"] in sections["解答"], "最終出力の解答に解答対象がない"
+    )
+    require_condition(
+        not re.search(r"(?:subject|place|time|type)::[^\s、。）」]+", output),
+        "最終出力に内部ノードIDがある",
+    )
+
+
 def validate_final_review(state, output_bytes):
     review = state.get("final_review")
     require_condition(isinstance(review, dict), "final_reviewがない")
@@ -1360,6 +1409,7 @@ def main():
             output_bytes = Path(args.output).read_bytes()
             output = output_bytes.decode("utf-8")
             validate_work_state(state, args.stage)
+            validate_final_sections(output, state)
             for source in state["sources"]:
                 for quote in source["quotes"]:
                     if quote["id"] in state["final_input"]["quote_ids"]:
