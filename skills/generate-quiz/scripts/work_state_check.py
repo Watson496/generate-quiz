@@ -913,7 +913,20 @@ def validate_difficulty_review(state, quote_ids, stage):
             item.get("status") == "passed", f"{name}が独立検査に合格していない"
         )
         required_text(item, "reason", name)
-        referenced_ids(item, "evidence_ids", quote_ids, name)
+        evidence_ids = referenced_ids(item, "evidence_ids", quote_ids, name)
+        if group == "beginner":
+            for aspect in ("name_learning", "relation_learning", "learning_connection"):
+                learning = item.get(aspect)
+                learning_name = f"{name}.{aspect}"
+                require_condition(isinstance(learning, dict), f"{learning_name}がない")
+                required_text(learning, "reason", learning_name)
+                learning_evidence_ids = referenced_ids(
+                    learning, "evidence_ids", quote_ids, learning_name
+                )
+                require_condition(
+                    set(learning_evidence_ids) <= set(evidence_ids),
+                    f"{learning_name}.evidence_idsが初学者側の根拠に含まれない",
+                )
         if group == "general":
             paths = required_list(
                 item.get("other_access_paths"),

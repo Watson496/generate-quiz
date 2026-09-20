@@ -168,6 +168,18 @@ def complete_state():
                 "status": "passed",
                 "reason": "日本語の初学者向け資料で学習対象として扱う",
                 "evidence_ids": evidence,
+                "name_learning": {
+                    "reason": "初級教材が解答対象の名称を学習項目として扱う",
+                    "evidence_ids": evidence,
+                },
+                "relation_learning": {
+                    "reason": "基礎資料が問う図形条件を対象の特徴として扱う",
+                    "evidence_ids": evidence,
+                },
+                "learning_connection": {
+                    "reason": "同じ対象について名称と図形条件を基礎知識として学ぶ",
+                    "evidence_ids": evidence,
+                },
             },
             "general": {
                 "status": "passed",
@@ -1071,6 +1083,76 @@ class TestWorkState:
         assert result.returncode == 1
         assert "difficulty_review.reviewer_idが担当記録と一致しない" in result.stderr
 
+    @pytest.mark.parametrize(
+        "aspect", ["name_learning", "relation_learning", "learning_connection"]
+    )
+    def test_beginner_review_requires_each_learning_record(
+        self, run_script, complete_state, aspect
+    ):
+        """名称・関係の学習と両者の接続を別々に記録する。"""
+        del complete_state["difficulty_review"]["beginner"][aspect]
+        result = check_state(run_script, "audit", complete_state)
+        assert result.returncode == 1
+        assert f"difficulty_review.beginner.{aspect}がない" in result.stderr
+
+    @pytest.mark.parametrize(
+        "aspect", ["name_learning", "relation_learning", "learning_connection"]
+    )
+    def test_beginner_review_requires_learning_reason(
+        self, run_script, complete_state, aspect
+    ):
+        """初学者側の各判断に理由を要求する。"""
+        del complete_state["difficulty_review"]["beginner"][aspect]["reason"]
+        result = check_state(run_script, "audit", complete_state)
+        assert result.returncode == 1
+        assert f"difficulty_review.beginner.{aspect}.reason" in result.stderr
+
+    def test_beginner_review_accepts_distinct_learning_sources(
+        self, run_script, complete_state
+    ):
+        """名称と問う関係へ別資料の引用を対応させた記録を受け付ける。"""
+        complete_state["sources"][0]["quotes"][0]["text"] = (
+            "入門教材はミュラー・リヤー錯視の名称を学習項目として扱う。"
+            "矢羽は線分の端に付く斜線である。"
+            "同じ長さの線分が矢羽の向きで異なる長さに見える錯視は入門教材で扱う"
+        )
+        complete_state["sources"].append(
+            {
+                "id": "S2",
+                "citation": "基礎資料",
+                "quotes": [
+                    {
+                        "id": "Q2",
+                        "text": "基礎資料がミュラー・リヤー錯視の図形条件を標準的な特徴として扱う",
+                        "location": "第二節",
+                    }
+                ],
+            }
+        )
+        beginner = complete_state["difficulty_review"]["beginner"]
+        beginner["evidence_ids"] = ["Q1", "Q2"]
+        beginner["relation_learning"]["evidence_ids"] = ["Q2"]
+        beginner["learning_connection"]["evidence_ids"] = ["Q1", "Q2"]
+        complete_state["final_input"]["quote_ids"] = ["Q1", "Q2"]
+        assert check_state(run_script, "audit", complete_state).returncode == 0
+
+    @pytest.mark.parametrize(
+        "aspect", ["name_learning", "relation_learning", "learning_connection"]
+    )
+    def test_beginner_learning_quotes_belong_to_review(
+        self, run_script, complete_state, aspect
+    ):
+        """学習根拠の引用を初学者側の引用集合に対応させる。"""
+        complete_state["sources"][0]["quotes"].append(
+            {"id": "Q2", "text": "名称を扱う教材", "location": "第二節"}
+        )
+        complete_state["difficulty_review"]["beginner"][aspect]["evidence_ids"] = [
+            "Q2"
+        ]
+        result = check_state(run_script, "audit", complete_state)
+        assert result.returncode == 1
+        assert f"{aspect}.evidence_idsが初学者側の根拠に含まれない" in result.stderr
+
     def test_difficulty_review_requires_other_access_paths(
         self, run_script, complete_state
     ):
@@ -1124,7 +1206,10 @@ class TestWorkState:
         complete_state["sources"][0]["quotes"].append(
             {"id": "Q2", "text": "初学者向け資料の記述", "location": "第二節"}
         )
-        complete_state["difficulty_review"]["beginner"]["evidence_ids"] = ["Q2"]
+        complete_state["difficulty_review"]["beginner"]["evidence_ids"] = [
+            "Q1",
+            "Q2",
+        ]
         result = check_state(run_script, "audit", complete_state)
         assert result.returncode == 1
         assert "final_input.quote_idsが判断に用いた引用と一致しない" in result.stderr
