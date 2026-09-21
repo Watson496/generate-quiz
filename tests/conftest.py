@@ -262,6 +262,7 @@ def selection_state(intersection_state):
         candidate["exposure_precheck"]["formations"] = [
             {
                 "name": name,
+                "description_index": 0,
                 "formation_rule": "対象との既知の対応から名称を選ぶ",
                 "components": [
                     {

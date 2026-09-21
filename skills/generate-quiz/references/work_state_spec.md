@@ -21,7 +21,7 @@
 - 各候補の名称の使用箇所（資料で名称を確認できず除外した候補を除く）、選択範囲への所属理由、発見元、選択対象か、選択対象なら近接探索の記録
 - 別経路の探索で各下位領域に開いた入口、元の探索と異なる観点、得た候補、親agentが元の資料と台帳を照合した結果
 - 探索完了の反証調査で使った観点・検索語・開いた資料、得た候補と未探索経路の処理結果
-- 各選択対象の代表説明、正答名・許容別名、名称形成の分析、解答露出の予備判定
+- 各選択対象の代表説明、正答名・許容別名、説明案ごとの名称形成の分析、解答露出の予備判定
 - 探索段階で選択対象となるか、除外する場合はその理由
 - 抽選後に題材品質ゲートで棄却した場合は、満たせなかった条件
 - 新しい有力候補が増えなくなったか
@@ -35,6 +35,8 @@
 `independent_review`には下位領域IDごとに、最初の探索と異なる観点、候補名を含めない検索語、別経路で開いた入口IDと候補ID、親agentが照合した元の入口IDと結果を記録する。`saturation_challenge`には別の立場・用途からの検索、開いた入口ID、得た候補ID、未探索経路の処理と完了状態を残す。形式検査の合格は資料の内容と記録が対応することや、探索の十分さを保証しない。
 
 `disposition`は探索段階で選択対象となるかを表す。抽選後に題材品質ゲートで棄却した候補は`eligible`のまま、満たせなかった条件を`quality_rejection_reason`へ記録する。再抽選では、この記録がある全候補のIDを`topic_pick.py --exclude`へ渡す。
+
+露出予備検査の`formations`は名称と代表説明の組合せごとに一件作り、対応する代表説明の添字を`description_index`で記録する。調べた説明案と許容名称の各組合せを照合し、一つの説明で名称を形成できても、ほかの説明で形成できなければ選択対象に残す。`status: passed`は露出がないという意味ではなく、抽選前に回避不能な露出を立証できなかったことを表す。`unavoidable_exposure`で除外するには、異なる中核的な代表説明を少なくとも二つ調べ、そのすべてで正答名または許容別名を対象固有知識なしに形成できる必要がある。形式検査は説明の妥当性を保証しないため、候補名を言い換えただけの説明を複数並べて除外しない。
 
 ## 解答対象ごとの作業状態
 
@@ -190,8 +192,8 @@ JSON manifestは、検査対象を具体的な内容へ結び付け、確定的�
     {"id": "D2", "label": "有機化学工業", "basis": "事典の区分", "target_kinds": "工業技術", "explored": true, "entry_point_ids": ["E2"], "source_searches": [{"mode": "open", "query": "有機化学工業 技術", "angle": "分野の索引", "result": "候補2を発見", "entry_point_ids": ["E2"], "found_candidate_ids": ["K2"], "next_searches": []}]}
   ],
   "candidates": [
-    {"id": "K1", "label": "候補1", "coverage_area_ids": ["D1"], "discovery_entry_point_ids": ["E1"], "name_use_note": "本文で対象の名称として使われる", "facet_membership_reason": "選択した四軸の内側にある", "disposition": "eligible", "expanded": true, "expansion_searches": [{"source_or_query": "候補1の関連項目", "relation_checked": "同じ分野の並列項目", "found_candidate_ids": []}], "exposure_precheck": {"representative_descriptions": ["対象を説明する語句"], "accepted_names": ["候補1"], "formations": [{"name": "候補1", "formation_rule": "対象との既知の対応から名称を選ぶ", "components": [{"form": "候補1", "source": "対象との既知の対応", "knowledge": "target_association"}], "formation_requires_target_association": true, "formation_target_association_step": "名称要素を選ぶ", "standard_name_confirmation_requires_target_association": true}], "status": "passed"}},
-    {"id": "K2", "label": "候補2", "coverage_area_ids": ["D2"], "discovery_entry_point_ids": ["E2"], "name_use_note": "本文で対象の名称として使われる", "facet_membership_reason": "選択した四軸の内側にある", "disposition": "eligible", "expanded": true, "expansion_searches": [{"source_or_query": "候補2の関連項目", "relation_checked": "同じ分野の並列項目", "found_candidate_ids": []}], "exposure_precheck": {"representative_descriptions": ["対象を説明する語句"], "accepted_names": ["候補2"], "formations": [{"name": "候補2", "formation_rule": "対象との既知の対応から名称を選ぶ", "components": [{"form": "候補2", "source": "対象との既知の対応", "knowledge": "target_association"}], "formation_requires_target_association": true, "formation_target_association_step": "名称要素を選ぶ", "standard_name_confirmation_requires_target_association": true}], "status": "passed"}}
+    {"id": "K1", "label": "候補1", "coverage_area_ids": ["D1"], "discovery_entry_point_ids": ["E1"], "name_use_note": "本文で対象の名称として使われる", "facet_membership_reason": "選択した四軸の内側にある", "disposition": "eligible", "expanded": true, "expansion_searches": [{"source_or_query": "候補1の関連項目", "relation_checked": "同じ分野の並列項目", "found_candidate_ids": []}], "exposure_precheck": {"representative_descriptions": ["対象を説明する語句"], "accepted_names": ["候補1"], "formations": [{"name": "候補1", "description_index": 0, "formation_rule": "対象との既知の対応から名称を選ぶ", "components": [{"form": "候補1", "source": "対象との既知の対応", "knowledge": "target_association"}], "formation_requires_target_association": true, "formation_target_association_step": "名称要素を選ぶ", "standard_name_confirmation_requires_target_association": true}], "status": "passed"}},
+    {"id": "K2", "label": "候補2", "coverage_area_ids": ["D2"], "discovery_entry_point_ids": ["E2"], "name_use_note": "本文で対象の名称として使われる", "facet_membership_reason": "選択した四軸の内側にある", "disposition": "eligible", "expanded": true, "expansion_searches": [{"source_or_query": "候補2の関連項目", "relation_checked": "同じ分野の並列項目", "found_candidate_ids": []}], "exposure_precheck": {"representative_descriptions": ["対象を説明する語句"], "accepted_names": ["候補2"], "formations": [{"name": "候補2", "description_index": 0, "formation_rule": "対象との既知の対応から名称を選ぶ", "components": [{"form": "候補2", "source": "対象との既知の対応", "knowledge": "target_association"}], "formation_requires_target_association": true, "formation_target_association_step": "名称要素を選ぶ", "standard_name_confirmation_requires_target_association": true}], "status": "passed"}}
   ],
   "independent_review": [
     {"id": "D1", "difference_from_exploration": "実務者の利用場面", "source_discovery_query": "無機化学工業 実務者 利用", "checked_entry_point_ids": ["E3"], "found_candidate_ids": [], "spotchecked_entry_point_ids": ["E1"], "spotcheck_result": "分類項目と候補を照合した"},
