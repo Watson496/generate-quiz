@@ -67,8 +67,37 @@ def complete_state():
             ),
             **(
                 {
+                    "question_form": "SC",
+                    "question_phrase": "は何でしょう？",
+                    "nucleus": "錯視",
+                    "otoshi": "同じ長さの線分が矢羽の向きで異なる長さに見える錯視",
+                    "otoshi_clue_ids": ["C1"],
+                    "otoshi_direct_description": "錯視の図形条件と知覚結果を直接示す",
+                    "connective_scan": "連用中止・テ形接続はない",
+                    "connective_forms": [],
+                }
+                if check_id == "structure"
+                else {}
+            ),
+            **(
+                {
                     "blind_candidates": [],
-                    "semantic_candidates": ["一般名称"],
+                    "semantic_candidates": [
+                        {
+                            "name": "一般名称",
+                            "formation_rule": "対象との既知の対応から名称を選ぶ",
+                            "components": [
+                                {
+                                    "form": "一般名称",
+                                    "source": "対象と名称の既知の対応",
+                                    "knowledge": "target_association",
+                                }
+                            ],
+                            "formation_requires_target_association": True,
+                            "formation_target_association_step": "名称要素を選ぶ",
+                            "standard_name_confirmation_requires_target_association": True,
+                        }
+                    ],
                     "target_knowledge_required": "対象固有の対応知識が必要",
                 }
                 if check_id == "answer_exposure"
@@ -108,13 +137,22 @@ def complete_state():
                 for role, agent in agents.items()
             },
         },
-        "answer_target": "対象",
-        "draft": {"version": 2, "text": "問題文は何でしょう？"},
+        "answer_target": "ミュラー・リヤー錯視",
+        "draft": {
+            "version": 2,
+            "text": "同じ長さの線分が矢羽の向きで異なる長さに見える錯視は何でしょう？",
+        },
         "sources": [
             {
                 "id": "S1",
                 "citation": "資料名",
-                "quotes": [{"id": "Q1", "text": "対象の説明", "location": "第一節"}],
+                "quotes": [
+                    {
+                        "id": "Q1",
+                        "text": "同じ長さの線分が矢羽の向きで異なる長さに見える錯視",
+                        "location": "第一節",
+                    }
+                ],
             }
         ],
         "propositions": [
@@ -122,8 +160,8 @@ def complete_state():
                 "id": "P1",
                 "status": "active",
                 "draft_version": 2,
-                "claim": "対象は事物である",
-                "passage": "対象である事物",
+                "claim": "ミュラー・リヤー錯視では同じ長さの線分が矢羽の向きで異なる長さに見える",
+                "passage": "同じ長さの線分が矢羽の向きで異なる長さに見える錯視",
                 "evidence_ids": evidence,
                 "reason": "引用が直接述べる",
                 "inference_type": "direct",
@@ -135,7 +173,8 @@ def complete_state():
             {
                 "id": "C1",
                 "status": "active",
-                "text": "対象である事物",
+                "text": "同じ長さの線分が矢羽の向きで異なる長さに見える錯視",
+                "directly_describes_target": True,
                 "proposition_ids": ["P1"],
                 "checks": {
                     "centrality": copy.deepcopy(clue_check),
@@ -143,6 +182,8 @@ def complete_state():
                         **clue_check,
                         "comparison_scope": "同じ上位分類",
                         "competitors": ["近接候補"],
+                        "standalone_sufficient": True,
+                        "depends_on_clue_ids": [],
                     },
                     "familiarity": copy.deepcopy(clue_check),
                 },
@@ -161,7 +202,7 @@ def complete_state():
         "answers": [
             {
                 "id": "A1",
-                "answer": "対象",
+                "answer": "ミュラー・リヤー錯視",
                 "judgment": "correct",
                 "reason": "標準名称である",
                 "evidence_ids": evidence,
@@ -185,7 +226,7 @@ def complete_state():
 @pytest.fixture
 def selection_state():
     """探索範囲と候補の展開が完了した状態を作る。"""
-    return {
+    state = {
         "facet": "化学工業",
         "entry_points": [
             {"id": "E1", "kind": "分類表", "label": "産業分類"},
@@ -240,6 +281,25 @@ def selection_state():
         "frontier_ids": [],
         "saturated": True,
     }
+    for candidate in state["candidates"]:
+        name = candidate["label"]
+        candidate["exposure_precheck"]["formations"] = [
+            {
+                "name": name,
+                "formation_rule": "対象との既知の対応から名称を選ぶ",
+                "components": [
+                    {
+                        "form": name,
+                        "source": "対象との既知の対応",
+                        "knowledge": "target_association",
+                    }
+                ],
+                "formation_requires_target_association": True,
+                "formation_target_association_step": "名称要素を選ぶ",
+                "standard_name_confirmation_requires_target_association": True,
+            }
+        ]
+    return state
 
 
 @pytest.fixture
@@ -264,7 +324,8 @@ def exposed_precheck():
                         "knowledge": "general_domain",
                     },
                 ],
-                "requires_target_association": False,
+                "formation_requires_target_association": False,
+                "standard_name_confirmation_requires_target_association": True,
             }
         ],
         "status": "rejected",
@@ -424,6 +485,74 @@ class TestSelectionState:
         candidate["exposure_precheck"] = exposed_precheck
         assert check_state(run_script, "selection", selection_state).returncode == 0
 
+    def test_selection_rejects_confirmation_knowledge_as_formation_knowledge(
+        self, run_script, selection_state
+    ):
+        """標準名の確認に必要な知識で名称形成を安全扱いしない。"""
+        formation = selection_state["candidates"][0]["exposure_precheck"]["formations"][
+            0
+        ]
+        formation["components"] = [
+            {
+                "form": "候補1",
+                "source": "問題文の一般語から複合する",
+                "knowledge": "general_language",
+            }
+        ]
+        assert check_state(run_script, "selection", selection_state).returncode == 1
+
+    @pytest.mark.parametrize(
+        ("description", "answer", "parts"),
+        [
+            (
+                "土地の区画を整理する事業",
+                "土地区画整理事業",
+                ("土地", "区画", "整理", "事業"),
+            ),
+            (
+                "市街地を再開発する事業",
+                "市街地再開発事業",
+                ("市街地", "再開発", "事業"),
+            ),
+        ],
+    )
+    def test_selection_rejects_transparent_public_project_names(
+        self, run_script, selection_state, description, answer, parts
+    ):
+        """代表説明から名称を形成できる制度候補を拒否する。"""
+        precheck = selection_state["candidates"][0]["exposure_precheck"]
+        precheck.update(
+            representative_descriptions=[description],
+            accepted_names=[answer],
+            formations=[
+                {
+                    "name": answer,
+                    "formation_rule": "説明にある一般語を複合する",
+                    "components": [
+                        {
+                            "form": part,
+                            "source": description,
+                            "knowledge": "general_language",
+                        }
+                        for part in parts
+                    ],
+                    "formation_requires_target_association": False,
+                    "standard_name_confirmation_requires_target_association": True,
+                }
+            ],
+            status="passed",
+        )
+        assert check_state(run_script, "selection", selection_state).returncode == 1
+
+    def test_selection_requires_formation_for_every_accepted_name(
+        self, run_script, selection_state
+    ):
+        """許容する各名称の形成分析を要求する。"""
+        selection_state["candidates"][0]["exposure_precheck"]["accepted_names"].append(
+            "別名"
+        )
+        assert check_state(run_script, "selection", selection_state).returncode == 1
+
 
 class TestWorkState:
     """生成・監査・最終出力の作業状態を検査する。"""
@@ -432,6 +561,123 @@ class TestWorkState:
     def test_complete_state_passes(self, run_script, complete_state, stage):
         """各項目が完了した状態は指定工程で合格する。"""
         assert check_state(run_script, stage, complete_state).returncode == 0
+
+    def test_clue_rejects_quasi_uniqueness_depending_on_another_clue(
+        self, run_script, complete_state
+    ):
+        """他の手掛かりに依存する準一意性を単独の評価として認めない。"""
+        check = complete_state["clues"][0]["checks"]["quasi_uniqueness"]
+        check["depends_on_clue_ids"] = ["C2"]
+        assert check_state(run_script, "audit", complete_state).returncode == 1
+
+    def test_otoshi_requires_directly_descriptive_clue(
+        self, run_script, complete_state
+    ):
+        """落としに含む手掛かりは対象を直接説明する。"""
+        complete_state["clues"][0]["directly_describes_target"] = False
+        assert check_state(run_script, "audit", complete_state).returncode == 1
+
+    @pytest.mark.parametrize(
+        "nucleus", ["もの", "こと", "さま", "用語", "名前", "名称", "通称", "題名"]
+    )
+    def test_otoshi_rejects_generic_nucleus(self, run_script, complete_state, nucleus):
+        """代名詞的な核名詞や名称の種類だけを示す核名詞を拒否する。"""
+        complete_state["draft"]["text"] = (
+            f"同じ長さの線分が矢羽の向きで異なる長さに見える{nucleus}は何でしょう？"
+        )
+        structure = next(
+            check for check in complete_state["checks"] if check["id"] == "structure"
+        )
+        structure["nucleus"] = nucleus
+        structure["otoshi"] = f"同じ長さの線分が矢羽の向きで異なる長さに見える{nucleus}"
+        result = check_state(run_script, "audit", complete_state)
+        assert result.returncode == 1
+        assert "nucleusが解答対象の上位分類ではない" in result.stderr
+
+    def test_structure_rejects_question_form_mismatch(self, run_script, complete_state):
+        """質問表現と構文型の不一致を拒否する。"""
+        complete_state["draft"]["text"] = (
+            "同じ長さの線分が矢羽の向きで異なる長さに見える錯視を何というでしょう？"
+        )
+        structure = next(
+            check for check in complete_state["checks"] if check["id"] == "structure"
+        )
+        structure["question_phrase"] = "を何というでしょう？"
+        assert check_state(run_script, "audit", complete_state).returncode == 1
+
+    @pytest.mark.parametrize("pronoun", ["誰", "どこ", "どちら"])
+    def test_structure_rejects_sc_question_marked_as_ov(
+        self, run_script, complete_state, pronoun
+    ):
+        """SC型の各疑問詞をOV型として記録した状態を拒否する。"""
+        complete_state["draft"]["text"] = (
+            f"同じ長さの線分が矢羽の向きで異なる長さに見える錯視は{pronoun}でしょう？"
+        )
+        structure = next(
+            check for check in complete_state["checks"] if check["id"] == "structure"
+        )
+        structure.update(question_form="OV", question_phrase=f"は{pronoun}でしょう？")
+        result = check_state(run_script, "audit", complete_state)
+        assert result.returncode == 1
+        assert "question_formが質問形式と一致しない" in result.stderr
+
+    def test_structure_rejects_otoshi_before_later_modifier(
+        self, run_script, complete_state
+    ):
+        """最後端の付随説明より前の句を落としとは扱わない。"""
+        complete_state["draft"]["text"] = (
+            "流体のエネルギーを軸動力に変える原動機で、圧力が低下するものを何というでしょう？"
+        )
+        structure = next(
+            check for check in complete_state["checks"] if check["id"] == "structure"
+        )
+        structure.update(
+            question_form="OV",
+            question_phrase="を何というでしょう？",
+            nucleus="原動機",
+            otoshi="流体のエネルギーを軸動力に変える原動機",
+        )
+        assert check_state(run_script, "audit", complete_state).returncode == 1
+
+    def test_structure_accepts_ov_post_limiter(self, run_script, complete_state):
+        """OV型では落としの後に名称を限定する表現を置ける。"""
+        complete_state["draft"]["text"] = (
+            "同じ長さの線分が矢羽の向きで異なる長さに見える錯視を、一般に何というでしょう？"
+        )
+        structure = next(
+            check for check in complete_state["checks"] if check["id"] == "structure"
+        )
+        structure.update(question_form="OV", question_phrase="何というでしょう？")
+        assert check_state(run_script, "audit", complete_state).returncode == 0
+
+    def test_structure_requires_connective_scan(self, run_script, complete_state):
+        """接続箇所がない場合も走査結果を要求する。"""
+        structure = next(
+            check for check in complete_state["checks"] if check["id"] == "structure"
+        )
+        del structure["connective_scan"]
+        assert check_state(run_script, "audit", complete_state).returncode == 1
+
+    def test_structure_rejects_connection_without_semantic_relation(
+        self, run_script, complete_state
+    ):
+        """接続箇所に定められた意味関係がない状態を拒否する。"""
+        structure = next(
+            check for check in complete_state["checks"] if check["id"] == "structure"
+        )
+        structure["connective_forms"] = [
+            {
+                "passage": "創設され、調査する制度",
+                "left_predication": "制度が創設された",
+                "right_predication": "制度が調査する",
+                "left_subject": "制度",
+                "right_subject": "制度",
+                "tense_aspect": "成立時点と恒常的機能",
+                "relation": "unrelated",
+                "reason": "同じ制度の別属性である",
+            }
+        ]
+        assert check_state(run_script, "audit", complete_state).returncode == 1
 
     def test_generation_requires_pending_audit(self, run_script, complete_state):
         """生成工程では各項目の監査結果が未判定でなければならない。"""
@@ -456,6 +702,96 @@ class TestWorkState:
         result = check_state(run_script, "audit", complete_state)
         assert result.returncode == 1
         assert "必須検査がない" in result.stderr
+
+    def test_blind_candidate_matching_answer_without_target_association_fails(
+        self, run_script, complete_state
+    ):
+        """対象との対応知識なしに正答名を形成できる状態を拒否する。"""
+        exposure = next(
+            check
+            for check in complete_state["checks"]
+            if check["id"] == "answer_exposure"
+        )
+        complete_state["answers"][0]["answer"] = "錯視"
+        exposure["blind_candidates"] = [
+            {
+                "name": "錯視",
+                "formation_rule": "問題文中の語をそのまま候補とする",
+                "components": [
+                    {
+                        "form": "錯視",
+                        "source": "問題文の表層",
+                        "knowledge": "surface",
+                    },
+                ],
+                "formation_requires_target_association": False,
+                "standard_name_confirmation_requires_target_association": True,
+            }
+        ]
+        assert check_state(run_script, "audit", complete_state).returncode == 1
+
+    def test_blind_candidate_can_require_explicit_target_association(
+        self, run_script, complete_state
+    ):
+        """名称形成自体に対象との対応知識が要る候補は受け付ける。"""
+        exposure = next(
+            check
+            for check in complete_state["checks"]
+            if check["id"] == "answer_exposure"
+        )
+        exposure["blind_candidates"] = [
+            {
+                "name": "ミュラー・リヤー錯視",
+                "formation_rule": "既知の名称を想起する",
+                "components": [
+                    {
+                        "form": "ミュラー・リヤー錯視",
+                        "source": "対象と名称の既知の対応",
+                        "knowledge": "target_association",
+                    }
+                ],
+                "formation_requires_target_association": True,
+                "formation_target_association_step": "名称要素を選ぶ段階",
+                "standard_name_confirmation_requires_target_association": True,
+            }
+        ]
+        assert check_state(run_script, "audit", complete_state).returncode == 0
+
+    def test_semantic_candidate_requires_formation_details(
+        self, run_script, complete_state
+    ):
+        """意味から挙げた名称候補にも形成要素を要求する。"""
+        exposure = next(
+            check
+            for check in complete_state["checks"]
+            if check["id"] == "answer_exposure"
+        )
+        exposure["semantic_candidates"] = ["ミュラー・リヤー錯視"]
+        assert check_state(run_script, "audit", complete_state).returncode == 1
+
+    def test_semantic_candidate_matching_answer_without_target_association_fails(
+        self, run_script, complete_state
+    ):
+        """意味から正答名を形成できる状態を拒否する。"""
+        exposure = next(
+            check
+            for check in complete_state["checks"]
+            if check["id"] == "answer_exposure"
+        )
+        complete_state["answers"][0]["answer"] = "錯視"
+        exposure["semantic_candidates"][0].update(
+            name="錯視",
+            formation_rule="問題文の語をそのまま候補とする",
+            components=[
+                {
+                    "form": "錯視",
+                    "source": "問題文の表層",
+                    "knowledge": "surface",
+                }
+            ],
+            formation_requires_target_association=False,
+        )
+        assert check_state(run_script, "audit", complete_state).returncode == 1
 
     def test_audit_rejects_old_draft_version(self, run_script, complete_state):
         """現行稿より古い版の検査結果を監査で拒否する。"""

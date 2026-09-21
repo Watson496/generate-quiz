@@ -16,6 +16,7 @@ selection、generation、audit、finalのいずれかを指定する。
 
 import argparse
 import json
+import re
 import sys
 import unicodedata
 from pathlib import Path
@@ -159,16 +160,30 @@ def validate_name_formation(item, name):
             in {"surface", "general_language", "general_domain", "target_association"},
             f"{component_name}.knowledgeが不正である",
         )
-    requires_target = item.get("requires_target_association")
+    requires_target = item.get("formation_requires_target_association")
     require_condition(
-        isinstance(requires_target, bool), f"{name}.requires_target_associationがない"
+        isinstance(requires_target, bool),
+        f"{name}.formation_requires_target_associationがない",
+    )
+    component_requires_target = any(
+        component.get("knowledge") == "target_association" for component in components
+    )
+    require_condition(
+        requires_target == component_requires_target,
+        f"{name}.formation_requires_target_associationが構成要素の分析と一致しない",
+    )
+    require_condition(
+        isinstance(
+            item.get("standard_name_confirmation_requires_target_association"), bool
+        ),
+        f"{name}.standard_name_confirmation_requires_target_associationがない",
     )
     if requires_target:
-        required_text(item, "target_association_step", name)
+        required_text(item, "formation_target_association_step", name)
     return candidate_name, requires_target
 
 
-def validate_exposure_precheck(item, name, *, require_formation=False):
+def validate_exposure_precheck(item, name):
     precheck = item.get("exposure_precheck")
     require_condition(isinstance(precheck, dict), f"{name}.exposure_precheckがない")
     check_name = f"{name}.exposure_precheck"
@@ -185,18 +200,28 @@ def validate_exposure_precheck(item, name, *, require_formation=False):
     formations = required_list(
         precheck.get("formations"),
         f"{check_name}.formations",
-        nonempty=require_formation,
+        nonempty=True,
     )
     exposed = False
+    formation_names = []
     for index, formation in enumerate(formations):
         candidate_name, requires_target = validate_name_formation(
             formation, f"{check_name}.formations[{index}]"
         )
+        formation_names.append(normalize_candidate_name(candidate_name))
         if (
             normalize_candidate_name(candidate_name) in accepted_names
             and not requires_target
         ):
             exposed = True
+    require_condition(
+        len(formation_names) == len(set(formation_names)),
+        f"{check_name}.formationsに同じ名称が重複している",
+    )
+    require_condition(
+        accepted_names <= set(formation_names),
+        f"{check_name}.accepted_namesの全名称を分析していない",
+    )
     require_condition(
         precheck.get("status") == ("rejected" if exposed else "passed"),
         f"{check_name}.statusが名称形成の分析と一致しない",
@@ -269,7 +294,7 @@ def validate_selection_state(state):
                 )
             if code == "unavoidable_exposure":
                 require_condition(
-                    validate_exposure_precheck(item, name, require_formation=True),
+                    validate_exposure_precheck(item, name),
                     f"{name}.exposure_precheckが解答露出による除外を示していない",
                 )
     frontier = required_id_list(state.get("frontier_ids"), "frontier_ids")
@@ -402,9 +427,104 @@ def validate_sources_propositions_and_clues(state, version, stage):
                 required_list(
                     check.get("competitors"), f"{cname}.competitors", nonempty=True
                 )
+                require_condition(
+                    check.get("standalone_sufficient") is True,
+                    f"{cname}.standalone_sufficientがtrueではない",
+                )
+                require_condition(
+                    not required_list(
+                        check.get("depends_on_clue_ids"),
+                        f"{cname}.depends_on_clue_ids",
+                    ),
+                    f"{cname}が他の手掛かりに依存している",
+                )
             require_stage_completion(check, cname, stage)
     require_condition(active_clues, "activeな手掛かりがない")
     return quote_ids, active_props, active_clues
+
+
+def validate_structure_check(item, name, draft_text, active_clues):
+    form = required_text(item, "question_form", name)
+    require_condition(form in {"SC", "OV"}, f"{name}.question_formが不正である")
+    phrase = required_text(item, "question_phrase", name)
+    require_condition(phrase in draft_text, f"{name}.question_phraseが問題文にない")
+    if re.search(r"を何(?:と|て)?(?:いう|呼ぶ|言う)", phrase):
+        require_condition(form == "OV", f"{name}.question_formが質問形式と一致しない")
+    if re.search(r"は(?:何|誰|どこ|どちら)(?:でしょう|ですか)", phrase):
+        require_condition(form == "SC", f"{name}.question_formが質問形式と一致しない")
+    nucleus = required_text(item, "nucleus", name)
+    otoshi = required_text(item, "otoshi", name)
+    required_text(item, "otoshi_direct_description", name)
+    require_condition(
+        nucleus
+        not in {
+            "もの",
+            "物",
+            "こと",
+            "事",
+            "さま",
+            "様",
+            "用語",
+            "言葉",
+            "名称",
+            "名前",
+            "通称",
+            "題名",
+        },
+        f"{name}.nucleusが解答対象の上位分類ではない",
+    )
+    require_condition(
+        otoshi.endswith(nucleus) and otoshi in draft_text,
+        f"{name}.otoshiが完成稿の核名詞句で終わらない",
+    )
+    before_question = draft_text.split(phrase, 1)[0]
+    if form == "SC":
+        require_condition(
+            before_question.rstrip("、， ").endswith(otoshi),
+            f"{name}.otoshiが核名詞句の直前にない",
+        )
+    else:
+        after_otoshi = draft_text.rsplit(otoshi, 1)[1]
+        require_condition(
+            after_otoshi.startswith(("を", "のことを")),
+            f"{name}.otoshiが核名詞句の直前にない",
+        )
+    otoshi_clue_ids = referenced_ids(
+        item, "otoshi_clue_ids", {x["id"] for x in active_clues}, name
+    )
+    for clue in active_clues:
+        if clue["id"] not in otoshi_clue_ids:
+            continue
+        require_condition(
+            clue["text"] in otoshi,
+            f"{name}.otoshiに手掛かり{clue['id']}の本文がない",
+        )
+        require_condition(
+            clue.get("directly_describes_target") is True,
+            f"clues.{clue['id']}が対象を直接説明する手掛かりとして確認されていない",
+        )
+    required_text(item, "connective_scan", name)
+    connective_forms = required_list(
+        item.get("connective_forms"), f"{name}.connective_forms"
+    )
+    for index, connection in enumerate(connective_forms):
+        cname = f"{name}.connective_forms[{index}]"
+        require_condition(isinstance(connection, dict), f"{cname}が辞書ではない")
+        for key in (
+            "passage",
+            "left_predication",
+            "right_predication",
+            "left_subject",
+            "right_subject",
+            "tense_aspect",
+        ):
+            required_text(connection, key, cname)
+        require_condition(
+            connection.get("relation")
+            in {"parallel", "sequence", "reason", "contrast", "means", "condition"},
+            f"{cname}.relationが不正である",
+        )
+        required_text(connection, "reason", cname)
 
 
 def validate_work_state(state, stage):
@@ -467,12 +587,35 @@ def validate_work_state(state, stage):
                 len(item["alternatives"]) >= MIN_EXPRESSION_ALTERNATIVES,
                 f"{name}.alternativesは二案以上必要である",
             )
+        if item["id"] == "structure":
+            validate_structure_check(item, name, draft["text"], active_clues)
         if item["id"] == "answer_exposure":
-            required_list(item.get("blind_candidates"), f"{name}.blind_candidates")
-            required_list(
+            blind = required_list(
+                item.get("blind_candidates"), f"{name}.blind_candidates"
+            )
+            semantic = required_list(
                 item.get("semantic_candidates"), f"{name}.semantic_candidates"
             )
             required_text(item, "target_knowledge_required", name)
+            correct = {
+                normalize_candidate_name(answer["answer"])
+                for answer in answers
+                if answer.get("judgment") == "correct"
+            }
+            for key, candidates in (
+                ("blind_candidates", blind),
+                ("semantic_candidates", semantic),
+            ):
+                for index, candidate in enumerate(candidates):
+                    cname = f"{name}.{key}[{index}]"
+                    candidate_name, requires_target = validate_name_formation(
+                        candidate, cname
+                    )
+                    require_condition(
+                        normalize_candidate_name(candidate_name) not in correct
+                        or requires_target,
+                        f"{cname}は正解と一致し、対象との対応知識なしに名称候補を形成できる",
+                    )
         if item["id"] != "expression.naturalness":
             referenced_ids(item, "evidence_ids", quote_ids, name)
         require_stage_completion(item, name, stage)
@@ -533,7 +676,7 @@ def main():
     except StateError as error:
         print(f"不合格: {error}", file=sys.stderr)
         return EXIT_STATE_INVALID
-    print("合格")
+    print("状態の形式と参照関係の検査に合格")
     return EXIT_OK
 
 
