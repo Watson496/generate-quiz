@@ -124,6 +124,15 @@ Agent Skillsに同梱するPythonスクリプトの回帰テストは、リポ�
 python3 tests/test_cli_contracts.py
 ```
 
+Pythonコードのlintと整形は開発用依存のRuffで確認します。lintは`ALL`を基準とし、適用しないルールは[`pyproject.toml`](pyproject.toml)に理由とともに記載します。整形する場合は、先にimportを整理します。
+
+```bash
+uv run ruff check --fix skills/generate-quiz/scripts skills/quiz-book-latex/scripts tests
+uv run ruff format skills/generate-quiz/scripts skills/quiz-book-latex/scripts tests
+```
+
+変更後は`check`と`format --check`を実行し、上記の回帰テストも通します。
+
 `tests/` は開発用で、各環境へインストール・登録するファイルには含めません。
 
 ## ライセンス

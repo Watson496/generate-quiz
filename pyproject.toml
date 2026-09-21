@@ -5,3 +5,36 @@ requires-python = ">=3.9"
 
 [tool.uv]
 package = false
+
+[dependency-groups]
+dev = ["ruff==0.16.8"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+    "ANN",     # 小規模なCLIとunittestに一律の型注釈を要求しない
+    "D",       # 全関数への定型的なdocstringを要求しない
+    "PT",      # テストはpytest形式ではなくunittestを使う
+    "RUF001", # 日本語の文字列に含まれる文字を許容する
+    "RUF002", # 日本語のdocstringに含まれる文字を許容する
+    "RUF003", # 日本語のコメントに含まれる文字を許容する
+    "COM812", # formatterと競合する
+    "E501",   # 日本語の説明文やURLはformatterでも折り返せない
+    "T201",   # CLIの標準出力にprintを使う
+    "CPY001", # 各ファイルへの著作権表記を要求しない
+    "EXE001", # Pythonで実行するファイルにshebangを許容する
+    "S311",   # 作問用の乱択は暗号用途ではない
+    "S603",   # subprocessへ固定・検査済みのコマンドを渡す
+    "PLW1510", # subprocessの終了コードを呼出し側で確認する
+]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 18
+
+[tool.ruff.lint.pylint]
+max-branches = 18
+max-statements = 60
