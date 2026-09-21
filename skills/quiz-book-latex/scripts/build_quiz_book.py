@@ -11,7 +11,7 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from enum import Enum
-from functools import lru_cache
+from functools import cache
 from pathlib import Path
 
 SECTIONS = [
@@ -238,7 +238,7 @@ def parse_quiz(path: Path, expected_number: int) -> Quiz:
     return Quiz(number, path, qa[0].group(2).strip(), qa[1].group(2).strip(), sections)
 
 
-@lru_cache(maxsize=None)
+@cache
 def pandoc_latex(markdown: str, *, inline: bool = False) -> str:
     heading_filter = Path(__file__).with_name("remove_heading_identifiers.lua")
     command = [
