@@ -329,9 +329,11 @@ class LengthCheckTest(SkillCase):
             for length in (50, 60, 100, 130):
                 r = run(skill, "length_check.py", "あ" * length)
                 got = float(
-                    [ln for ln in r.stdout.splitlines() if ln.startswith("ACCEPTANCE")][
-                        0
-                    ].split("\t")[1]
+                    next(
+                        ln
+                        for ln in r.stdout.splitlines()
+                        if ln.startswith("ACCEPTANCE")
+                    ).split("\t")[1]
                 )
                 self.assertAlmostEqual(got, density(length) / density(mode), places=4)
 
@@ -345,16 +347,16 @@ class LengthCheckTest(SkillCase):
     def test_soft_verdict_can_be_replayed_with_same_draw(self):
         for skill in self.for_each_skill():
             first = run(skill, "length_check.py", "あ" * 50)
-            draw = [ln for ln in first.stdout.splitlines() if ln.startswith("DRAW")][
-                0
-            ].split("\t")[1]
+            draw = next(
+                ln for ln in first.stdout.splitlines() if ln.startswith("DRAW")
+            ).split("\t")[1]
             replay = run(skill, "length_check.py", "--draw", draw, "あ" * 50)
-            first_verdict = [
+            first_verdict = next(
                 ln for ln in first.stdout.splitlines() if ln.startswith("VERDICT")
-            ][0]
-            replay_verdict = [
+            )
+            replay_verdict = next(
                 ln for ln in replay.stdout.splitlines() if ln.startswith("VERDICT")
-            ][0]
+            )
             self.assertEqual(replay.returncode, first.returncode)
             self.assertEqual(replay_verdict, first_verdict)
             self.assertIn(f"DRAW\t{draw}", replay.stdout)
