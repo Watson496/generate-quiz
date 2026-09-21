@@ -81,6 +81,7 @@ JSON
 作業状態のJSON manifestは、工程に応じて次のいずれかで検査する。
 
 ```bash
+python3 "$SKILL_DIR/scripts/work_state_check.py" --stage intersection-checkpoint state.json
 python3 "$SKILL_DIR/scripts/work_state_check.py" --stage selection state.json
 python3 "$SKILL_DIR/scripts/work_state_check.py" --stage generation state.json
 python3 "$SKILL_DIR/scripts/work_state_check.py" --stage audit state.json
