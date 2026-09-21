@@ -109,9 +109,9 @@ def main():
     adjusted = []
     for c, b, p in zip(cands, base, probs):
         w = b
-        for d in c.get("history_distances") or []:
+        for distance in c.get("history_distances") or []:
             try:
-                d = float(d)
+                d = float(distance)
             except (TypeError, ValueError):
                 fail(f"history_distances が数値ではありません: {c.get('key')}")
             if d <= 0:

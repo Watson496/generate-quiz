@@ -290,10 +290,11 @@ def parse_references(quiz: Quiz, body: str) -> tuple[str, list[BibEntry]]:
 def render_body(quiz: Quiz) -> tuple[str, list[BibEntry]]:
     markdown_sections = []
     bibliography = []
-    for name, body in quiz.sections:
+    for name, section_body in quiz.sections:
+        rendered_body = section_body
         if name == "裏取り情報":
-            body, bibliography = parse_references(quiz, body)
-        markdown_sections.append(f"## {name}\n\n{body}")
+            rendered_body, bibliography = parse_references(quiz, section_body)
+        markdown_sections.append(f"## {name}\n\n{rendered_body}")
     keys = ",".join(entry.key for entry in bibliography)
     rendered = pandoc_latex("\n\n".join(markdown_sections))
     rendered += f"\n\n\\subsubsection{{参考文献}}\n\\QuizReferences{{{keys}}}"

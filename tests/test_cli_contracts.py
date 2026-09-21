@@ -491,8 +491,8 @@ class SkillLayoutTest(SkillCase):
             for line in index.splitlines():
                 if not line.startswith("- FILES:"):
                     continue
-                for name in line.split(":", 1)[1].split(","):
-                    name = name.strip().strip("`").split("`")[0]
+                for part in line.split(":", 1)[1].split(","):
+                    name = part.strip().strip("`").split("`")[0]
                     if name.endswith(".md"):
                         self.assertTrue((root / name).is_file(), name)
 
