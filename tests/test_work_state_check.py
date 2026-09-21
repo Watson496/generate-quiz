@@ -2,6 +2,8 @@
 
 import copy
 import json
+import tempfile
+from pathlib import Path
 
 import pytest
 
@@ -227,6 +229,7 @@ def complete_state():
             "term_ids": ["T1"],
             "answer_ids": ["A1"],
             "output_element_ids": sorted(REQUIRED_OUTPUT_IDS),
+            "quote_ids": ["Q1"],
         },
     }
 
@@ -285,6 +288,26 @@ def exposed_precheck():
 
 
 def check_state(run_script, stage, state):
+    if stage == "final":
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "完成稿.md"
+            output.write_text(
+                "\n".join(
+                    quote["text"]
+                    for source in state["sources"]
+                    for quote in source["quotes"]
+                    if quote["id"] in state["final_input"]["quote_ids"]
+                ),
+                encoding="utf-8",
+            )
+            return run_script(
+                "work_state_check.py",
+                "--stage",
+                stage,
+                "--output",
+                output,
+                stdin=json.dumps(state, ensure_ascii=False),
+            )
     return run_script(
         "work_state_check.py",
         "--stage",
@@ -1106,6 +1129,76 @@ class TestWorkState:
         result = check_state(run_script, "audit", complete_state)
         assert result.returncode == 1
         assert "quotes.Q1.textがない" in result.stderr
+
+    def test_audit_rejects_quote_missing_from_final_input(
+        self, run_script, complete_state
+    ):
+        """採用した判断に使う引用を最終入力から落とせない。"""
+        complete_state["final_input"]["quote_ids"] = []
+        result = check_state(run_script, "audit", complete_state)
+        assert result.returncode == 1
+        assert "final_input.quote_idsが判断に用いた引用と一致しない" in result.stderr
+
+    def test_audit_rejects_unused_quote_in_final_input(
+        self, run_script, complete_state
+    ):
+        """採用した判断に使わない引用を最終入力へ加えない。"""
+        complete_state["sources"][0]["quotes"].append(
+            {"id": "Q2", "text": "不採用の記述", "location": "第二節"}
+        )
+        complete_state["final_input"]["quote_ids"].append("Q2")
+        result = check_state(run_script, "audit", complete_state)
+        assert result.returncode == 1
+        assert "final_input.quote_idsが判断に用いた引用と一致しない" in result.stderr
+
+    def test_audit_rejects_duplicate_quote_in_final_input(
+        self, run_script, complete_state
+    ):
+        """同じ引用IDを重複して最終入力へ置かない。"""
+        complete_state["final_input"]["quote_ids"].append("Q1")
+        result = check_state(run_script, "audit", complete_state)
+        assert result.returncode == 1
+        assert "final_input.quote_idsが判断に用いた引用と一致しない" in result.stderr
+
+    @pytest.mark.parametrize(
+        "key",
+        [
+            "proposition_ids",
+            "clue_ids",
+            "term_ids",
+            "answer_ids",
+            "output_element_ids",
+        ],
+    )
+    def test_audit_rejects_duplicate_final_input_id(
+        self, run_script, complete_state, key
+    ):
+        """最終入力の各ID配列で重複を認めない。"""
+        complete_state["final_input"][key].append(complete_state["final_input"][key][0])
+        result = check_state(run_script, "audit", complete_state)
+        assert result.returncode == 1
+        assert f"final_input.{key}が検査済みの現行項目と一致しない" in result.stderr
+
+    def test_audit_ignores_unchecked_clue_field(self, run_script, complete_state):
+        """手掛かりの必須検査以外の値を引用収集の対象にしない。"""
+        complete_state["clues"][0]["checks"]["note"] = "補足"
+        result = check_state(run_script, "audit", complete_state)
+        assert result.returncode == 0
+
+    def test_final_requires_quote_in_output(self, run_script, complete_state, tmp_path):
+        """採用した引用本文が完成稿にない場合は確定できない。"""
+        output = tmp_path / "完成稿.md"
+        output.write_text("引用を含まない完成稿", encoding="utf-8")
+        result = run_script(
+            "work_state_check.py",
+            "--stage",
+            "final",
+            "--output",
+            output,
+            stdin=json.dumps(complete_state, ensure_ascii=False),
+        )
+        assert result.returncode == 1
+        assert "最終出力に引用Q1がない" in result.stderr
 
     def test_audit_requires_matching_assignment(self, run_script, complete_state):
         """起動時に記録した担当者と実際の担当者の不一致を監査で拒否する。"""

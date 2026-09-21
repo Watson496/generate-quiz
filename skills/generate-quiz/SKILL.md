@@ -91,7 +91,7 @@ python3 "$SKILL_DIR/scripts/work_state_check.py" --stage discovery state.json
 python3 "$SKILL_DIR/scripts/work_state_check.py" --stage selection state.json
 python3 "$SKILL_DIR/scripts/work_state_check.py" --stage generation state.json
 python3 "$SKILL_DIR/scripts/work_state_check.py" --stage audit state.json
-python3 "$SKILL_DIR/scripts/work_state_check.py" --stage final state.json
+python3 "$SKILL_DIR/scripts/work_state_check.py" --stage final --output completed.md state.json
 ```
 
 # 最終出力
