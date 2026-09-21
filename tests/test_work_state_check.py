@@ -233,29 +233,52 @@ def complete_state():
 
 @pytest.fixture
 def exposed_precheck():
-    """代表説明から解答名を形成できる露出予備検査を作る。"""
+    """異なる代表説明から解答名を形成できる露出予備検査を作る。"""
     return {
-        "representative_descriptions": ["高いエネルギー状態へ移った粒子のようなもの"],
-        "accepted_names": ["励起子"],
+        "representative_descriptions": [
+            "腓腹筋とヒラメ筋を踵骨につなぐ腱",
+            "足首を底屈させる際に踵骨へ筋力を伝える腱",
+        ],
+        "accepted_names": ["踵骨腱"],
         "formations": [
             {
-                "name": "励起子",
-                "formation_rule": "状態名と粒子を表す接尾要素を結ぶ",
+                "name": "踵骨腱",
+                "description_index": 0,
+                "formation_rule": "付着先の骨と腱を表す語を結ぶ",
                 "components": [
                     {
-                        "form": "励起",
-                        "source": "分野の一般語",
-                        "knowledge": "general_domain",
+                        "form": "踵骨",
+                        "source": "腓腹筋とヒラメ筋を踵骨につなぐ腱",
+                        "knowledge": "surface",
                     },
                     {
-                        "form": "子",
-                        "source": "生産的な接尾要素",
-                        "knowledge": "general_domain",
+                        "form": "腱",
+                        "source": "腓腹筋とヒラメ筋を踵骨につなぐ腱",
+                        "knowledge": "surface",
                     },
                 ],
                 "formation_requires_target_association": False,
                 "standard_name_confirmation_requires_target_association": True,
-            }
+            },
+            {
+                "name": "踵骨腱",
+                "description_index": 1,
+                "formation_rule": "力を伝える先の骨と腱を表す語を結ぶ",
+                "components": [
+                    {
+                        "form": "踵骨",
+                        "source": "足首を底屈させる際に踵骨へ筋力を伝える腱",
+                        "knowledge": "surface",
+                    },
+                    {
+                        "form": "腱",
+                        "source": "足首を底屈させる際に踵骨へ筋力を伝える腱",
+                        "knowledge": "surface",
+                    },
+                ],
+                "formation_requires_target_association": False,
+                "standard_name_confirmation_requires_target_association": True,
+            },
         ],
         "status": "rejected",
     }
@@ -605,7 +628,7 @@ class TestSelectionState:
     def test_selection_rejects_exposed_eligible_candidate(
         self, run_script, selection_state, exposed_precheck
     ):
-        """代表説明から解答名を形成できる候補を採用対象にしない。"""
+        """異なる代表説明がすべて露出する候補を採用対象にしない。"""
         selection_state["candidates"][0]["exposure_precheck"] = exposed_precheck
         result = check_state(run_script, "selection", selection_state)
         assert result.returncode == 1
@@ -620,6 +643,63 @@ class TestSelectionState:
         candidate["exclusion_reason"] = "自然な代表説明から正答名を形成できる"
         candidate["exposure_precheck"] = exposed_precheck
         assert check_state(run_script, "selection", selection_state).returncode == 0
+
+    def test_precheck_requires_every_name_description_pair(
+        self, run_script, selection_state
+    ):
+        """調べた説明案と許容名称の組合せを漏らせない。"""
+        precheck = selection_state["candidates"][0]["exposure_precheck"]
+        precheck["representative_descriptions"].append("別の中心的な特徴の説明")
+        result = check_state(run_script, "selection", selection_state)
+        assert result.returncode == 1
+        assert "各説明案と正答名・別名の組合せ" in result.stderr
+
+    def test_precheck_requires_one_description_per_formation(
+        self, run_script, selection_state
+    ):
+        """名称形成の記録を複数の説明案で兼用させない。"""
+        formation = selection_state["candidates"][0]["exposure_precheck"]["formations"][
+            0
+        ]
+        formation["description_index"] = [0, 1]
+        result = check_state(run_script, "selection", selection_state)
+        assert result.returncode == 1
+        assert "description_indexが不正" in result.stderr
+
+    def test_accepted_alias_can_expose_every_description(
+        self, run_script, selection_state, exposed_precheck
+    ):
+        """代表解が露出しなくても許容別名が全案で露出すれば除外する。"""
+        exposed_precheck["accepted_names"].insert(0, "アキレス腱")
+        for index, description in enumerate(
+            exposed_precheck["representative_descriptions"]
+        ):
+            exposed_precheck["formations"].append(
+                {
+                    "name": "アキレス腱",
+                    "description_index": index,
+                    "formation_rule": "対象との既知の対応から人名由来の名称を選ぶ",
+                    "components": [
+                        {
+                            "form": "アキレス",
+                            "source": "対象との既知の対応",
+                            "knowledge": "target_association",
+                        },
+                        {
+                            "form": "腱",
+                            "source": description,
+                            "knowledge": "surface",
+                        },
+                    ],
+                    "formation_requires_target_association": True,
+                    "formation_target_association_step": "人名由来の名称要素を選ぶ",
+                    "standard_name_confirmation_requires_target_association": True,
+                }
+            )
+        selection_state["candidates"][0]["exposure_precheck"] = exposed_precheck
+        result = check_state(run_script, "selection", selection_state)
+        assert result.returncode == 1
+        assert "選択対象にできない" in result.stderr
 
     def test_selection_rejects_confirmation_knowledge_as_formation_knowledge(
         self, run_script, selection_state
@@ -637,46 +717,58 @@ class TestSelectionState:
         ]
         assert check_state(run_script, "selection", selection_state).returncode == 1
 
-    @pytest.mark.parametrize(
-        ("description", "answer", "parts"),
-        [
-            (
-                "土地の区画を整理する事業",
-                "土地区画整理事業",
-                ("土地", "区画", "整理", "事業"),
-            ),
-            (
-                "市街地を再開発する事業",
-                "市街地再開発事業",
-                ("市街地", "再開発", "事業"),
-            ),
-        ],
-    )
-    def test_selection_rejects_transparent_public_project_names(
-        self, run_script, selection_state, description, answer, parts
+    def test_selection_keeps_public_project_with_alternative_description(
+        self, run_script, selection_state
     ):
-        """代表説明から名称を形成できる制度候補を拒否する。"""
+        """説明案ごとに露出が異なる制度候補は予備検査だけでは除外しない。"""
         precheck = selection_state["candidates"][0]["exposure_precheck"]
+        exposed_description = "土地の区画を整理する事業"
+        alternative_description = (
+            "土地所有者が減歩で公共施設用地を出し、換地を受ける都市整備事業"
+        )
+        answer = "土地区画整理事業"
         precheck.update(
-            representative_descriptions=[description],
+            representative_descriptions=[exposed_description, alternative_description],
             accepted_names=[answer],
             formations=[
                 {
                     "name": answer,
+                    "description_index": 0,
                     "formation_rule": "説明にある一般語を複合する",
                     "components": [
                         {
                             "form": part,
-                            "source": description,
+                            "source": exposed_description,
                             "knowledge": "general_language",
                         }
-                        for part in parts
+                        for part in ("土地", "区画", "整理", "事業")
                     ],
                     "formation_requires_target_association": False,
                     "standard_name_confirmation_requires_target_association": True,
-                }
+                },
+                {
+                    "name": answer,
+                    "description_index": 1,
+                    "formation_rule": "説明と対象の対応から名称を選ぶ",
+                    "components": [
+                        {
+                            "form": answer,
+                            "source": alternative_description,
+                            "knowledge": "target_association",
+                        }
+                    ],
+                    "formation_requires_target_association": True,
+                    "formation_target_association_step": "名称を選ぶ",
+                    "standard_name_confirmation_requires_target_association": True,
+                },
             ],
             status="passed",
+        )
+        assert check_state(run_script, "selection", selection_state).returncode == 0
+        selection_state["candidates"][0].update(
+            disposition="excluded",
+            exclusion_code="unavoidable_exposure",
+            exclusion_reason="第1案では名称を形成できる",
         )
         assert check_state(run_script, "selection", selection_state).returncode == 1
 

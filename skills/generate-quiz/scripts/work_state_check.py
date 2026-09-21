@@ -66,6 +66,7 @@ MIN_COVERAGE_AREAS = 2
 MIN_EXPRESSION_ALTERNATIVES = 2
 MIN_INTERSECTION_EXAMPLES = 2
 MIN_CANDIDATE_NAME_LENGTH = 2
+MIN_EXPOSURE_DESCRIPTIONS = 2
 EXIT_OK, EXIT_STATE_INVALID, EXIT_USAGE = 0, 1, 2
 
 
@@ -199,6 +200,11 @@ def validate_exposure_precheck(item, name):
                 isinstance(value, str) and value.strip(),
                 f"{check_name}.{key}[{index}]がない",
             )
+    descriptions = precheck["representative_descriptions"]
+    require_condition(
+        len(descriptions) == len(set(descriptions)),
+        f"{check_name}.representative_descriptionsに同じ説明が重複している",
+    )
     accepted_names = {
         normalize_candidate_name(value) for value in precheck["accepted_names"]
     }
@@ -207,31 +213,45 @@ def validate_exposure_precheck(item, name):
         f"{check_name}.formations",
         nonempty=True,
     )
-    exposed = False
-    formation_names = []
+    examined = set()
+    exposed_descriptions = set()
     for index, formation in enumerate(formations):
         candidate_name, requires_target = validate_name_formation(
             formation, f"{check_name}.formations[{index}]"
         )
-        formation_names.append(normalize_candidate_name(candidate_name))
-        if (
-            normalize_candidate_name(candidate_name) in accepted_names
-            and not requires_target
-        ):
-            exposed = True
+        formation_name = f"{check_name}.formations[{index}]"
+        position = formation.get("description_index")
+        require_condition(
+            type(position) is int and 0 <= position < len(descriptions),
+            f"{formation_name}.description_indexが不正である",
+        )
+        normalized_name = normalize_candidate_name(candidate_name)
+        if normalized_name in accepted_names:
+            pair = (normalized_name, position)
+            require_condition(
+                pair not in examined,
+                f"{check_name}.formationsで同じ名称と説明の組合せが重複している",
+            )
+            examined.add(pair)
+            if not requires_target:
+                exposed_descriptions.add(position)
     require_condition(
-        len(formation_names) == len(set(formation_names)),
-        f"{check_name}.formationsに同じ名称が重複している",
+        {
+            (candidate_name, position)
+            for candidate_name in accepted_names
+            for position in range(len(descriptions))
+        }
+        <= examined,
+        f"{check_name}で各説明案と正答名・別名の組合せを分析していない",
     )
+    unavoidable = len(descriptions) >= MIN_EXPOSURE_DESCRIPTIONS and len(
+        exposed_descriptions
+    ) == len(descriptions)
     require_condition(
-        accepted_names <= set(formation_names),
-        f"{check_name}.accepted_namesの全名称を分析していない",
-    )
-    require_condition(
-        precheck.get("status") == ("rejected" if exposed else "passed"),
+        precheck.get("status") == ("rejected" if unavoidable else "passed"),
         f"{check_name}.statusが名称形成の分析と一致しない",
     )
-    return exposed
+    return unavoidable
 
 
 def validate_intersection_state(state):
