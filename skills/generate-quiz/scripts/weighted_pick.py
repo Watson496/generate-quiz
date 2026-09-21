@@ -28,10 +28,12 @@
     echo '{"candidates":[...]}' | python3 weighted_pick.py
     python3 weighted_pick.py --json cand.json --exclude subject::7
 """
+
 import argparse
 import json
 import random
 import sys
+from pathlib import Path
 
 EXIT_OK, EXIT_USAGE = 0, 2
 
@@ -44,8 +46,7 @@ def fail(message):
 def load_input(path):
     if path:
         try:
-            with open(path, encoding="utf-8") as f:
-                raw = f.read()
+            raw = Path(path).read_text(encoding="utf-8")
         except OSError as exc:
             fail(f"候補JSONを読めません: {path}: {exc}")
     else:
@@ -59,10 +60,7 @@ def load_input(path):
 
 
 def candidates_of(payload):
-    if isinstance(payload, dict):
-        cands = payload.get("candidates")
-    else:
-        cands = payload
+    cands = payload.get("candidates") if isinstance(payload, dict) else payload
     if not isinstance(cands, list):
         fail('入力は {"candidates": [...]} か候補の配列である必要があります。')
     for c in cands:
@@ -76,9 +74,13 @@ def main():
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
     ap.add_argument("--json", metavar="PATH", help="候補JSONファイル（省略時はstdin）")
-    ap.add_argument("--verbose", action="store_true", help="補正後weightの内訳も出す（内部用）")
     ap.add_argument(
-        "--exclude", action="append", default=[],
+        "--verbose", action="store_true", help="補正後weightの内訳も出す（内部用）"
+    )
+    ap.add_argument(
+        "--exclude",
+        action="append",
+        default=[],
         help="品質ゲートで落ちた候補のkeyを除いて再抽選する（複数指定可）",
     )
     args = ap.parse_args()
@@ -107,9 +109,9 @@ def main():
     adjusted = []
     for c, b, p in zip(cands, base, probs):
         w = b
-        for d in c.get("history_distances") or []:
+        for distance in c.get("history_distances") or []:
             try:
-                d = float(d)
+                d = float(distance)
             except (TypeError, ValueError):
                 fail(f"history_distances が数値ではありません: {c.get('key')}")
             if d <= 0:

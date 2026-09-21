@@ -11,11 +11,19 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from enum import Enum
-from functools import lru_cache
+from functools import cache
 from pathlib import Path
 
-
-SECTIONS = ["補足", "別解", "正誤判定基準", "題材選択", "難易度評価", "問題成立性の確認", "裏取り情報"]
+SECTIONS = [
+    "補足",
+    "別解",
+    "正誤判定基準",
+    "題材選択",
+    "難易度評価",
+    "問題成立性の確認",
+    "裏取り情報",
+]
+MIN_REFERENCE_LINES = 2
 HEADING_RE = re.compile(r"^## ([^#].*?)\s*$", re.MULTILINE)
 TITLE_RE = re.compile(r"\A\s*# 第(\d+)問\s*$", re.MULTILINE)
 QA_RE = re.compile(r"^(問題|解答)：(.+)$", re.MULTILINE)
@@ -202,7 +210,8 @@ def parse_quiz(path: Path, expected_number: int) -> Quiz:
     except ValueError as error:
         raise QuizFormatError.invalid_title_number(path.name) from error
     prefix_match = PREFIX_RE.match(path.name)
-    assert prefix_match is not None
+    if prefix_match is None:
+        raise QuizFileError.invalid_filename_number(path.name)
     prefix = int(prefix_match.group(1))
     if number != prefix or number != expected_number:
         raise QuizFormatError.inconsistent_number(
@@ -231,7 +240,7 @@ def parse_quiz(path: Path, expected_number: int) -> Quiz:
     return Quiz(number, path, qa[0].group(2).strip(), qa[1].group(2).strip(), sections)
 
 
-@lru_cache(maxsize=None)
+@cache
 def pandoc_latex(markdown: str, *, inline: bool = False) -> str:
     heading_filter = Path(__file__).with_name("remove_heading_identifiers.lua")
     command = [
@@ -267,7 +276,7 @@ def parse_references(quiz: Quiz, body: str) -> tuple[str, list[BibEntry]]:
     entries = []
     for index, block in enumerate(blocks, 1):
         lines = [line.strip() for line in block.splitlines() if line.strip()]
-        if len(lines) < 2 or not URL_RE.fullmatch(lines[-1]):
+        if len(lines) < MIN_REFERENCE_LINES or not URL_RE.fullmatch(lines[-1]):
             raise QuizFormatError.invalid_reference(quiz.source.name, index)
         description = "\n".join(lines[:-1])
         entries.append(
@@ -283,10 +292,11 @@ def parse_references(quiz: Quiz, body: str) -> tuple[str, list[BibEntry]]:
 def render_body(quiz: Quiz) -> tuple[str, list[BibEntry]]:
     markdown_sections = []
     bibliography = []
-    for name, body in quiz.sections:
+    for name, section_body in quiz.sections:
+        rendered_body = section_body
         if name == "裏取り情報":
-            body, bibliography = parse_references(quiz, body)
-        markdown_sections.append(f"## {name}\n\n{body}")
+            rendered_body, bibliography = parse_references(quiz, section_body)
+        markdown_sections.append(f"## {name}\n\n{rendered_body}")
     keys = ",".join(entry.key for entry in bibliography)
     rendered = pandoc_latex("\n\n".join(markdown_sections))
     rendered += f"\n\n\\subsubsection{{参考文献}}\n\\QuizReferences{{{keys}}}"
@@ -321,13 +331,15 @@ def write_generated(output_dir: Path, quizzes: list[Quiz]) -> None:
     for quiz in quizzes:
         question = pandoc_latex(quiz.question_md, inline=True)
         answer = pandoc_latex(quiz.answer_md, inline=True)
-        rows.extend([
-            f"\\phantomsection\\label{{question:{quiz.number}}}{quiz.number}",
-            f"& {question}",
-            f"& {answer}",
-            f"& \\hyperref[explanation:{quiz.number}]{{p.~\\pageref*{{explanation:{quiz.number}}}}} \\\\",
-            "\\addlinespace[0.6em]",
-        ])
+        rows.extend(
+            [
+                f"\\phantomsection\\label{{question:{quiz.number}}}{quiz.number}",
+                f"& {question}",
+                f"& {answer}",
+                f"& \\hyperref[explanation:{quiz.number}]{{p.~\\pageref*{{explanation:{quiz.number}}}}} \\\\",
+                "\\addlinespace[0.6em]",
+            ]
+        )
         filename = f"{quiz.number:02d}.tex"
         body, quiz_bibliography = render_body(quiz)
         bibliography.extend(quiz_bibliography)
@@ -340,21 +352,29 @@ def write_generated(output_dir: Path, quizzes: list[Quiz]) -> None:
         (explanations_dir / filename).write_text(explanation, encoding="utf-8")
         includes.append(f"\\input{{contents/explanations/{quiz.number:02d}}}")
     rows.append("\\end{longtable}")
-    (contents / "question-list.tex").write_text("\n".join(rows) + "\n", encoding="utf-8")
-    (contents / "explanations.tex").write_text("\n".join(includes) + "\n", encoding="utf-8")
+    (contents / "question-list.tex").write_text(
+        "\n".join(rows) + "\n", encoding="utf-8"
+    )
+    (contents / "explanations.tex").write_text(
+        "\n".join(includes) + "\n", encoding="utf-8"
+    )
     bib_lines = ["% クイズMarkdownから自動生成。直接編集しないこと。", ""]
     for entry in bibliography:
-        bib_lines.extend([
-            f"@misc{{{entry.key},",
-            f"  note = {{{{{entry.note_latex}}}}},",
-            f"  url = {{{entry.url}}},",
-            "}",
-            "",
-        ])
-    (output_dir / "resources" / "references.bib").write_text("\n".join(bib_lines), encoding="utf-8")
+        bib_lines.extend(
+            [
+                f"@misc{{{entry.key},",
+                f"  note = {{{{{entry.note_latex}}}}},",
+                f"  url = {{{entry.url}}},",
+                "}",
+                "",
+            ]
+        )
+    (output_dir / "resources" / "references.bib").write_text(
+        "\n".join(bib_lines), encoding="utf-8"
+    )
 
 
-def prepare_output(template: Path, output: Path, update: bool) -> None:
+def prepare_output(template: Path, output: Path, *, update: bool) -> None:
     if output.exists() and any(output.iterdir()) and not update:
         raise PathError.output_not_empty(output)
     output.mkdir(parents=True, exist_ok=True)
@@ -381,9 +401,12 @@ def main() -> int:
             command_path("latexmk")
             command_path("lualatex")
             command_path("biber")
-        quizzes = [parse_quiz(path, index) for index, path in enumerate(quiz_files(input_dir), 1)]
+        quizzes = [
+            parse_quiz(path, index)
+            for index, path in enumerate(quiz_files(input_dir), 1)
+        ]
         template = Path(__file__).resolve().parents[1] / "assets" / "template"
-        prepare_output(template, output_dir, args.update)
+        prepare_output(template, output_dir, update=args.update)
         write_generated(output_dir, quizzes)
         if not args.no_compile:
             for suffix in ["aux", "fdb_latexmk", "fls", "log", "out", "toc"]:
@@ -397,7 +420,12 @@ def main() -> int:
             build_env["TEXMFCACHE"] = str(tex_cache)
             try:
                 result = subprocess.run(
-                    [command_path("latexmk"), "-g", "-interaction=nonstopmode", "main.tex"],
+                    [
+                        command_path("latexmk"),
+                        "-g",
+                        "-interaction=nonstopmode",
+                        "main.tex",
+                    ],
                     cwd=output_dir,
                     env=build_env,
                     text=True,
@@ -408,15 +436,17 @@ def main() -> int:
                     ExternalCommand.LATEXMK, error
                 ) from error
             if result.returncode:
-                raise ExternalToolError.execution_failed(ExternalCommand.LATEXMK, result)
+                raise ExternalToolError.execution_failed(
+                    ExternalCommand.LATEXMK, result
+                )
         print(f"{len(quizzes)}問の問題集を生成しました: {output_dir}")
-        return 0
     except QuizBookError as error:
         print(f"error: {error}", file=sys.stderr)
         return 2
     except OSError as error:
         print(f"error: ファイル操作に失敗しました: {error}", file=sys.stderr)
         return 2
+    return 0
 
 
 if __name__ == "__main__":

@@ -14,6 +14,7 @@
     1  該当なし（カタログにないノードを推測して作らないこと）
     2  引数・カタログの不備（references が読めない、キー未指定など）
 """
+
 import argparse
 import re
 import sys
@@ -59,7 +60,7 @@ def find_block(key):
         for i, line in enumerate(lines):
             if header.match(line):
                 out = [line]
-                for line2 in lines[i + 1:]:
+                for line2 in lines[i + 1 :]:
                     out.append(line2)
                     if END_RE.match(line2):
                         return path, out
@@ -92,8 +93,12 @@ def main():
     ap.add_argument(
         "key", nargs="?", help='NODE_KEY（例: subject::7, place::(1/9), time::"0/2"）'
     )
-    ap.add_argument("--grep", metavar="TEXT", help="ラベル部分一致で NODE_KEY を検索する")
-    ap.add_argument("--children", action="store_true", help="DIRECT_CHILDREN の行だけを出す")
+    ap.add_argument(
+        "--grep", metavar="TEXT", help="ラベル部分一致で NODE_KEY を検索する"
+    )
+    ap.add_argument(
+        "--children", action="store_true", help="DIRECT_CHILDREN の行だけを出す"
+    )
     ap.add_argument("--limit", type=int, default=40, help="--grep の最大件数（既定40）")
     args = ap.parse_args()
 
@@ -116,7 +121,10 @@ def main():
     path, block = find_block(args.key)
     if block is None:
         print(f"NODE_KEY が見つかりません: {args.key}", file=sys.stderr)
-        print("カタログにないノードを推測して作らないこと。--grep でラベル検索するか、親ブロックの DIRECT_CHILDREN を確認する。", file=sys.stderr)
+        print(
+            "カタログにないノードを推測して作らないこと。--grep でラベル検索するか、親ブロックの DIRECT_CHILDREN を確認する。",
+            file=sys.stderr,
+        )
         return EXIT_NOT_FOUND
 
     if args.children:
