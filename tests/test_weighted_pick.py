@@ -1,8 +1,62 @@
-"""weighted_pick.pyのCLI動作を検査する。"""
+"""weighted_pick.pyの入力処理・重み計算・CLI動作を検査する。"""
 
+import io
 import json
+import sys
 
 import pytest
+
+
+@pytest.fixture
+def weighted_module(load_script):
+    return load_script("generate-quiz", "weighted_pick.py")
+
+
+class TestWeightedPickFunctions:
+    def test_load_input_from_file(self, weighted_module, tmp_path):
+        source = tmp_path / "candidates.json"
+        source.write_text('{"candidates": [{"key": "a"}]}', encoding="utf-8")
+        assert weighted_module.load_input(source) == {"candidates": [{"key": "a"}]}
+
+    def test_load_input_from_stdin(self, weighted_module, monkeypatch):
+        monkeypatch.setattr(sys, "stdin", io.StringIO('[{"key": "a"}]'))
+        assert weighted_module.load_input(None) == [{"key": "a"}]
+
+    @pytest.mark.parametrize("payload", [{"candidates": "bad"}, [{"label": "欠落"}]])
+    def test_candidates_of_rejects_invalid_payload(self, weighted_module, payload):
+        with pytest.raises(SystemExit) as error:
+            weighted_module.candidates_of(payload)
+        assert error.value.code == weighted_module.EXIT_USAGE
+
+    def test_candidates_of_accepts_object_and_array(self, weighted_module):
+        candidates = [{"key": "a"}]
+        assert weighted_module.candidates_of({"candidates": candidates}) == candidates
+        assert weighted_module.candidates_of(candidates) == candidates
+
+    def test_weights_for_applies_history_to_each_candidate(self, weighted_module):
+        candidates = [
+            {"key": "a", "base_weight": 3, "history_distances": [1, 6]},
+            {"key": "b", "base_weight": 2},
+        ]
+        base, probabilities, adjusted, total = weighted_module.weights_for(candidates)
+        assert base == [3, 2]
+        assert probabilities == pytest.approx([0.6, 0.4])
+        assert adjusted == pytest.approx([1.8, 2])
+        assert total == pytest.approx(3.8)
+
+    @pytest.mark.parametrize(
+        "candidates",
+        [
+            [{"key": "a", "base_weight": 0}],
+            [{"key": "a", "base_weight": -1}],
+            [{"key": "a", "base_weight": "不正"}],
+            [{"key": "a", "base_weight": 1, "history_distances": [0]}],
+        ],
+    )
+    def test_weights_for_rejects_invalid_values(self, weighted_module, candidates):
+        with pytest.raises(SystemExit) as error:
+            weighted_module.weights_for(candidates)
+        assert error.value.code == weighted_module.EXIT_USAGE
 
 
 class TestWeightedPick:

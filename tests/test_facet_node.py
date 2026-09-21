@@ -1,4 +1,58 @@
-"""facet_node.pyのCLI動作を検査する。"""
+"""facet_node.pyのカタログ検索とCLI動作を検査する。"""
+
+import pytest
+
+
+@pytest.fixture
+def facet_module(load_script):
+    return load_script("generate-quiz", "facet_node.py")
+
+
+class TestFacetNodeFunctions:
+    def test_ref_files_places_index_first(self, facet_module, monkeypatch, tmp_path):
+        (tmp_path / "facet_subject.md").touch()
+        (tmp_path / "facet_index.md").touch()
+        (tmp_path / "other.md").touch()
+        monkeypatch.setattr(facet_module, "REF_DIR", tmp_path)
+        assert [path.name for path in facet_module.ref_files()] == [
+            "facet_index.md",
+            "facet_subject.md",
+        ]
+
+    def test_find_block_stops_at_terminator(self, facet_module, monkeypatch, tmp_path):
+        source = tmp_path / "facet_subject.md"
+        source.write_text(
+            "## FACET_NODE `subject::1`\n内容\n<!-- END_FACET_NODE -->\n"
+            "## FACET_NODE `subject::2`\n別内容\n<!-- END_FACET_NODE -->\n",
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(facet_module, "REF_DIR", tmp_path)
+        path, block = facet_module.find_block("subject::1")
+        assert path == source
+        assert block == [
+            "## FACET_NODE `subject::1`",
+            "内容",
+            "<!-- END_FACET_NODE -->",
+        ]
+        assert facet_module.find_block("subject::3") == (None, None)
+
+    def test_grep_labels_normalizes_and_deduplicates(
+        self, facet_module, monkeypatch, tmp_path
+    ):
+        (tmp_path / "facet_subject.md").write_text(
+            "- `subject::1` | CODE `1` | ガキ\n"
+            "- `subject::1` | CODE `1` | ガキ\n"
+            "- `subject::2` | CODE `2` | ガキ\n",
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(facet_module, "REF_DIR", tmp_path)
+        assert facet_module.grep_labels("ガ", 1) == [
+            ("subject::1", "1", "ガキ", "facet_subject.md")
+        ]
+        assert [hit[0] for hit in facet_module.grep_labels("ガ", 10)] == [
+            "subject::1",
+            "subject::2",
+        ]
 
 
 class TestFacetNode:

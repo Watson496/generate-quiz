@@ -1,8 +1,36 @@
-"""length_check.pyのCLI動作を検査する。"""
+"""length_check.pyの計算とCLI動作を検査する。"""
 
 import math
 
 import pytest
+
+
+@pytest.fixture
+def length_module(load_script):
+    return load_script("generate-quiz", "length_check.py")
+
+
+class TestLengthCheckFunctions:
+    @pytest.mark.parametrize(
+        ("text", "expected"),
+        [
+            ("問題：が\nき", "がき"),
+            ("問題:  あ \r\n い ", "あ  い"),
+            ("  あ\nい  ", "あい"),
+            ("あ  い", "あ  い"),
+        ],
+    )
+    def test_normalize(self, length_module, text, expected):
+        assert length_module.normalize(text) == expected
+
+    def test_acceptance_at_mode_and_invalid_length(self, length_module):
+        assert length_module.acceptance(80, 80) == pytest.approx(1)
+        assert length_module.acceptance(0, 80) == 0
+        assert length_module.acceptance(-1, 80) == 0
+
+    def test_acceptance_uses_requested_mode(self, length_module):
+        assert length_module.acceptance(100, 100) == pytest.approx(1)
+        assert length_module.acceptance(80, 100) < 1
 
 
 class TestLengthCheck:

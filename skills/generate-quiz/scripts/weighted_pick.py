@@ -69,27 +69,7 @@ def candidates_of(payload):
     return cands
 
 
-def main():
-    ap = argparse.ArgumentParser(
-        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
-    )
-    ap.add_argument("--json", metavar="PATH", help="候補JSONファイル（省略時はstdin）")
-    ap.add_argument(
-        "--verbose", action="store_true", help="補正後weightの内訳も出す（内部用）"
-    )
-    ap.add_argument(
-        "--exclude",
-        action="append",
-        default=[],
-        help="品質ゲートで落ちた候補のkeyを除いて再抽選する（複数指定可）",
-    )
-    args = ap.parse_args()
-
-    cands = candidates_of(load_input(args.json))
-    cands = [c for c in cands if c.get("key") not in args.exclude]
-    if not cands:
-        fail("候補が残っていません。ファセット領域か候補探索を見直してください。")
-
+def weights_for(cands):
     base = []
     for c in cands:
         try:
@@ -123,6 +103,32 @@ def main():
     if w_total <= 0:
         # 全候補が履歴で潰れた場合は補正なしの基礎weightへ戻す
         adjusted, w_total = base, total
+
+    return base, probs, adjusted, w_total
+
+
+def main():
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    ap.add_argument("--json", metavar="PATH", help="候補JSONファイル（省略時はstdin）")
+    ap.add_argument(
+        "--verbose", action="store_true", help="補正後weightの内訳も出す（内部用）"
+    )
+    ap.add_argument(
+        "--exclude",
+        action="append",
+        default=[],
+        help="品質ゲートで落ちた候補のkeyを除いて再抽選する（複数指定可）",
+    )
+    args = ap.parse_args()
+
+    cands = candidates_of(load_input(args.json))
+    cands = [c for c in cands if c.get("key") not in args.exclude]
+    if not cands:
+        fail("候補が残っていません。ファセット領域か候補探索を見直してください。")
+
+    base, probs, adjusted, w_total = weights_for(cands)
 
     chosen = random.choices(cands, weights=adjusted, k=1)[0]
 
