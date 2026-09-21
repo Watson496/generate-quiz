@@ -28,6 +28,7 @@
     echo '{"candidates":[...]}' | python3 weighted_pick.py
     python3 weighted_pick.py --json cand.json --exclude subject::7
 """
+
 import argparse
 import json
 import random
@@ -76,9 +77,13 @@ def main():
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
     ap.add_argument("--json", metavar="PATH", help="候補JSONファイル（省略時はstdin）")
-    ap.add_argument("--verbose", action="store_true", help="補正後weightの内訳も出す（内部用）")
     ap.add_argument(
-        "--exclude", action="append", default=[],
+        "--verbose", action="store_true", help="補正後weightの内訳も出す（内部用）"
+    )
+    ap.add_argument(
+        "--exclude",
+        action="append",
+        default=[],
         help="品質ゲートで落ちた候補のkeyを除いて再抽選する（複数指定可）",
     )
     args = ap.parse_args()

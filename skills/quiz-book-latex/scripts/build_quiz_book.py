@@ -14,8 +14,15 @@ from enum import Enum
 from functools import lru_cache
 from pathlib import Path
 
-
-SECTIONS = ["補足", "別解", "正誤判定基準", "題材選択", "難易度評価", "問題成立性の確認", "裏取り情報"]
+SECTIONS = [
+    "補足",
+    "別解",
+    "正誤判定基準",
+    "題材選択",
+    "難易度評価",
+    "問題成立性の確認",
+    "裏取り情報",
+]
 HEADING_RE = re.compile(r"^## ([^#].*?)\s*$", re.MULTILINE)
 TITLE_RE = re.compile(r"\A\s*# 第(\d+)問\s*$", re.MULTILINE)
 QA_RE = re.compile(r"^(問題|解答)：(.+)$", re.MULTILINE)
@@ -321,13 +328,15 @@ def write_generated(output_dir: Path, quizzes: list[Quiz]) -> None:
     for quiz in quizzes:
         question = pandoc_latex(quiz.question_md, inline=True)
         answer = pandoc_latex(quiz.answer_md, inline=True)
-        rows.extend([
-            f"\\phantomsection\\label{{question:{quiz.number}}}{quiz.number}",
-            f"& {question}",
-            f"& {answer}",
-            f"& \\hyperref[explanation:{quiz.number}]{{p.~\\pageref*{{explanation:{quiz.number}}}}} \\\\",
-            "\\addlinespace[0.6em]",
-        ])
+        rows.extend(
+            [
+                f"\\phantomsection\\label{{question:{quiz.number}}}{quiz.number}",
+                f"& {question}",
+                f"& {answer}",
+                f"& \\hyperref[explanation:{quiz.number}]{{p.~\\pageref*{{explanation:{quiz.number}}}}} \\\\",
+                "\\addlinespace[0.6em]",
+            ]
+        )
         filename = f"{quiz.number:02d}.tex"
         body, quiz_bibliography = render_body(quiz)
         bibliography.extend(quiz_bibliography)
@@ -340,18 +349,26 @@ def write_generated(output_dir: Path, quizzes: list[Quiz]) -> None:
         (explanations_dir / filename).write_text(explanation, encoding="utf-8")
         includes.append(f"\\input{{contents/explanations/{quiz.number:02d}}}")
     rows.append("\\end{longtable}")
-    (contents / "question-list.tex").write_text("\n".join(rows) + "\n", encoding="utf-8")
-    (contents / "explanations.tex").write_text("\n".join(includes) + "\n", encoding="utf-8")
+    (contents / "question-list.tex").write_text(
+        "\n".join(rows) + "\n", encoding="utf-8"
+    )
+    (contents / "explanations.tex").write_text(
+        "\n".join(includes) + "\n", encoding="utf-8"
+    )
     bib_lines = ["% クイズMarkdownから自動生成。直接編集しないこと。", ""]
     for entry in bibliography:
-        bib_lines.extend([
-            f"@misc{{{entry.key},",
-            f"  note = {{{{{entry.note_latex}}}}},",
-            f"  url = {{{entry.url}}},",
-            "}",
-            "",
-        ])
-    (output_dir / "resources" / "references.bib").write_text("\n".join(bib_lines), encoding="utf-8")
+        bib_lines.extend(
+            [
+                f"@misc{{{entry.key},",
+                f"  note = {{{{{entry.note_latex}}}}},",
+                f"  url = {{{entry.url}}},",
+                "}",
+                "",
+            ]
+        )
+    (output_dir / "resources" / "references.bib").write_text(
+        "\n".join(bib_lines), encoding="utf-8"
+    )
 
 
 def prepare_output(template: Path, output: Path, update: bool) -> None:
@@ -381,7 +398,10 @@ def main() -> int:
             command_path("latexmk")
             command_path("lualatex")
             command_path("biber")
-        quizzes = [parse_quiz(path, index) for index, path in enumerate(quiz_files(input_dir), 1)]
+        quizzes = [
+            parse_quiz(path, index)
+            for index, path in enumerate(quiz_files(input_dir), 1)
+        ]
         template = Path(__file__).resolve().parents[1] / "assets" / "template"
         prepare_output(template, output_dir, args.update)
         write_generated(output_dir, quizzes)
@@ -397,7 +417,12 @@ def main() -> int:
             build_env["TEXMFCACHE"] = str(tex_cache)
             try:
                 result = subprocess.run(
-                    [command_path("latexmk"), "-g", "-interaction=nonstopmode", "main.tex"],
+                    [
+                        command_path("latexmk"),
+                        "-g",
+                        "-interaction=nonstopmode",
+                        "main.tex",
+                    ],
                     cwd=output_dir,
                     env=build_env,
                     text=True,
@@ -408,7 +433,9 @@ def main() -> int:
                     ExternalCommand.LATEXMK, error
                 ) from error
             if result.returncode:
-                raise ExternalToolError.execution_failed(ExternalCommand.LATEXMK, result)
+                raise ExternalToolError.execution_failed(
+                    ExternalCommand.LATEXMK, result
+                )
         print(f"{len(quizzes)}問の問題集を生成しました: {output_dir}")
         return 0
     except QuizBookError as error:

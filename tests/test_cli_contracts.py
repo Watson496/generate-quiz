@@ -24,9 +24,14 @@ SKILLS = ("generate-quiz",)
 
 def run(skill, script, *args, stdin=None):
     return subprocess.run(
-        [sys.executable, str(REPO / "skills" / skill / "scripts" / script),
-         *[str(a) for a in args]],
-        input=stdin, capture_output=True, text=True,
+        [
+            sys.executable,
+            str(REPO / "skills" / skill / "scripts" / script),
+            *[str(a) for a in args],
+        ],
+        input=stdin,
+        capture_output=True,
+        text=True,
     )
 
 
@@ -119,7 +124,11 @@ class FacetNodeTest(SkillCase):
     def test_zero_limit_exits_2(self):
         for skill in self.for_each_skill():
             self.assertEqual(
-                run(skill, "facet_node.py", "--grep", "音楽", "--limit", "0").returncode, 2)
+                run(
+                    skill, "facet_node.py", "--grep", "音楽", "--limit", "0"
+                ).returncode,
+                2,
+            )
 
 
 class WeightedPickTest(SkillCase):
@@ -138,8 +147,9 @@ class WeightedPickTest(SkillCase):
 
     def test_zero_weight_candidate_is_never_chosen(self):
         # weightが0なのは不成立の候補なので、抽選されてはならない
-        p = self.payload({"key": "live", "base_weight": 1.0},
-                         {"key": "dead", "base_weight": 0.0})
+        p = self.payload(
+            {"key": "live", "base_weight": 1.0}, {"key": "dead", "base_weight": 0.0}
+        )
         for skill in self.for_each_skill():
             for _ in range(30):
                 r = run(skill, "weighted_pick.py", stdin=p)
@@ -147,8 +157,10 @@ class WeightedPickTest(SkillCase):
                 self.assertIn("CHOSEN\tlive", r.stdout)
 
     def test_internals_are_not_printed_by_default(self):
-        p = self.payload({"key": "a", "base_weight": 2.0, "history_distances": [1]},
-                         {"key": "b", "base_weight": 1.0})
+        p = self.payload(
+            {"key": "a", "base_weight": 2.0, "history_distances": [1]},
+            {"key": "b", "base_weight": 1.0},
+        )
         for skill in self.for_each_skill():
             r = run(skill, "weighted_pick.py", stdin=p)
             self.assertEqual(len(r.stdout.strip().splitlines()), 1)
@@ -157,8 +169,10 @@ class WeightedPickTest(SkillCase):
             self.assertEqual(r.stderr, "")
 
     def test_verbose_breakdown_goes_to_stderr_only(self):
-        p = self.payload({"key": "a", "base_weight": 2.0, "history_distances": [1]},
-                         {"key": "b", "base_weight": 1.0})
+        p = self.payload(
+            {"key": "a", "base_weight": 2.0, "history_distances": [1]},
+            {"key": "b", "base_weight": 1.0},
+        )
         for skill in self.for_each_skill():
             r = run(skill, "weighted_pick.py", "--verbose", stdin=p)
             self.assertEqual(r.returncode, 0)
@@ -167,9 +181,11 @@ class WeightedPickTest(SkillCase):
 
     def test_history_correction_matches_spec_formula(self):
         # w_j = b_j * Π min(1, d * p_j) が --verbose の内訳と一致するかを見る
-        cands = [{"key": "a", "base_weight": 3.0, "history_distances": [1, 6]},
-                 {"key": "b", "base_weight": 2.0},
-                 {"key": "c", "base_weight": 2.5}]
+        cands = [
+            {"key": "a", "base_weight": 3.0, "history_distances": [1, 6]},
+            {"key": "b", "base_weight": 2.0},
+            {"key": "c", "base_weight": 2.5},
+        ]
         base = [3.0, 2.0, 2.5]
         total = sum(base)
         expected = []
@@ -181,8 +197,12 @@ class WeightedPickTest(SkillCase):
         exp_final = [w / sum(expected) for w in expected]
 
         for skill in self.for_each_skill():
-            r = run(skill, "weighted_pick.py", "--verbose",
-                    stdin=json.dumps({"candidates": cands}))
+            r = run(
+                skill,
+                "weighted_pick.py",
+                "--verbose",
+                stdin=json.dumps({"candidates": cands}),
+            )
             self.assertEqual(r.returncode, 0)
             got = {}
             for line in r.stderr.splitlines():
@@ -194,8 +214,9 @@ class WeightedPickTest(SkillCase):
                 self.assertAlmostEqual(got[c["key"]], exp, places=4)
 
     def test_exclude_removes_candidate(self):
-        p = self.payload({"key": "a", "base_weight": 1.0},
-                         {"key": "b", "base_weight": 1.0})
+        p = self.payload(
+            {"key": "a", "base_weight": 1.0}, {"key": "b", "base_weight": 1.0}
+        )
         for skill in self.for_each_skill():
             for _ in range(20):
                 r = run(skill, "weighted_pick.py", "--exclude", "a", stdin=p)
@@ -210,8 +231,9 @@ class WeightedPickTest(SkillCase):
             self.assertEqual(r.stdout, "")
 
     def test_all_weights_zero_exits_2(self):
-        p = self.payload({"key": "a", "base_weight": 0.0},
-                         {"key": "b", "base_weight": 0.0})
+        p = self.payload(
+            {"key": "a", "base_weight": 0.0}, {"key": "b", "base_weight": 0.0}
+        )
         for skill in self.for_each_skill():
             self.assertEqual(run(skill, "weighted_pick.py", stdin=p).returncode, 2)
 
@@ -222,7 +244,9 @@ class WeightedPickTest(SkillCase):
 
     def test_invalid_json_exits_2(self):
         for skill in self.for_each_skill():
-            self.assertEqual(run(skill, "weighted_pick.py", stdin="{not json").returncode, 2)
+            self.assertEqual(
+                run(skill, "weighted_pick.py", stdin="{not json").returncode, 2
+            )
 
     def test_empty_stdin_exits_2(self):
         for skill in self.for_each_skill():
@@ -231,8 +255,13 @@ class WeightedPickTest(SkillCase):
     def test_candidate_without_key_exits_2(self):
         for skill in self.for_each_skill():
             self.assertEqual(
-                run(skill, "weighted_pick.py",
-                    stdin=json.dumps({"candidates": [{"base_weight": 1.0}]})).returncode, 2)
+                run(
+                    skill,
+                    "weighted_pick.py",
+                    stdin=json.dumps({"candidates": [{"base_weight": 1.0}]}),
+                ).returncode,
+                2,
+            )
 
     def test_zero_history_distance_exits_2(self):
         # 直前がd=1なので、0以下の距離は履歴の読み違いであり、受け付けない
@@ -243,14 +272,20 @@ class WeightedPickTest(SkillCase):
             self.assertIn("history_distances", r.stderr)
 
     def test_negative_base_weight_exits_2(self):
-        p = self.payload({"key": "a", "base_weight": -1.0}, {"key": "b", "base_weight": 2.0})
+        p = self.payload(
+            {"key": "a", "base_weight": -1.0}, {"key": "b", "base_weight": 2.0}
+        )
         for skill in self.for_each_skill():
             self.assertEqual(run(skill, "weighted_pick.py", stdin=p).returncode, 2)
 
     def test_missing_json_file_exits_2(self):
         for skill in self.for_each_skill():
             self.assertEqual(
-                run(skill, "weighted_pick.py", "--json", REPO / "no-such.json").returncode, 2)
+                run(
+                    skill, "weighted_pick.py", "--json", REPO / "no-such.json"
+                ).returncode,
+                2,
+            )
 
 
 class LengthCheckTest(SkillCase):
@@ -263,8 +298,9 @@ class LengthCheckTest(SkillCase):
 
     def test_ascii_colon_prefix_is_also_excluded(self):
         for skill in self.for_each_skill():
-            self.assertIn("LENGTH\t80",
-                          run(skill, "length_check.py", "問題:" + "あ" * 80).stdout)
+            self.assertIn(
+                "LENGTH\t80", run(skill, "length_check.py", "問題:" + "あ" * 80).stdout
+            )
 
     def test_nfc_normalization_before_counting(self):
         # 濁点を合成する場合、NFDの2コードポイントを1文字として数える
@@ -284,17 +320,19 @@ class LengthCheckTest(SkillCase):
     def test_acceptance_curve_matches_spec(self):
         # sigma=0.23、mu=ln(80)+sigma^2 の対数正規分布で A(L)=f(L)/f(80) となる
         sigma, mode = 0.23, 80.0
-        mu = math.log(mode) + sigma ** 2
+        mu = math.log(mode) + sigma**2
 
         def density(x):
-            return math.exp(-((math.log(x) - mu) ** 2) / (2 * sigma ** 2)) / x
+            return math.exp(-((math.log(x) - mu) ** 2) / (2 * sigma**2)) / x
 
         for skill in self.for_each_skill():
             for length in (50, 60, 100, 130):
                 r = run(skill, "length_check.py", "あ" * length)
                 got = float(
-                    [ln for ln in r.stdout.splitlines()
-                     if ln.startswith("ACCEPTANCE")][0].split("\t")[1])
+                    [ln for ln in r.stdout.splitlines() if ln.startswith("ACCEPTANCE")][
+                        0
+                    ].split("\t")[1]
+                )
                 self.assertAlmostEqual(got, density(length) / density(mode), places=4)
 
     def test_target_shifts_the_mode(self):
@@ -307,23 +345,32 @@ class LengthCheckTest(SkillCase):
     def test_soft_verdict_can_be_replayed_with_same_draw(self):
         for skill in self.for_each_skill():
             first = run(skill, "length_check.py", "あ" * 50)
-            draw = [ln for ln in first.stdout.splitlines()
-                    if ln.startswith("DRAW")][0].split("\t")[1]
+            draw = [ln for ln in first.stdout.splitlines() if ln.startswith("DRAW")][
+                0
+            ].split("\t")[1]
             replay = run(skill, "length_check.py", "--draw", draw, "あ" * 50)
-            first_verdict = [ln for ln in first.stdout.splitlines()
-                             if ln.startswith("VERDICT")][0]
-            replay_verdict = [ln for ln in replay.stdout.splitlines()
-                              if ln.startswith("VERDICT")][0]
+            first_verdict = [
+                ln for ln in first.stdout.splitlines() if ln.startswith("VERDICT")
+            ][0]
+            replay_verdict = [
+                ln for ln in replay.stdout.splitlines() if ln.startswith("VERDICT")
+            ][0]
             self.assertEqual(replay.returncode, first.returncode)
             self.assertEqual(replay_verdict, first_verdict)
             self.assertIn(f"DRAW\t{draw}", replay.stdout)
 
     def test_draw_must_be_in_unit_interval_and_soft_mode(self):
         for skill in self.for_each_skill():
-            self.assertEqual(run(skill, "length_check.py", "--draw", "-0.1", "あ" * 50).returncode, 2)
-            self.assertEqual(run(skill, "length_check.py", "--draw", "1", "あ" * 50).returncode, 2)
             self.assertEqual(
-                run(skill, "length_check.py", "--draw", "0.5", "--max", "60", "あ" * 50).returncode,
+                run(skill, "length_check.py", "--draw", "-0.1", "あ" * 50).returncode, 2
+            )
+            self.assertEqual(
+                run(skill, "length_check.py", "--draw", "1", "あ" * 50).returncode, 2
+            )
+            self.assertEqual(
+                run(
+                    skill, "length_check.py", "--draw", "0.5", "--max", "60", "あ" * 50
+                ).returncode,
                 2,
             )
 
@@ -350,10 +397,18 @@ class LengthCheckTest(SkillCase):
 
     def test_hard_min_and_exact(self):
         for skill in self.for_each_skill():
-            self.assertEqual(run(skill, "length_check.py", "--min", "70", "あ" * 60).returncode, 1)
-            self.assertEqual(run(skill, "length_check.py", "--min", "70", "あ" * 70).returncode, 0)
-            self.assertEqual(run(skill, "length_check.py", "--exact", "42", "あ" * 41).returncode, 1)
-            self.assertEqual(run(skill, "length_check.py", "--exact", "42", "あ" * 42).returncode, 0)
+            self.assertEqual(
+                run(skill, "length_check.py", "--min", "70", "あ" * 60).returncode, 1
+            )
+            self.assertEqual(
+                run(skill, "length_check.py", "--min", "70", "あ" * 70).returncode, 0
+            )
+            self.assertEqual(
+                run(skill, "length_check.py", "--exact", "42", "あ" * 41).returncode, 1
+            )
+            self.assertEqual(
+                run(skill, "length_check.py", "--exact", "42", "あ" * 42).returncode, 0
+            )
 
     def test_range_reports_both_bounds(self):
         for skill in self.for_each_skill():
@@ -364,7 +419,11 @@ class LengthCheckTest(SkillCase):
     def test_inverted_range_exits_2(self):
         for skill in self.for_each_skill():
             self.assertEqual(
-                run(skill, "length_check.py", "--min", "90", "--max", "70", "あ" * 80).returncode, 2)
+                run(
+                    skill, "length_check.py", "--min", "90", "--max", "70", "あ" * 80
+                ).returncode,
+                2,
+            )
 
     def test_stdin_input(self):
         for skill in self.for_each_skill():
@@ -388,12 +447,17 @@ class LengthCheckTest(SkillCase):
     def test_missing_file_exits_2(self):
         for skill in self.for_each_skill():
             self.assertEqual(
-                run(skill, "length_check.py", "--file", REPO / "no-such.txt").returncode, 2)
+                run(
+                    skill, "length_check.py", "--file", REPO / "no-such.txt"
+                ).returncode,
+                2,
+            )
 
     def test_non_positive_target_exits_2(self):
         for skill in self.for_each_skill():
             self.assertEqual(
-                run(skill, "length_check.py", "--target", "0", "あ" * 80).returncode, 2)
+                run(skill, "length_check.py", "--target", "0", "あ" * 80).returncode, 2
+            )
 
 
 class SkillLayoutTest(SkillCase):
@@ -410,8 +474,12 @@ class SkillLayoutTest(SkillCase):
     def test_referenced_files_exist(self):
         for skill in self.for_each_skill():
             root = REPO / "skills" / skill
-            for name in ("quiz_generation_spec.md", "selection_and_history_spec.md",
-                         "verification_and_judging_spec.md", "facet_index.md"):
+            for name in (
+                "quiz_generation_spec.md",
+                "selection_and_history_spec.md",
+                "verification_and_judging_spec.md",
+                "facet_index.md",
+            ):
                 self.assertTrue((root / "references" / name).is_file(), name)
             for name in ("facet_node.py", "weighted_pick.py", "length_check.py"):
                 self.assertTrue((root / "scripts" / name).is_file(), name)

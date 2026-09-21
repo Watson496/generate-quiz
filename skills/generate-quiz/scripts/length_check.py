@@ -30,6 +30,7 @@
     python3 length_check.py --draw 0.314159 '……でしょう？'
     echo '問題：……' | python3 length_check.py
 """
+
 import argparse
 import math
 import random
@@ -51,7 +52,7 @@ def normalize(text):
     t = unicodedata.normalize("NFC", text).strip()
     for p in PREFIXES:
         if t.startswith(p):
-            t = t[len(p):]
+            t = t[len(p) :]
             break
     return t.replace("\r", "").replace("\n", "").strip()
 
@@ -60,10 +61,10 @@ def acceptance(length, mode):
     """最頻値 mode の対数正規分布での相対許容度 A(L)=f(L)/f(mode)。"""
     if length <= 0:
         return 0.0
-    mu = math.log(mode) + SIGMA ** 2
+    mu = math.log(mode) + SIGMA**2
 
     def density(x):
-        return math.exp(-((math.log(x) - mu) ** 2) / (2 * SIGMA ** 2)) / x
+        return math.exp(-((math.log(x) - mu) ** 2) / (2 * SIGMA**2)) / x
 
     return density(length) / density(mode)
 
@@ -74,8 +75,12 @@ def main():
     )
     ap.add_argument("text", nargs="?", help="問題文（省略時はstdin）")
     ap.add_argument("--file", metavar="PATH", help="問題文をファイルから読む")
-    ap.add_argument("--target", type=float, default=80.0, help="ソフト目標＝分布の最頻値（既定80）")
-    ap.add_argument("--draw", type=float, help="ソフト判定を再現する一様乱数値（0以上1未満）")
+    ap.add_argument(
+        "--target", type=float, default=80.0, help="ソフト目標＝分布の最頻値（既定80）"
+    )
+    ap.add_argument(
+        "--draw", type=float, help="ソフト判定を再現する一様乱数値（0以上1未満）"
+    )
     ap.add_argument("--max", type=int, dest="max_len", help="ハード上限（以内・以下）")
     ap.add_argument("--min", type=int, dest="min_len", help="ハード下限")
     ap.add_argument("--exact", type=int, help="ハード指定（ちょうど）")
@@ -85,10 +90,18 @@ def main():
         fail("--target は正の値を指定してください")
     if args.draw is not None and not 0 <= args.draw < 1:
         fail("--draw は0以上1未満で指定してください")
-    for name, value in (("--max", args.max_len), ("--min", args.min_len), ("--exact", args.exact)):
+    for name, value in (
+        ("--max", args.max_len),
+        ("--min", args.min_len),
+        ("--exact", args.exact),
+    ):
         if value is not None and value <= 0:
             fail(f"{name} は1以上を指定してください")
-    if args.min_len is not None and args.max_len is not None and args.min_len > args.max_len:
+    if (
+        args.min_len is not None
+        and args.max_len is not None
+        and args.min_len > args.max_len
+    ):
         fail("--min が --max を超えています")
 
     if args.file:
@@ -118,12 +131,18 @@ def main():
         if args.exact is not None and length != args.exact:
             violations.append(f"ちょうど{args.exact}文字ではない")
         if args.max_len is not None and length > args.max_len:
-            violations.append(f"上限{args.max_len}文字を超過（+{length - args.max_len}）")
+            violations.append(
+                f"上限{args.max_len}文字を超過（+{length - args.max_len}）"
+            )
         if args.min_len is not None and length < args.min_len:
-            violations.append(f"下限{args.min_len}文字に不足（-{args.min_len - length}）")
+            violations.append(
+                f"下限{args.min_len}文字に不足（-{args.min_len - length}）"
+            )
         if violations:
             print("VERDICT\tVIOLATION\t" + " / ".join(violations))
-            print("NOTE\t品質を保ったまま満たせない場合は、条件外の問題を黙って出さずその旨を伝える。")
+            print(
+                "NOTE\t品質を保ったまま満たせない場合は、条件外の問題を黙って出さずその旨を伝える。"
+            )
             return EXIT_REVISE
         print("VERDICT\tOK")
         return EXIT_OK
@@ -137,7 +156,9 @@ def main():
         print("VERDICT\tACCEPT")
         return EXIT_OK
     print("VERDICT\tREJECT")
-    print("NOTE\t同じ裏取り済み命題だけを使い、構文と情報のまとめ方を変えて自然に長さの異なる版へ改稿し再計測する。字数合わせの継ぎ足し・削除はしない。")
+    print(
+        "NOTE\t同じ裏取り済み命題だけを使い、構文と情報のまとめ方を変えて自然に長さの異なる版へ改稿し再計測する。字数合わせの継ぎ足し・削除はしない。"
+    )
     return EXIT_REVISE
 
 
