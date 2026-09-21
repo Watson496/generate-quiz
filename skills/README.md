@@ -22,7 +22,7 @@ cp -r skills/generate-quiz ~/.agents/skills/
 
 プロジェクト単位で使う場合は `<プロジェクト>/.agents/skills/` に置きます。他のAI agentでは、それぞれのドキュメントに従ってskillの配置先に置いてください。
 
-Web検索（裏取りに必須）と、Pythonスクリプトを実行できるシェル（標準ライブラリのみ使用）が必要です。
+Web検索（裏取りに必須）と、Python 3.14以上を実行できるシェル（同梱スクリプトは標準ライブラリのみ使用）が必要です。
 
 ### 使い方
 
@@ -78,7 +78,7 @@ cp -r skills/quiz-book-latex ~/.agents/skills/
 
 プロジェクト単位で使う場合は `<プロジェクト>/.agents/skills/` に置きます。他のAI agentでは、それぞれのドキュメントに従ってskillの配置先に置いてください。
 
-Pandoc 3以降、LuaLaTeX、`latexmk`、Biberが必要です。
+Python 3.14以上、Pandoc 3以降、LuaLaTeX、`latexmk`、Biberが必要です。
 
 ### 使い方
 
