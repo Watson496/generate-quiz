@@ -136,6 +136,7 @@ def complete_state():
         "audit": "passed",
     }
     return {
+        "selection_mode": "random",
         "execution": {
             "delegation_available": True,
             "agents": agents,
@@ -832,6 +833,47 @@ class TestWorkState:
         """各項目が完了した状態は指定工程で合格する。"""
         state = complete_state if stage == "audit" else reviewed_state
         assert check_state(run_script, stage, state).returncode == 0
+
+    @pytest.mark.parametrize("stage", ["audit", "final"])
+    def test_specified_target_skips_exploration_assignments(
+        self, run_script, complete_state, reviewed_state, stage
+    ):
+        """解答対象が直接指定された場合は題材探索の担当記録を要しない。"""
+        state = complete_state if stage == "audit" else reviewed_state
+        state["selection_mode"] = "specified"
+        state["user_specified_target"] = state["answer_target"]
+        for role in ("exploration", "alternate_exploration", "saturation_review"):
+            del state["execution"]["agents"][role]
+            del state["execution"]["assignment_log"][role]
+        assert check_state(run_script, stage, state).returncode == 0
+
+    def test_specified_target_must_match_answer_target(
+        self, run_script, complete_state
+    ):
+        """指定された解答対象と作業対象の不一致を拒否する。"""
+        complete_state["selection_mode"] = "specified"
+        complete_state["user_specified_target"] = "別の対象"
+        result = check_state(run_script, "audit", complete_state)
+        assert result.returncode == 1
+        assert "指定された解答対象と作業対象が一致しない" in result.stderr
+
+    def test_work_state_requires_selection_mode(self, run_script, complete_state):
+        """対象ごとの作業状態では選択方法を明示する。"""
+        del complete_state["selection_mode"]
+        result = check_state(run_script, "audit", complete_state)
+        assert result.returncode == 1
+        assert "selection_modeが不正である" in result.stderr
+
+    def test_specified_target_requires_generation_assignment(
+        self, run_script, complete_state
+    ):
+        """直接指定でも生成以降の担当は省略できない。"""
+        complete_state["selection_mode"] = "specified"
+        complete_state["user_specified_target"] = complete_state["answer_target"]
+        del complete_state["execution"]["agents"]["generation"]
+        result = check_state(run_script, "audit", complete_state)
+        assert result.returncode == 1
+        assert "execution.agents.generationがない" in result.stderr
 
     def test_clue_rejects_quasi_uniqueness_depending_on_another_clue(
         self, run_script, complete_state

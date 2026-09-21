@@ -628,7 +628,21 @@ def validate_selection_state(state, *, discovery_only=False):
     require_condition(state.get("saturated") is True, "探索が飽和していない")
 
 
-def validate_execution_assignments(state, stage):
+def validate_selection_mode(state):
+    mode = state.get("selection_mode")
+    require_condition(mode in {"random", "specified"}, "selection_modeが不正である")
+    if mode == "specified":
+        specified = required_text(state, "user_specified_target", "state")
+        target = required_text(state, "answer_target", "state")
+        require_condition(
+            unicodedata.normalize("NFKC", specified)
+            == unicodedata.normalize("NFKC", target),
+            "指定された解答対象と作業対象が一致しない",
+        )
+    return mode
+
+
+def validate_execution_assignments(state, stage, selection_mode="random"):
     data = state.get("execution")
     require_condition(isinstance(data, dict), "executionがない")
     available = data.get("delegation_available")
@@ -636,33 +650,20 @@ def validate_execution_assignments(state, stage):
         isinstance(available, bool), "execution.delegation_availableがない"
     )
     if available:
-        roles = {
-            "selection": ("exploration", "alternate_exploration", "saturation_review"),
-            "generation": (
-                "exploration",
-                "alternate_exploration",
-                "saturation_review",
-                "generation",
-                "exposure",
-            ),
-            "audit": (
-                "exploration",
-                "alternate_exploration",
-                "saturation_review",
-                "generation",
-                "exposure",
-                "audit",
-            ),
-            "final": (
-                "exploration",
-                "alternate_exploration",
-                "saturation_review",
-                "generation",
-                "exposure",
-                "audit",
-                "finalization",
-            ),
-        }[stage]
+        selection_roles = (
+            ()
+            if selection_mode == "specified"
+            else ("exploration", "alternate_exploration", "saturation_review")
+        )
+        roles = (
+            selection_roles
+            + {
+                "selection": (),
+                "generation": ("generation", "exposure"),
+                "audit": ("generation", "exposure", "audit"),
+                "final": ("generation", "exposure", "audit", "finalization"),
+            }[stage]
+        )
         agents = data.get("agents")
         require_condition(isinstance(agents, dict), "execution.agentsがない")
         ids = [required_text(agents, k, "execution.agents") for k in roles]
@@ -931,7 +932,8 @@ def validate_final_review(state, output_bytes):
 
 
 def validate_work_state(state, stage):
-    validate_execution_assignments(state, stage)
+    selection_mode = validate_selection_mode(state)
+    validate_execution_assignments(state, stage, selection_mode)
     required_text(state, "answer_target", "state")
     draft = state.get("draft")
     require_condition(isinstance(draft, dict), "draftがない")
