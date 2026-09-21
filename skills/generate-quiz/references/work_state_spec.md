@@ -6,11 +6,15 @@
 
 引用、推論、候補比較はMarkdownで保持する。ID、問題文の版、採否、完了状態、参照関係はJSON manifestでも保持し、`scripts/work_state_check.py`で確定的に検査する。JSON manifestだけを判断根拠にせず、対応するMarkdownの内容を生成担当と監査担当が評価する。
 
+## ファセットの交差領域
+
+ファセット選択後、題材探索前に4軸の正規ノードキーと交差領域の確認記録をJSONへ保存し、`work_state_check.py --stage intersection-checkpoint`で検査する。確認記録には、開いた資料のURL、資料中に実名がある異なる候補二つ以上と各資料のURL、うち一件以上の初級学習資料と扱いの根拠、交差領域の広さを判断した理由、成立の判定を含める。委譲機能の有無は`execution.delegation_available`に記録する。別agentが確認する場合は、その正規IDと起動時の記録を`execution.agents`と`execution.assignment_log`へ保存する。委譲機能がない場合は、利用できない理由を記録して親agentが確認する。形式検査は資料の独立性や判断の妥当性を保証しない。
+
 ## 題材候補の探索状態
 
 現在の問題番号について、次を保持する。
 
-- 選択されたファセット
+- 選択した4軸の正規ノードキー
 - 資料から分けた下位領域と、各領域を探索したか
 - 種類の異なる探索の入口と、各領域で使った入口
 - 発見した題材候補と、その候補が属する下位領域
@@ -151,13 +155,23 @@ JSON manifestは、検査対象を具体的な内容へ結び付け、確定的�
 
 生成工程ではすべての `audit` を `pending` とした状態で `--stage generation` を通す。監査担当だけが結果を更新し、`--stage audit` を通す。これにより、完成後に生成と監査の状態をまとめて作ることを認めない。
 
-委譲機能を利用できる環境では、探索、生成、解答露出検査、監査、最終出力を別々のagentへ割り当てる。親agentは起動toolが返した正規の識別子を起動直後に `execution.agents` へ記録し、各成果物に記載された担当識別子と照合する。候補変更時にも、継続して使う探索担当の識別子を別名へ置き換えない。利用できない環境では、その事実と理由を記録する。
+委譲機能を利用できる環境では、交差領域の確認、探索、生成、解答露出検査、監査、最終出力を別々のagentへ割り当てる。親agentは起動toolが返した正規の識別子を起動直後に `execution.agents` へ記録し、各成果物に記載された担当識別子と照合する。候補変更時にも、継続して使う探索担当の識別子を別名へ置き換えない。利用できない環境では、その事実と理由を記録する。
 
 具体的なJSONの形は `scripts/work_state_check.py` が検査するフィールドに従う。次は題材探索状態の最小例である。
 
 ```json
 {
-  "facet": "化学工業",
+  "facet_nodes": {"subject": "subject::66", "place": "place::ROOT", "time": "time::ROOT", "type": "type::ROOT"},
+  "execution": {"delegation_available": true, "agents": {"intersection": "agent-1"}, "assignment_log": {"intersection": {"agent_id": "agent-1", "recorded_at_spawn": true, "artifact_refs": ["intersection.md"]}}},
+  "intersection_review": {
+    "source_refs": ["https://example.org/outline", "https://example.org/lesson"],
+    "candidate_examples": [
+      {"name": "候補1", "source_ref": "https://example.org/outline", "beginner_source_ref": "https://example.org/lesson", "beginner_learning_basis": "名称と代表情報を学習項目として扱う"},
+      {"name": "候補2", "source_ref": "https://example.org/outline"}
+    ],
+    "scope_reason": "対象の種類と下位領域を区分できる",
+    "result": "viable"
+  },
   "entry_points": [
     {"id": "E1", "kind": "分類表", "label": "産業分類"},
     {"id": "E2", "kind": "事典索引", "label": "化学事典"}
@@ -167,7 +181,8 @@ JSON manifestは、検査対象を具体的な内容へ結び付け、確定的�
     {"id": "D2", "label": "有機化学工業", "basis": "事典の区分", "explored": true, "entry_point_ids": ["E2"]}
   ],
   "candidates": [
-    {"id": "K1", "label": "候補", "coverage_area_ids": ["D1"], "discovery_entry_point_ids": ["E1"], "disposition": "eligible", "expanded": true, "exposure_precheck": {"representative_descriptions": ["対象を表す代表説明"], "accepted_names": ["候補"], "formations": [{"name": "候補", "formation_rule": "対象との対応を知って名称を想起する", "components": [{"form": "候補", "source": "対象と名称要素の既知の対応", "knowledge": "target_association"}], "formation_requires_target_association": true, "formation_target_association_step": "名称要素『候補』を選ぶ", "standard_name_confirmation_requires_target_association": true}], "status": "passed"}}
+    {"id": "K1", "label": "候補1", "coverage_area_ids": ["D1"], "discovery_entry_point_ids": ["E1"], "disposition": "eligible", "expanded": true, "exposure_precheck": {"representative_descriptions": ["対象を表す代表説明"], "accepted_names": ["候補1"], "formations": [{"name": "候補1", "formation_rule": "対象との対応を知って名称を想起する", "components": [{"form": "候補1", "source": "対象と名称要素の既知の対応", "knowledge": "target_association"}], "formation_requires_target_association": true, "formation_target_association_step": "名称要素『候補1』を選ぶ", "standard_name_confirmation_requires_target_association": true}], "status": "passed"}},
+    {"id": "K2", "label": "候補2", "coverage_area_ids": ["D2"], "discovery_entry_point_ids": ["E2"], "disposition": "eligible", "expanded": true, "exposure_precheck": {"representative_descriptions": ["対象を表す代表説明"], "accepted_names": ["候補2"], "formations": [{"name": "候補2", "formation_rule": "対象との対応を知って名称を想起する", "components": [{"form": "候補2", "source": "対象と名称要素の既知の対応", "knowledge": "target_association"}], "formation_requires_target_association": true, "formation_target_association_step": "名称要素『候補2』を選ぶ", "standard_name_confirmation_requires_target_association": true}], "status": "passed"}}
   ],
   "frontier_ids": [],
   "saturated": true

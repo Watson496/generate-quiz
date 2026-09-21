@@ -40,6 +40,7 @@ def load_script(monkeypatch):
         if spec is None or spec.loader is None:
             raise ImportError(path)
         module = importlib.util.module_from_spec(spec)
+        monkeypatch.syspath_prepend(str(path.parent))
         monkeypatch.setitem(sys.modules, module_name, module)
         spec.loader.exec_module(module)
         return module

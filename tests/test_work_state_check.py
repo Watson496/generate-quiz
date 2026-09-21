@@ -224,10 +224,51 @@ def complete_state():
 
 
 @pytest.fixture
-def selection_state():
+def intersection_state():
+    """交差領域の成立性を確認した状態を作る。"""
+    return {
+        "execution": {
+            "delegation_available": True,
+            "agents": {"intersection": "agent-1"},
+            "assignment_log": {
+                "intersection": {
+                    "agent_id": "agent-1",
+                    "recorded_at_spawn": True,
+                    "artifact_refs": ["intersection.md"],
+                }
+            },
+        },
+        "facet_nodes": {
+            "subject": "subject::66",
+            "place": "place::ROOT",
+            "time": "time::ROOT",
+            "type": "type::ROOT",
+        },
+        "intersection_review": {
+            "source_refs": [
+                "https://example.org/outline",
+                "https://example.org/lesson",
+            ],
+            "candidate_examples": [
+                {
+                    "name": "候補1",
+                    "source_ref": "https://example.org/outline",
+                    "beginner_source_ref": "https://example.org/lesson",
+                    "beginner_learning_basis": "名称と代表情報を学習項目として扱う",
+                },
+                {"name": "候補2", "source_ref": "https://example.org/outline"},
+            ],
+            "scope_reason": "対象の種類と下位領域を区分できる",
+            "result": "viable",
+        },
+    }
+
+
+@pytest.fixture
+def selection_state(intersection_state):
     """探索範囲と候補の展開が完了した状態を作る。"""
     state = {
-        "facet": "化学工業",
+        **intersection_state,
         "entry_points": [
             {"id": "E1", "kind": "分類表", "label": "産業分類"},
             {"id": "E2", "kind": "事典索引", "label": "化学事典"},
@@ -414,8 +455,138 @@ class TestWorkStateFunctions:
             state_module.require_stage_completion(record, "命題", stage)
 
 
+class TestIntersectionState:
+    """題材探索前の交差領域の記録を検査する。"""
+
+    def test_complete_intersection_passes(self, run_script, intersection_state):
+        """四軸、候補例、初級学習資料の記録を受け付ける。"""
+        assert (
+            check_state(
+                run_script, "intersection-checkpoint", intersection_state
+            ).returncode
+            == 0
+        )
+
+    def test_parent_review_passes_without_spawn_record(
+        self, run_script, intersection_state
+    ):
+        """委譲できない場合の親agentによる確認を受け付ける。"""
+        intersection_state["execution"] = {
+            "delegation_available": False,
+            "unavailable_reason": "委譲機能を利用できない",
+        }
+        assert (
+            check_state(
+                run_script, "intersection-checkpoint", intersection_state
+            ).returncode
+            == 0
+        )
+
+    def test_delegated_review_requires_spawn_record(
+        self, run_script, intersection_state
+    ):
+        """別agentによる確認では起動時の担当記録を必須とする。"""
+        del intersection_state["execution"]["assignment_log"]["intersection"][
+            "recorded_at_spawn"
+        ]
+        assert (
+            check_state(
+                run_script, "intersection-checkpoint", intersection_state
+            ).returncode
+            == 1
+        )
+
+    def test_delegated_review_rejects_parent(self, run_script, intersection_state):
+        """委譲できる場合は選択担当による自己確認を拒否する。"""
+        intersection_state["execution"]["agents"]["intersection"] = "parent"
+        intersection_state["execution"]["assignment_log"]["intersection"][
+            "agent_id"
+        ] = "parent"
+        assert (
+            check_state(
+                run_script, "intersection-checkpoint", intersection_state
+            ).returncode
+            == 1
+        )
+
+    def test_assignment_agent_must_match_spawn_record(
+        self, run_script, intersection_state
+    ):
+        """交差確認担当と起動時の担当記録の不一致を拒否する。"""
+        intersection_state["execution"]["assignment_log"]["intersection"][
+            "agent_id"
+        ] = "agent-2"
+        assert (
+            check_state(
+                run_script, "intersection-checkpoint", intersection_state
+            ).returncode
+            == 1
+        )
+
+    def test_duplicate_candidate_name_fails(self, run_script, intersection_state):
+        """同一名称を二回数えた候補例を拒否する。"""
+        examples = intersection_state["intersection_review"]["candidate_examples"]
+        examples[1]["name"] = examples[0]["name"]
+        assert (
+            check_state(
+                run_script, "intersection-checkpoint", intersection_state
+            ).returncode
+            == 1
+        )
+
+    @pytest.mark.parametrize(
+        "source", ["資料名", "https://", "https://example.org/a b"]
+    )
+    def test_source_refs_require_web_urls(self, run_script, intersection_state, source):
+        """確認資料の参照にはWebのURLを要求する。"""
+        intersection_state["intersection_review"]["source_refs"][0] = source
+        assert (
+            check_state(
+                run_script, "intersection-checkpoint", intersection_state
+            ).returncode
+            == 1
+        )
+
+    def test_unknown_node_fails(self, run_script, intersection_state):
+        """カタログにないノードを拒否する。"""
+        intersection_state["facet_nodes"]["type"] = "type::unknown"
+        assert (
+            check_state(
+                run_script, "intersection-checkpoint", intersection_state
+            ).returncode
+            == 1
+        )
+
+    def test_missing_beginner_basis_fails(self, run_script, intersection_state):
+        """初級学習資料中での扱いを欠く候補例を拒否する。"""
+        del intersection_state["intersection_review"]["candidate_examples"][0][
+            "beginner_learning_basis"
+        ]
+        assert (
+            check_state(
+                run_script, "intersection-checkpoint", intersection_state
+            ).returncode
+            == 1
+        )
+
+    def test_unconfirmed_intersection_fails(self, run_script, intersection_state):
+        """成立を確認していない交差領域を題材探索へ進めない。"""
+        intersection_state["intersection_review"]["result"] = "pending"
+        assert (
+            check_state(
+                run_script, "intersection-checkpoint", intersection_state
+            ).returncode
+            == 1
+        )
+
+
 class TestSelectionState:
     """題材探索の状態を検査する。"""
+
+    def test_selection_requires_intersection_review(self, run_script, selection_state):
+        """交差領域の確認を省いた探索状態を拒否する。"""
+        del selection_state["intersection_review"]
+        assert check_state(run_script, "selection", selection_state).returncode == 1
 
     def test_complete_selection_passes(self, run_script, selection_state):
         """異種の入口と展開済み候補が揃えば探索状態が合格する。"""

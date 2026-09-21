@@ -2,7 +2,7 @@
 """題材探索と作問状態の内容、参照関係、工程境界を検査する。
 
 入力はJSONファイルのパスまたは標準入力から受け取る。--stageには
-selection、generation、audit、finalのいずれかを指定する。
+intersection-checkpoint、selection、generation、audit、finalのいずれかを指定する。
 
 終了コード:
     0  指定工程の条件を満たす
@@ -20,6 +20,9 @@ import re
 import sys
 import unicodedata
 from pathlib import Path
+from urllib.parse import urlsplit
+
+import facet_node
 
 REQUIRED_CHECK_IDS = {
     "difficulty.beginner",
@@ -61,6 +64,7 @@ MIN_ENTRY_POINTS = 2
 MIN_ENTRY_POINT_KINDS = 2
 MIN_COVERAGE_AREAS = 2
 MIN_EXPRESSION_ALTERNATIVES = 2
+MIN_INTERSECTION_EXAMPLES = 2
 EXIT_OK, EXIT_STATE_INVALID, EXIT_USAGE = 0, 1, 2
 
 
@@ -229,8 +233,120 @@ def validate_exposure_precheck(item, name):
     return exposed
 
 
+def validate_intersection_state(state):
+    """4軸の選択と交差領域の確認記録を検査する。"""
+    nodes = state.get("facet_nodes")
+    require_condition(
+        isinstance(nodes, dict) and set(nodes) == {"subject", "place", "time", "type"},
+        "facet_nodesに4軸の正規ノードキーがない",
+    )
+    for axis, key in nodes.items():
+        require_condition(
+            isinstance(key, str) and key.startswith(f"{axis}::"),
+            f"facet_nodes.{axis}が不正である",
+        )
+        require_condition(
+            facet_node.find_block(key)[1] is not None,
+            f"facet_nodes.{axis}がカタログに存在しない",
+        )
+    review = state.get("intersection_review")
+    require_condition(isinstance(review, dict), "intersection_reviewがない")
+    execution = state.get("execution")
+    require_condition(isinstance(execution, dict), "executionがない")
+    available = execution.get("delegation_available")
+    require_condition(
+        isinstance(available, bool), "execution.delegation_availableがない"
+    )
+    if available:
+        agents = execution.get("agents")
+        require_condition(isinstance(agents, dict), "execution.agentsがない")
+        reviewer_id = required_text(agents, "intersection", "execution.agents")
+        require_condition(
+            reviewer_id != "parent", "交差領域の確認を選択担当と分離していない"
+        )
+        assignments = execution.get("assignment_log")
+        require_condition(
+            isinstance(assignments, dict), "execution.assignment_logがない"
+        )
+        assignment = assignments.get("intersection")
+        require_condition(
+            isinstance(assignment, dict), "execution.assignment_log.intersectionがない"
+        )
+        require_condition(
+            assignment.get("agent_id") == reviewer_id,
+            "execution.assignment_log.intersection.agent_idが担当記録と一致しない",
+        )
+        require_condition(
+            assignment.get("recorded_at_spawn") is True,
+            "execution.assignment_log.intersectionが起動時に記録されていない",
+        )
+        required_list(
+            assignment.get("artifact_refs"),
+            "execution.assignment_log.intersection.artifact_refs",
+            nonempty=True,
+        )
+    else:
+        required_text(execution, "unavailable_reason", "execution")
+    sources = required_id_list(
+        review.get("source_refs"), "intersection_review.source_refs", nonempty=True
+    )
+    require_condition(
+        len(sources) == len(set(sources)),
+        "intersection_review.source_refsに同じ資料が重複している",
+    )
+    for source in sources:
+        try:
+            parsed = urlsplit(source)
+            valid = (
+                parsed.scheme in {"http", "https"}
+                and parsed.hostname is not None
+                and not any(char.isspace() for char in source)
+            )
+        except ValueError:
+            valid = False
+        require_condition(valid, "intersection_review.source_refsにURLでない値がある")
+    examples = required_list(
+        review.get("candidate_examples"),
+        "intersection_review.candidate_examples",
+        nonempty=True,
+    )
+    require_condition(
+        len(examples) >= MIN_INTERSECTION_EXAMPLES,
+        "intersection_review.candidate_examplesが二件に満たない",
+    )
+    beginner_count = 0
+    candidate_names = set()
+    for index, example in enumerate(examples):
+        name = f"intersection_review.candidate_examples[{index}]"
+        require_condition(isinstance(example, dict), f"{name}がオブジェクトではない")
+        candidate = required_text(example, "name", name)
+        candidate_names.add(unicodedata.normalize("NFKC", candidate).casefold())
+        source = required_text(example, "source_ref", name)
+        require_condition(source in sources, f"{name}.source_refが確認資料にない")
+        if "beginner_source_ref" in example or "beginner_learning_basis" in example:
+            beginner_source = required_text(example, "beginner_source_ref", name)
+            require_condition(
+                beginner_source in sources,
+                f"{name}.beginner_source_refが確認資料にない",
+            )
+            required_text(example, "beginner_learning_basis", name)
+            beginner_count += 1
+    require_condition(
+        len(candidate_names) >= MIN_INTERSECTION_EXAMPLES,
+        "intersection_review.candidate_examplesに異なる候補が二件ない",
+    )
+    require_condition(
+        beginner_count >= 1,
+        "intersection_reviewに初級学習資料で確認した候補例がない",
+    )
+    required_text(review, "scope_reason", "intersection_review")
+    require_condition(
+        review.get("result") == "viable", "交差領域の独立確認が合格していない"
+    )
+
+
 def validate_selection_state(state):
-    required_text(state, "facet", "selection")
+    validate_intersection_state(state)
     entries, entry_ids = records_with_ids(
         state.get("entry_points"), "entry_points", nonempty=True
     )
@@ -653,7 +769,15 @@ def main():
     parser = argparse.ArgumentParser(description="題材探索と作問状態を検査する")
     parser.add_argument("path", nargs="?")
     parser.add_argument(
-        "--stage", choices=("selection", "generation", "audit", "final"), required=True
+        "--stage",
+        choices=(
+            "intersection-checkpoint",
+            "selection",
+            "generation",
+            "audit",
+            "final",
+        ),
+        required=True,
     )
     args = parser.parse_args()
     try:
@@ -669,7 +793,9 @@ def main():
         require_condition(
             isinstance(state, dict), "最上位はオブジェクトでなければならない"
         )
-        if args.stage == "selection":
+        if args.stage == "intersection-checkpoint":
+            validate_intersection_state(state)
+        elif args.stage == "selection":
             validate_selection_state(state)
         else:
             validate_work_state(state, args.stage)
