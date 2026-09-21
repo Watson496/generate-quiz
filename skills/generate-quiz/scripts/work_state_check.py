@@ -2,7 +2,7 @@
 """題材探索と作問状態の内容、参照関係、工程境界を検査する。
 
 入力はJSONファイルのパスまたは標準入力から受け取る。--stageには
-intersection-checkpoint、discovery、selection、generation、audit、finalのいずれかを指定する。
+intersection-checkpoint、discovery、selection、difficulty、generation、audit、finalのいずれかを指定する。
 
 終了コード:
     0  指定工程の条件を満たす
@@ -659,9 +659,16 @@ def validate_execution_assignments(state, stage, selection_mode="random"):
             selection_roles
             + {
                 "selection": (),
-                "generation": ("generation", "exposure"),
-                "audit": ("generation", "exposure", "audit"),
-                "final": ("generation", "exposure", "audit", "finalization"),
+                "difficulty": ("generation", "difficulty_review"),
+                "generation": ("generation", "difficulty_review", "exposure"),
+                "audit": ("generation", "difficulty_review", "exposure", "audit"),
+                "final": (
+                    "generation",
+                    "difficulty_review",
+                    "exposure",
+                    "audit",
+                    "finalization",
+                ),
             }[stage]
         )
         agents = data.get("agents")
@@ -696,7 +703,7 @@ def validate_execution_assignments(state, stage, selection_mode="random"):
         required_text(data, "unavailable_reason", "execution")
 
 
-def validate_sources_propositions_and_clues(state, version, stage):
+def validate_source_quotes(state):
     sources, _ = records_with_ids(state.get("sources"), "sources", nonempty=True)
     quote_ids = set()
     for source in sources:
@@ -709,6 +716,11 @@ def validate_sources_propositions_and_clues(state, version, stage):
         for quote in quotes:
             required_text(quote, "text", f"quotes.{quote['id']}")
             required_text(quote, "location", f"quotes.{quote['id']}")
+    return quote_ids
+
+
+def validate_sources_propositions_and_clues(state, version, stage):
+    quote_ids = validate_source_quotes(state)
     props, prop_ids = records_with_ids(
         state.get("propositions"), "propositions", nonempty=True
     )
@@ -787,6 +799,73 @@ def validate_sources_propositions_and_clues(state, version, stage):
             require_stage_completion(check, cname, stage)
     require_condition(active_clues, "activeな手掛かりがない")
     return quote_ids, active_props, active_clues
+
+
+def validate_difficulty_review(state, quote_ids, stage):
+    review = state.get("difficulty_review")
+    require_condition(isinstance(review, dict), "difficulty_reviewがない")
+    knowledge = required_text(state, "asked_knowledge", "state")
+    require_condition(
+        review.get("asked_knowledge") == knowledge,
+        "difficulty_review.asked_knowledgeが問う知識と一致しない",
+    )
+    execution = state["execution"]
+    reviewer = (
+        execution["agents"]["difficulty_review"]
+        if execution["delegation_available"]
+        else "self"
+    )
+    require_condition(
+        review.get("reviewer_id") == reviewer,
+        "difficulty_review.reviewer_idが担当記録と一致しない",
+    )
+    audit = review.get("audit")
+    require_condition(
+        audit in {"pending", "passed", "missing", "failed"},
+        "difficulty_review.auditが不正である",
+    )
+    if stage in {"difficulty", "generation"}:
+        require_condition(
+            audit == "pending",
+            "difficulty_reviewは生成工程の時点で監査済みになっている",
+        )
+    else:
+        require_condition(audit == "passed", "difficulty_reviewが監査に合格していない")
+    required_text(review, "answer_granularity", "difficulty_review")
+    for group in ("beginner", "general"):
+        item = review.get(group)
+        name = f"difficulty_review.{group}"
+        require_condition(isinstance(item, dict), f"{name}がない")
+        require_condition(
+            item.get("status") == "passed", f"{name}が独立検査に合格していない"
+        )
+        required_text(item, "reason", name)
+        referenced_ids(item, "evidence_ids", quote_ids, name)
+        if group == "general":
+            paths = required_list(
+                item.get("other_access_paths"),
+                f"{name}.other_access_paths",
+                nonempty=True,
+            )
+            for index, path in enumerate(paths):
+                path_name = f"{name}.other_access_paths[{index}]"
+                require_condition(isinstance(path, dict), f"{path_name}が不正である")
+                required_text(path, "path", path_name)
+                required_text(path, "search_record", path_name)
+                outcome = path.get("outcome")
+                require_condition(
+                    outcome in {"confirmed", "not_confirmed"},
+                    f"{path_name}.outcomeが不正である",
+                )
+                required_text(path, "result", path_name)
+                referenced_ids(
+                    path,
+                    "evidence_ids",
+                    quote_ids,
+                    path_name,
+                    nonempty=outcome == "confirmed",
+                )
+    return review
 
 
 def validate_structure_check(item, name, draft_text, active_clues):
@@ -873,7 +952,7 @@ def validate_structure_check(item, name, draft_text, active_clues):
         required_text(connection, "reason", cname)
 
 
-def validate_final_input(state, version, active_props, active_clues):
+def validate_final_input(state, version, active_props, active_clues, difficulty_review):
     final = state.get("final_input")
     require_condition(isinstance(final, dict), "final_inputがない")
     require_condition(
@@ -893,6 +972,8 @@ def validate_final_input(state, version, active_props, active_clues):
             f"final_input.{key}が検査済みの現行項目と一致しない",
         )
     cited = set()
+    for group in ("beginner", "general"):
+        cited.update(difficulty_review[group]["evidence_ids"])
     for item in active_props:
         cited.update(item["evidence_ids"])
         for element in item.get("verification_elements", []):
@@ -945,6 +1026,7 @@ def validate_work_state(state, stage):
     quote_ids, active_props, active_clues = validate_sources_propositions_and_clues(
         state, version, stage
     )
+    difficulty_review = validate_difficulty_review(state, quote_ids, stage)
     terms, _ = records_with_ids(state.get("terms"), "terms")
     seen = set()
     for item in terms:
@@ -982,6 +1064,11 @@ def validate_work_state(state, stage):
         )
         required_text(item, "claim", name)
         required_text(item, "reason", name)
+        if item["id"] in {"difficulty.beginner", "difficulty.general"}:
+            require_condition(
+                item.get("asked_knowledge") == state["asked_knowledge"],
+                f"{name}.asked_knowledgeが問う知識と一致しない",
+            )
         if item["id"] == "expression.naturalness":
             required_list(
                 item.get("alternatives"), f"{name}.alternatives", nonempty=True
@@ -1033,7 +1120,17 @@ def validate_work_state(state, stage):
         required_text(item, "content_ref", f"output_elements.{item['id']}")
         require_stage_completion(item, f"output_elements.{item['id']}", stage)
     if stage in {"audit", "final"}:
-        validate_final_input(state, version, active_props, active_clues)
+        validate_final_input(
+            state, version, active_props, active_clues, difficulty_review
+        )
+
+
+def validate_difficulty_checkpoint(state):
+    selection_mode = validate_selection_mode(state)
+    validate_execution_assignments(state, "difficulty", selection_mode)
+    required_text(state, "answer_target", "state")
+    quote_ids = validate_source_quotes(state)
+    validate_difficulty_review(state, quote_ids, "difficulty")
 
 
 def main():
@@ -1045,6 +1142,7 @@ def main():
             "intersection-checkpoint",
             "discovery",
             "selection",
+            "difficulty",
             "generation",
             "audit",
             "final",
@@ -1071,6 +1169,8 @@ def main():
         elif args.stage in {"discovery", "selection"}:
             validate_selection_state(state, discovery_only=args.stage == "discovery")
             validate_execution_assignments(state, "selection")
+        elif args.stage == "difficulty":
+            validate_difficulty_checkpoint(state)
         elif args.stage == "final":
             require_condition(args.output, "final段階には--outputが必要である")
             output_bytes = Path(args.output).read_bytes()
