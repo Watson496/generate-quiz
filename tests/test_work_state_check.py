@@ -56,6 +56,7 @@ def complete_state():
         "saturation_review",
         "generation",
         "difficulty_review",
+        "terminology_review",
         "exposure",
         "audit",
         "finalization",
@@ -193,7 +194,7 @@ def complete_state():
                 "quotes": [
                     {
                         "id": "Q1",
-                        "text": "同じ長さの線分が矢羽の向きで異なる長さに見える錯視",
+                        "text": "矢羽は線分の端に付く斜線である。同じ長さの線分が矢羽の向きで異なる長さに見える錯視は入門教材で扱う",
                         "location": "第一節",
                     }
                 ],
@@ -236,13 +237,34 @@ def complete_state():
         "terms": [
             {
                 "id": "T1",
-                "term": "専門語",
-                "reason": "入門教材で説明される",
-                "evidence_ids": evidence,
+                "term": "矢羽",
+                "meaning_needed": True,
+                "meaning_reason": "引用が語義を説明する",
+                "meaning_evidence_ids": evidence.copy(),
+                "audience_reason": "想定プレイヤー層で既習事項として扱う",
+                "audience_evidence_ids": evidence.copy(),
                 "generation": "complete",
                 "audit": "passed",
             }
         ],
+        "terminology_review": {
+            "reviewer_id": agents["terminology_review"],
+            "draft_version": 2,
+            "audit": "passed",
+            "terms": [
+                {
+                    "id": "T1",
+                    "term": "矢羽",
+                    "meaning_needed": True,
+                    "meaning_status": "passed",
+                    "audience_status": "passed",
+                    "meaning_reason": "資料の定義と語義が一致する",
+                    "audience_reason": "想定プレイヤー層の既習事項として扱う",
+                    "meaning_evidence_ids": evidence.copy(),
+                    "audience_evidence_ids": evidence.copy(),
+                }
+            ],
+        },
         "answers": [
             {
                 "id": "A1",
@@ -276,6 +298,20 @@ def final_output_text(state):
         for quote in source["quotes"]
         if quote["id"] in state["final_input"]["quote_ids"]
     )
+
+
+@pytest.fixture
+def generation_state(complete_state):
+    """生成工程の監査前にある一問分の作業状態を作る。"""
+    state = copy.deepcopy(complete_state)
+    state["difficulty_review"]["audit"] = "pending"
+    state["terminology_review"]["audit"] = "pending"
+    for group in ("propositions", "terms", "answers", "checks", "output_elements"):
+        for item in state[group]:
+            item["audit"] = "pending"
+    for check in state["clues"][0]["checks"].values():
+        check["audit"] = "pending"
+    return state
 
 
 @pytest.fixture
@@ -1186,17 +1222,11 @@ class TestWorkState:
         ]
         assert check_state(run_script, "audit", complete_state).returncode == 1
 
-    def test_generation_requires_pending_audit(self, run_script, complete_state):
+    def test_generation_requires_pending_audit(self, run_script, generation_state):
         """生成工程では各項目の監査結果が未判定でなければならない。"""
-        complete_state["difficulty_review"]["audit"] = "pending"
-        for group in ("propositions", "terms", "answers", "checks", "output_elements"):
-            for item in complete_state[group]:
-                item["audit"] = "pending"
-        for check in complete_state["clues"][0]["checks"].values():
-            check["audit"] = "pending"
-        assert check_state(run_script, "generation", complete_state).returncode == 0
-        complete_state["checks"][0]["audit"] = "passed"
-        result = check_state(run_script, "generation", complete_state)
+        assert check_state(run_script, "generation", generation_state).returncode == 0
+        generation_state["checks"][0]["audit"] = "passed"
+        result = check_state(run_script, "generation", generation_state)
         assert result.returncode == 1
         assert "生成工程の時点で監査済み" in result.stderr
 
@@ -1373,6 +1403,176 @@ class TestWorkState:
         assert result.returncode == 1
         assert "terms.T1が監査に合格していない" in result.stderr
 
+    def test_term_must_appear_in_current_draft(self, run_script, complete_state):
+        """問題文にない語を専門用語の検査記録に含めない。"""
+        complete_state["terms"][0]["term"] = "問題文にない専門用語"
+        result = check_state(run_script, "audit", complete_state)
+        assert result.returncode == 1
+        assert "terms.T1.termが問題文にない" in result.stderr
+
+    @pytest.mark.parametrize(
+        "field",
+        [
+            "meaning_reason",
+            "meaning_evidence_ids",
+            "audience_reason",
+            "audience_evidence_ids",
+        ],
+    )
+    def test_term_requires_meaning_and_familiarity_evidence(
+        self, run_script, complete_state, field
+    ):
+        """語義と既習性をそれぞれ根拠に結び付ける。"""
+        del complete_state["terms"][0][field]
+        result = check_state(run_script, "audit", complete_state)
+        assert result.returncode == 1
+        assert field in result.stderr
+
+    def test_term_without_needed_meaning_requires_explanation(
+        self, run_script, complete_state
+    ):
+        """変形版の名称の内容を知らずに理解できる場合は理由を確認する。"""
+        complete_state["draft"]["text"] = (
+            "「ブレンターノ型」という変形版も知られる、"
+            + complete_state["draft"]["text"]
+        )
+        term = complete_state["terms"][0]
+        term["term"] = "ブレンターノ型"
+        term["meaning_needed"] = False
+        for field in (
+            "meaning_reason",
+            "meaning_evidence_ids",
+            "audience_reason",
+            "audience_evidence_ids",
+        ):
+            del term[field]
+        review_term = complete_state["terminology_review"]["terms"][0]
+        review_term["term"] = "ブレンターノ型"
+        review_term["meaning_needed"] = False
+        for field in (
+            "meaning_status",
+            "meaning_reason",
+            "meaning_evidence_ids",
+            "audience_status",
+            "audience_reason",
+            "audience_evidence_ids",
+        ):
+            del review_term[field]
+        review_term["understanding_without_meaning"] = (
+            "変形版の名称だと分かれば、図形の詳細を知らなくても文意が通る"
+        )
+        result = check_state(run_script, "audit", complete_state)
+        assert result.returncode == 1
+        assert "understanding_without_meaning" in result.stderr
+        term["understanding_without_meaning"] = (
+            "変形版の名称だと分かれば、図形の詳細を知らなくても文意が通る"
+        )
+        assert check_state(run_script, "audit", complete_state).returncode == 0
+        del review_term["understanding_without_meaning"]
+        result = check_state(run_script, "audit", complete_state)
+        assert result.returncode == 1
+        assert "terminology_review.terms.T1.understanding_without_meaning" in result.stderr
+
+    @pytest.mark.parametrize(
+        ("change", "expected"),
+        [
+            ("missing", "terminology_review.termsが専門用語の記録と一致しない"),
+            ("term", "terminology_review.terms.T1.term"),
+            ("meaning_needed", "terminology_review.terms.T1.meaning_needed"),
+        ],
+    )
+    def test_terminology_review_checks_terms_and_meaning_need(
+        self, run_script, complete_state, change, expected
+    ):
+        """独立検査で語の範囲と意味内容の要否を生成側と照合する。"""
+        review = complete_state["terminology_review"]["terms"]
+        if change == "missing":
+            review.clear()
+        elif change == "term":
+            review[0]["term"] = "別の専門用語"
+        else:
+            review[0]["meaning_needed"] = False
+        result = check_state(run_script, "audit", complete_state)
+        assert result.returncode == 1
+        assert expected in result.stderr
+
+    @pytest.mark.parametrize("audit", ["pending", "missing", "failed"])
+    def test_audit_requires_passed_terminology_review(
+        self, run_script, complete_state, audit
+    ):
+        """専門用語の独立検査自体が監査に合格していることを確認する。"""
+        complete_state["terminology_review"]["audit"] = audit
+        result = check_state(run_script, "audit", complete_state)
+        assert result.returncode == 1
+        assert "terminology_reviewが監査に合格していない" in result.stderr
+
+    @pytest.mark.parametrize("kind", ["meaning", "audience"])
+    def test_term_evidence_is_included_in_final_input(
+        self, run_script, complete_state, kind
+    ):
+        """専門用語の判断に使う引用を最終入力の引用集合にも含める。"""
+        complete_state["sources"][0]["quotes"].append(
+            {"id": "Q2", "text": "矢羽の説明", "location": "用語解説"}
+        )
+        field = f"{kind}_evidence_ids"
+        complete_state["terms"][0][field] = ["Q2"]
+        complete_state["terminology_review"]["terms"][0][field] = ["Q2"]
+        result = check_state(run_script, "audit", complete_state)
+        assert result.returncode == 1
+        assert "final_input.quote_idsが判断に用いた引用と一致しない" in result.stderr
+        complete_state["final_input"]["quote_ids"].append("Q2")
+        assert check_state(run_script, "audit", complete_state).returncode == 0
+
+    @pytest.mark.parametrize("kind", ["meaning", "audience"])
+    def test_terminology_review_covers_all_adopted_evidence(
+        self, run_script, complete_state, kind
+    ):
+        """生成側が採用した専門用語の引用を独立検査で残さず確認する。"""
+        complete_state["sources"][0]["quotes"].append(
+            {"id": "Q2", "text": "矢羽の別の説明", "location": "第二節"}
+        )
+        field = f"{kind}_evidence_ids"
+        complete_state["terms"][0][field].append("Q2")
+        complete_state["final_input"]["quote_ids"].append("Q2")
+        result = check_state(run_script, "audit", complete_state)
+        assert result.returncode == 1
+        assert f"terminology_review.terms.T1.{field}" in result.stderr
+        complete_state["terminology_review"]["terms"][0][field].append("Q2")
+        assert check_state(run_script, "audit", complete_state).returncode == 0
+
+    @pytest.mark.parametrize(
+        ("change", "expected"),
+        [
+            ("missing", "terminology_reviewがない"),
+            ("failed", "terminology_review.terms.T1.audience_status"),
+            ("stale", "terminology_review.draft_version"),
+            ("same_agent", "工程を別々のagentへ割り当てていない"),
+            ("audited", "terminology_reviewは生成工程の時点で監査済み"),
+        ],
+    )
+    def test_generation_requires_independent_terminology_review(
+        self, run_script, generation_state, change, expected
+    ):
+        """独立した担当が現行版の語義と既習性を検査する。"""
+        assert check_state(run_script, "generation", generation_state).returncode == 0
+        if change == "missing":
+            del generation_state["terminology_review"]
+        elif change == "failed":
+            generation_state["terminology_review"]["terms"][0]["audience_status"] = (
+                "missing"
+            )
+        elif change == "stale":
+            generation_state["terminology_review"]["draft_version"] = 1
+        elif change == "audited":
+            generation_state["terminology_review"]["audit"] = "passed"
+        else:
+            generation_state["execution"]["agents"]["terminology_review"] = (
+                generation_state["execution"]["agents"]["generation"]
+            )
+        result = check_state(run_script, "generation", generation_state)
+        assert result.returncode == 1
+        assert expected in result.stderr
+
     def test_audit_requires_passed_answer(self, run_script, complete_state):
         """未合格の解答候補を含む状態を監査で拒否する。"""
         complete_state["answers"][0]["audit"] = "missing"
@@ -1498,6 +1698,7 @@ class TestWorkState:
         del reviewed_state["execution"]["agents"]
         del reviewed_state["execution"]["assignment_log"]
         reviewed_state["difficulty_review"]["reviewer_id"] = "self"
+        reviewed_state["terminology_review"]["reviewer_id"] = "self"
         reviewed_state["final_review"]["reviewer_id"] = "self"
         result = check_state(run_script, "final", reviewed_state)
         assert result.returncode == 0

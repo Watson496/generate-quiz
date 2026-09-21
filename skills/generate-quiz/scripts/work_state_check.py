@@ -660,11 +660,23 @@ def validate_execution_assignments(state, stage, selection_mode="random"):
             + {
                 "selection": (),
                 "difficulty": ("generation", "difficulty_review"),
-                "generation": ("generation", "difficulty_review", "exposure"),
-                "audit": ("generation", "difficulty_review", "exposure", "audit"),
+                "generation": (
+                    "generation",
+                    "difficulty_review",
+                    "terminology_review",
+                    "exposure",
+                ),
+                "audit": (
+                    "generation",
+                    "difficulty_review",
+                    "terminology_review",
+                    "exposure",
+                    "audit",
+                ),
                 "final": (
                     "generation",
                     "difficulty_review",
+                    "terminology_review",
                     "exposure",
                     "audit",
                     "finalization",
@@ -982,9 +994,13 @@ def validate_final_input(state, version, active_props, active_clues, difficulty_
         for key in ("centrality", "quasi_uniqueness", "familiarity"):
             check = item["checks"][key]
             cited.update(check["evidence_ids"])
-    for key in ("terms", "answers", "checks"):
+    for key in ("answers", "checks"):
         for item in state[key]:
             cited.update(item.get("evidence_ids", []))
+    for item in state["terms"]:
+        if item["meaning_needed"]:
+            cited.update(item["meaning_evidence_ids"])
+            cited.update(item["audience_evidence_ids"])
     quote_refs = required_id_list(final.get("quote_ids"), "final_input.quote_ids")
     require_condition(
         len(quote_refs) == len(set(quote_refs)) and set(quote_refs) == cited,
@@ -1012,6 +1028,95 @@ def validate_final_review(state, output_bytes):
     )
 
 
+def validate_terminology(state, quote_ids, version, stage, draft_text):
+    terms, _ = records_with_ids(state.get("terms"), "terms")
+    seen = set()
+    for item in terms:
+        name = f"terms.{item['id']}"
+        value = required_text(item, "term", name)
+        require_condition(value not in seen, "同じ専門用語が重複している")
+        require_condition(value in draft_text, f"{name}.termが問題文にない")
+        seen.add(value)
+        meaning_needed = item.get("meaning_needed")
+        require_condition(
+            isinstance(meaning_needed, bool), f"{name}.meaning_neededがない"
+        )
+        if meaning_needed:
+            required_text(item, "meaning_reason", name)
+            referenced_ids(item, "meaning_evidence_ids", quote_ids, name)
+            required_text(item, "audience_reason", name)
+            referenced_ids(item, "audience_evidence_ids", quote_ids, name)
+        else:
+            required_text(item, "understanding_without_meaning", name)
+        require_stage_completion(item, name, stage)
+    review = state.get("terminology_review")
+    require_condition(isinstance(review, dict), "terminology_reviewがない")
+    execution = state["execution"]
+    reviewer = (
+        execution["agents"]["terminology_review"]
+        if execution["delegation_available"]
+        else "self"
+    )
+    require_condition(
+        review.get("reviewer_id") == reviewer,
+        "terminology_review.reviewer_idが担当記録と一致しない",
+    )
+    require_condition(
+        review.get("draft_version") == version,
+        "terminology_review.draft_versionが問題文と一致しない",
+    )
+    audit = review.get("audit")
+    require_condition(
+        audit in {"pending", "passed", "missing", "failed"},
+        "terminology_review.auditが不正である",
+    )
+    if stage == "generation":
+        require_condition(
+            audit == "pending",
+            "terminology_reviewは生成工程の時点で監査済みになっている",
+        )
+    else:
+        require_condition(audit == "passed", "terminology_reviewが監査に合格していない")
+    reviewed, reviewed_ids = records_with_ids(
+        review.get("terms"), "terminology_review.terms"
+    )
+    required_ids = {item["id"] for item in terms}
+    require_condition(
+        reviewed_ids == required_ids,
+        "terminology_review.termsが専門用語の記録と一致しない",
+    )
+    term_by_id = {item["id"]: item for item in terms}
+    for item in reviewed:
+        name = f"terminology_review.terms.{item['id']}"
+        term = term_by_id[item["id"]]
+        require_condition(
+            required_text(item, "term", name) == term["term"],
+            f"{name}.termが生成側の専門用語と一致しない",
+        )
+        require_condition(
+            isinstance(item.get("meaning_needed"), bool),
+            f"{name}.meaning_neededがない",
+        )
+        require_condition(
+            item["meaning_needed"] == term["meaning_needed"],
+            f"{name}.meaning_neededが生成側の判断と一致しない",
+        )
+        if not item["meaning_needed"]:
+            required_text(item, "understanding_without_meaning", name)
+            continue
+        for kind in ("meaning", "audience"):
+            require_condition(
+                item.get(f"{kind}_status") == "passed",
+                f"{name}.{kind}_statusが合格していない",
+            )
+            required_text(item, f"{kind}_reason", name)
+            evidence = referenced_ids(item, f"{kind}_evidence_ids", quote_ids, name)
+            require_condition(
+                set(evidence) == set(term[f"{kind}_evidence_ids"]),
+                f"{name}.{kind}_evidence_idsが採用引用と一致しない",
+            )
+
+
 def validate_work_state(state, stage):
     selection_mode = validate_selection_mode(state)
     validate_execution_assignments(state, stage, selection_mode)
@@ -1027,16 +1132,7 @@ def validate_work_state(state, stage):
         state, version, stage
     )
     difficulty_review = validate_difficulty_review(state, quote_ids, stage)
-    terms, _ = records_with_ids(state.get("terms"), "terms")
-    seen = set()
-    for item in terms:
-        name = f"terms.{item['id']}"
-        value = required_text(item, "term", name)
-        require_condition(value not in seen, "同じ専門用語が重複している")
-        seen.add(value)
-        required_text(item, "reason", name)
-        referenced_ids(item, "evidence_ids", quote_ids, name)
-        require_stage_completion(item, name, stage)
+    validate_terminology(state, quote_ids, version, stage, draft["text"])
     answers, _ = records_with_ids(state.get("answers"), "answers", nonempty=True)
     seen = set()
     for item in answers:
