@@ -1,6 +1,7 @@
 """作問状態の参照関係と工程別の検査を確認する。"""
 
 import copy
+import hashlib
 import json
 import tempfile
 from pathlib import Path
@@ -234,6 +235,30 @@ def complete_state():
     }
 
 
+def final_output_text(state):
+    """最終段階のテストで使う完成稿本文を組み立てる。"""
+    return "\n".join(
+        quote["text"]
+        for source in state["sources"]
+        for quote in source["quotes"]
+        if quote["id"] in state["final_input"]["quote_ids"]
+    )
+
+
+@pytest.fixture
+def reviewed_state(complete_state):
+    """完成稿を監査担当が照合した最終段階の作業状態を作る。"""
+    state = copy.deepcopy(complete_state)
+    state["final_review"] = {
+        "status": "passed",
+        "reviewer_id": state["execution"]["agents"]["audit"],
+        "output_sha256": hashlib.sha256(
+            final_output_text(state).encode("utf-8")
+        ).hexdigest(),
+    }
+    return state
+
+
 @pytest.fixture
 def exposed_precheck():
     """異なる代表説明から解答名を形成できる露出予備検査を作る。"""
@@ -291,15 +316,7 @@ def check_state(run_script, stage, state):
     if stage == "final":
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory) / "完成稿.md"
-            output.write_text(
-                "\n".join(
-                    quote["text"]
-                    for source in state["sources"]
-                    for quote in source["quotes"]
-                    if quote["id"] in state["final_input"]["quote_ids"]
-                ),
-                encoding="utf-8",
-            )
+            output.write_text(final_output_text(state), encoding="utf-8")
             return run_script(
                 "work_state_check.py",
                 "--stage",
@@ -809,9 +826,12 @@ class TestWorkState:
     """生成・監査・最終出力の作業状態を検査する。"""
 
     @pytest.mark.parametrize("stage", ["audit", "final"])
-    def test_complete_state_passes(self, run_script, complete_state, stage):
+    def test_complete_state_passes(
+        self, run_script, complete_state, reviewed_state, stage
+    ):
         """各項目が完了した状態は指定工程で合格する。"""
-        assert check_state(run_script, stage, complete_state).returncode == 0
+        state = complete_state if stage == "audit" else reviewed_state
+        assert check_state(run_script, stage, state).returncode == 0
 
     def test_clue_rejects_quasi_uniqueness_depending_on_another_clue(
         self, run_script, complete_state
@@ -1185,7 +1205,7 @@ class TestWorkState:
         result = check_state(run_script, "audit", complete_state)
         assert result.returncode == 0
 
-    def test_final_requires_quote_in_output(self, run_script, complete_state, tmp_path):
+    def test_final_requires_quote_in_output(self, run_script, reviewed_state, tmp_path):
         """採用した引用本文が完成稿にない場合は確定できない。"""
         output = tmp_path / "完成稿.md"
         output.write_text("引用を含まない完成稿", encoding="utf-8")
@@ -1195,10 +1215,74 @@ class TestWorkState:
             "final",
             "--output",
             output,
-            stdin=json.dumps(complete_state, ensure_ascii=False),
+            stdin=json.dumps(reviewed_state, ensure_ascii=False),
         )
         assert result.returncode == 1
         assert "最終出力に引用Q1がない" in result.stderr
+
+    @pytest.mark.parametrize(
+        ("field", "value", "message"),
+        [
+            ("status", "pending", "最終出力の照合が合格していない"),
+            (
+                "reviewer_id",
+                "別の担当者",
+                "final_review.reviewer_idが監査担当と一致しない",
+            ),
+            (
+                "output_sha256",
+                "0" * 64,
+                "final_review.output_sha256が完成稿と一致しない",
+            ),
+        ],
+    )
+    def test_final_requires_review_of_current_output(
+        self, run_script, reviewed_state, field, value, message
+    ):
+        """完成稿の照合結果は監査担当と現行ファイルに対応する。"""
+        reviewed_state["final_review"][field] = value
+        result = check_state(run_script, "final", reviewed_state)
+        assert result.returncode == 1
+        assert message in result.stderr
+
+    def test_final_requires_review_record(self, run_script, reviewed_state):
+        """照合記録がない完成稿は確定しない。"""
+        del reviewed_state["final_review"]
+        result = check_state(run_script, "final", reviewed_state)
+        assert result.returncode == 1
+        assert "final_reviewがない" in result.stderr
+
+    def test_final_accepts_self_review_without_delegation(
+        self, run_script, reviewed_state
+    ):
+        """委譲できない環境では自分の照合記録を使う。"""
+        reviewed_state["execution"]["delegation_available"] = False
+        reviewed_state["execution"]["unavailable_reason"] = "委譲機能がない"
+        del reviewed_state["execution"]["agents"]
+        del reviewed_state["execution"]["assignment_log"]
+        reviewed_state["final_review"]["reviewer_id"] = "self"
+        result = check_state(run_script, "final", reviewed_state)
+        assert result.returncode == 0
+
+    def test_final_rejects_output_changed_after_review(
+        self, run_script, reviewed_state, tmp_path
+    ):
+        """引用を保持していても照合後に変更した完成稿は確定しない。"""
+        output = tmp_path / "完成稿.md"
+        output.write_text(
+            reviewed_state["sources"][0]["quotes"][0]["text"] + "\n",
+            encoding="utf-8",
+        )
+        result = run_script(
+            "work_state_check.py",
+            "--stage",
+            "final",
+            "--output",
+            output,
+            stdin=json.dumps(reviewed_state, ensure_ascii=False),
+        )
+        assert result.returncode == 1
+        assert "final_review.output_sha256が完成稿と一致しない" in result.stderr
 
     def test_audit_requires_matching_assignment(self, run_script, complete_state):
         """起動時に記録した担当者と実際の担当者の不一致を監査で拒否する。"""
@@ -1211,9 +1295,9 @@ class TestWorkState:
             "assignment_log.exploration.agent_idが担当記録と一致しない" in result.stderr
         )
 
-    def test_final_requires_all_checked_answers(self, run_script, complete_state):
+    def test_final_requires_all_checked_answers(self, run_script, reviewed_state):
         """最終入力が監査済みの別解を欠けば出力を拒否する。"""
-        complete_state["answers"].append(
+        reviewed_state["answers"].append(
             {
                 "id": "A2",
                 "answer": "別解",
@@ -1224,26 +1308,26 @@ class TestWorkState:
                 "audit": "passed",
             }
         )
-        result = check_state(run_script, "final", complete_state)
+        result = check_state(run_script, "final", reviewed_state)
         assert result.returncode == 1
         assert "final_input.answer_idsが検査済みの現行項目と一致しない" in result.stderr
 
     @pytest.mark.parametrize("invalid_id", [{}, []])
     def test_final_rejects_nonstring_answer_id(
-        self, run_script, complete_state, invalid_id
+        self, run_script, reviewed_state, invalid_id
     ):
         """最終入力の解答IDに文字列以外を指定しても追跡表示を出さない。"""
-        complete_state["final_input"]["answer_ids"] = [invalid_id]
-        result = check_state(run_script, "final", complete_state)
+        reviewed_state["final_input"]["answer_ids"] = [invalid_id]
+        result = check_state(run_script, "final", reviewed_state)
         assert result.returncode == 1
         assert "空でない文字列ID" in result.stderr
         assert "Traceback" not in result.stderr
 
-    def test_final_rejects_rejected_clue(self, run_script, complete_state):
+    def test_final_rejects_rejected_clue(self, run_script, reviewed_state):
         """棄却済みの手掛かりを最終入力で参照できないことを確認する。"""
-        complete_state["clues"].append({"id": "C2", "status": "rejected"})
-        complete_state["final_input"]["clue_ids"].append("C2")
-        result = check_state(run_script, "final", complete_state)
+        reviewed_state["clues"].append({"id": "C2", "status": "rejected"})
+        reviewed_state["final_input"]["clue_ids"].append("C2")
+        result = check_state(run_script, "final", reviewed_state)
         assert result.returncode == 1
         assert "final_input.clue_idsが検査済みの現行項目と一致しない" in result.stderr
 
@@ -1256,12 +1340,15 @@ class TestWorkState:
         assert result.returncode == 1
         assert "工程を別々のagentへ割り当てていない" in result.stderr
 
-    def test_finalization_agent_needed_only_for_final(self, run_script, complete_state):
+    def test_finalization_agent_needed_only_for_final(
+        self, run_script, complete_state, reviewed_state
+    ):
         """最終化の担当は監査時には不要だが最終出力時には必要となる。"""
-        del complete_state["execution"]["agents"]["finalization"]
-        del complete_state["execution"]["assignment_log"]["finalization"]
+        for state in (complete_state, reviewed_state):
+            del state["execution"]["agents"]["finalization"]
+            del state["execution"]["assignment_log"]["finalization"]
         assert check_state(run_script, "audit", complete_state).returncode == 0
-        result = check_state(run_script, "final", complete_state)
+        result = check_state(run_script, "final", reviewed_state)
         assert result.returncode == 1
         assert "execution.agents.finalizationがない" in result.stderr
 

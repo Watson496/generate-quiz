@@ -15,6 +15,7 @@ intersection-checkpoint、discovery、selection、generation、audit、finalの�
 """
 
 import argparse
+import hashlib
 import json
 import re
 import sys
@@ -909,6 +910,26 @@ def validate_final_input(state, version, active_props, active_clues):
     )
 
 
+def validate_final_review(state, output_bytes):
+    review = state.get("final_review")
+    require_condition(isinstance(review, dict), "final_reviewがない")
+    require_condition(
+        review.get("status") == "passed", "最終出力の照合が合格していない"
+    )
+    execution = state["execution"]
+    reviewer = (
+        execution["agents"]["audit"] if execution["delegation_available"] else "self"
+    )
+    require_condition(
+        review.get("reviewer_id") == reviewer,
+        "final_review.reviewer_idが監査担当と一致しない",
+    )
+    require_condition(
+        review.get("output_sha256") == hashlib.sha256(output_bytes).hexdigest(),
+        "final_review.output_sha256が完成稿と一致しない",
+    )
+
+
 def validate_work_state(state, stage):
     validate_execution_assignments(state, stage)
     required_text(state, "answer_target", "state")
@@ -1050,7 +1071,8 @@ def main():
             validate_execution_assignments(state, "selection")
         elif args.stage == "final":
             require_condition(args.output, "final段階には--outputが必要である")
-            output = Path(args.output).read_text(encoding="utf-8")
+            output_bytes = Path(args.output).read_bytes()
+            output = output_bytes.decode("utf-8")
             validate_work_state(state, args.stage)
             for source in state["sources"]:
                 for quote in source["quotes"]:
@@ -1059,9 +1081,10 @@ def main():
                             quote["text"] in output,
                             f"最終出力に引用{quote['id']}がない",
                         )
+            validate_final_review(state, output_bytes)
         else:
             validate_work_state(state, args.stage)
-    except OSError as error:
+    except (OSError, UnicodeError) as error:
         print(f"入力エラー: {error}", file=sys.stderr)
         return EXIT_USAGE
     except StateError as error:
