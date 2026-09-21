@@ -12,6 +12,7 @@ import sys
 from dataclasses import dataclass
 from enum import Enum
 from functools import cache
+from itertools import pairwise
 from pathlib import Path
 
 SECTIONS = [
@@ -191,7 +192,7 @@ def quiz_files(input_dir: Path) -> list[Path]:
     found.sort(key=lambda item: (item[0], item[1].name))
     if not found:
         raise QuizFileError.numbered_files_missing(input_dir)
-    for previous, current in zip(found, found[1:]):
+    for previous, current in pairwise(found):
         if previous[0] == current[0]:
             raise QuizFileError.duplicate_file_number(current[0])
     return [path for _, path in found]
