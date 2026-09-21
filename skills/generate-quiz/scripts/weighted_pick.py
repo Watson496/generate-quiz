@@ -60,10 +60,7 @@ def load_input(path):
 
 
 def candidates_of(payload):
-    if isinstance(payload, dict):
-        cands = payload.get("candidates")
-    else:
-        cands = payload
+    cands = payload.get("candidates") if isinstance(payload, dict) else payload
     if not isinstance(cands, list):
         fail('入力は {"candidates": [...]} か候補の配列である必要があります。')
     for c in cands:
