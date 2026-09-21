@@ -23,6 +23,7 @@ SECTIONS = [
     "問題成立性の確認",
     "裏取り情報",
 ]
+MIN_REFERENCE_LINES = 2
 HEADING_RE = re.compile(r"^## ([^#].*?)\s*$", re.MULTILINE)
 TITLE_RE = re.compile(r"\A\s*# 第(\d+)問\s*$", re.MULTILINE)
 QA_RE = re.compile(r"^(問題|解答)：(.+)$", re.MULTILINE)
@@ -274,7 +275,7 @@ def parse_references(quiz: Quiz, body: str) -> tuple[str, list[BibEntry]]:
     entries = []
     for index, block in enumerate(blocks, 1):
         lines = [line.strip() for line in block.splitlines() if line.strip()]
-        if len(lines) < 2 or not URL_RE.fullmatch(lines[-1]):
+        if len(lines) < MIN_REFERENCE_LINES or not URL_RE.fullmatch(lines[-1]):
             raise QuizFormatError.invalid_reference(quiz.source.name, index)
         description = "\n".join(lines[:-1])
         entries.append(
