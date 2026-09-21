@@ -374,7 +374,7 @@ def write_generated(output_dir: Path, quizzes: list[Quiz]) -> None:
     )
 
 
-def prepare_output(template: Path, output: Path, update: bool) -> None:
+def prepare_output(template: Path, output: Path, *, update: bool) -> None:
     if output.exists() and any(output.iterdir()) and not update:
         raise PathError.output_not_empty(output)
     output.mkdir(parents=True, exist_ok=True)
@@ -406,7 +406,7 @@ def main() -> int:
             for index, path in enumerate(quiz_files(input_dir), 1)
         ]
         template = Path(__file__).resolve().parents[1] / "assets" / "template"
-        prepare_output(template, output_dir, args.update)
+        prepare_output(template, output_dir, update=args.update)
         write_generated(output_dir, quizzes)
         if not args.no_compile:
             for suffix in ["aux", "fdb_latexmk", "fls", "log", "out", "toc"]:
