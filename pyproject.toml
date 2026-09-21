@@ -7,7 +7,10 @@ requires-python = ">=3.14"
 package = false
 
 [dependency-groups]
-dev = ["ruff==0.16.8"]
+dev = [
+    "pytest==9.1.1",
+    "ruff==0.16.8",
+]
 
 [tool.ruff]
 line-length = 88
@@ -16,9 +19,8 @@ target-version = "py314"
 [tool.ruff.lint]
 select = ["ALL"]
 ignore = [
-    "ANN",     # 小規模なCLIとunittestに一律の型注釈を要求しない
+    "ANN",     # 小規模なCLIとテストに一律の型注釈を要求しない
     "D",       # 全関数への定型的なdocstringを要求しない
-    "PT",      # テストはpytest形式ではなくunittestを使う
     "RUF001", # 日本語の文字列に含まれる文字を許容する
     "RUF002", # 日本語のdocstringに含まれる文字を許容する
     "RUF003", # 日本語のコメントに含まれる文字を許容する
@@ -30,6 +32,13 @@ ignore = [
     "S311",   # 作問用の乱択は暗号用途ではない
     "S603",   # subprocessへ固定・検査済みのコマンドを渡す
     "PLW1510", # subprocessの終了コードを呼出し側で確認する
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/test_*.py" = [
+    "INP001",  # pytestのテストディレクトリをパッケージにしない
+    "S101",    # pytestの検証にassertを使う
+    "PLR2004", # テストでは期待する終了コードや件数を直接示す
 ]
 
 [tool.ruff.lint.mccabe]

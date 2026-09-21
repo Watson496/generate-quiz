@@ -121,7 +121,7 @@ tests/                     開発用の回帰テスト
 開発にはPython 3.14以上を使用します。Agent Skillsに同梱するPythonスクリプトの回帰テストは、リポジトリのルートで実行します。
 
 ```bash
-python3 tests/test_cli_contracts.py
+uv run pytest tests/
 ```
 
 Pythonコードのlintと整形は開発用依存のRuffで確認します。lintは`ALL`を基準とし、適用しないルールは[`pyproject.toml`](pyproject.toml)に理由とともに記載します。整形する場合は、先にimportを整理します。
