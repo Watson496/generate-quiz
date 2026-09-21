@@ -871,6 +871,44 @@ def validate_structure_check(item, name, draft_text, active_clues):
         required_text(connection, "reason", cname)
 
 
+def validate_final_input(state, version, active_props, active_clues):
+    final = state.get("final_input")
+    require_condition(isinstance(final, dict), "final_inputがない")
+    require_condition(
+        final.get("draft_version") == version, "final_inputの問題文の版が一致しない"
+    )
+    expected = {
+        "proposition_ids": {item["id"] for item in active_props},
+        "clue_ids": {item["id"] for item in active_clues},
+        "term_ids": {item["id"] for item in state["terms"]},
+        "answer_ids": {item["id"] for item in state["answers"]},
+        "output_element_ids": {item["id"] for item in state["output_elements"]},
+    }
+    for key, ids in expected.items():
+        refs = required_id_list(final.get(key), f"final_input.{key}")
+        require_condition(
+            len(refs) == len(set(refs)) and set(refs) == ids,
+            f"final_input.{key}が検査済みの現行項目と一致しない",
+        )
+    cited = set()
+    for item in active_props:
+        cited.update(item["evidence_ids"])
+        for element in item.get("verification_elements", []):
+            cited.update(element["evidence_ids"])
+    for item in active_clues:
+        for key in ("centrality", "quasi_uniqueness", "familiarity"):
+            check = item["checks"][key]
+            cited.update(check["evidence_ids"])
+    for key in ("terms", "answers", "checks"):
+        for item in state[key]:
+            cited.update(item.get("evidence_ids", []))
+    quote_refs = required_id_list(final.get("quote_ids"), "final_input.quote_ids")
+    require_condition(
+        len(quote_refs) == len(set(quote_refs)) and set(quote_refs) == cited,
+        "final_input.quote_idsが判断に用いた引用と一致しない",
+    )
+
+
 def validate_work_state(state, stage):
     validate_execution_assignments(state, stage)
     required_text(state, "answer_target", "state")
@@ -884,7 +922,7 @@ def validate_work_state(state, stage):
     quote_ids, active_props, active_clues = validate_sources_propositions_and_clues(
         state, version, stage
     )
-    terms, term_ids = records_with_ids(state.get("terms"), "terms")
+    terms, _ = records_with_ids(state.get("terms"), "terms")
     seen = set()
     for item in terms:
         name = f"terms.{item['id']}"
@@ -894,9 +932,7 @@ def validate_work_state(state, stage):
         required_text(item, "reason", name)
         referenced_ids(item, "evidence_ids", quote_ids, name)
         require_stage_completion(item, name, stage)
-    answers, answer_ids = records_with_ids(
-        state.get("answers"), "answers", nonempty=True
-    )
+    answers, _ = records_with_ids(state.get("answers"), "answers", nonempty=True)
     seen = set()
     for item in answers:
         name = f"answers.{item['id']}"
@@ -973,24 +1009,8 @@ def validate_work_state(state, stage):
     for item in outputs:
         required_text(item, "content_ref", f"output_elements.{item['id']}")
         require_stage_completion(item, f"output_elements.{item['id']}", stage)
-    if stage == "final":
-        final = state.get("final_input")
-        require_condition(isinstance(final, dict), "final_inputがない")
-        require_condition(
-            final.get("draft_version") == version, "final_inputの問題文の版が一致しない"
-        )
-        expected = {
-            "proposition_ids": {x["id"] for x in active_props},
-            "clue_ids": {x["id"] for x in active_clues},
-            "term_ids": term_ids,
-            "answer_ids": answer_ids,
-            "output_element_ids": output_ids,
-        }
-        for key, ids in expected.items():
-            require_condition(
-                set(required_id_list(final.get(key), f"final_input.{key}")) == ids,
-                f"final_input.{key}が検査済みの現行項目と一致しない",
-            )
+    if stage in {"audit", "final"}:
+        validate_final_input(state, version, active_props, active_clues)
 
 
 def main():
@@ -1008,6 +1028,7 @@ def main():
         ),
         required=True,
     )
+    parser.add_argument("--output")
     args = parser.parse_args()
     try:
         state = json.loads(
@@ -1027,8 +1048,22 @@ def main():
         elif args.stage in {"discovery", "selection"}:
             validate_selection_state(state, discovery_only=args.stage == "discovery")
             validate_execution_assignments(state, "selection")
+        elif args.stage == "final":
+            require_condition(args.output, "final段階には--outputが必要である")
+            output = Path(args.output).read_text(encoding="utf-8")
+            validate_work_state(state, args.stage)
+            for source in state["sources"]:
+                for quote in source["quotes"]:
+                    if quote["id"] in state["final_input"]["quote_ids"]:
+                        require_condition(
+                            quote["text"] in output,
+                            f"最終出力に引用{quote['id']}がない",
+                        )
         else:
             validate_work_state(state, args.stage)
+    except OSError as error:
+        print(f"入力エラー: {error}", file=sys.stderr)
+        return EXIT_USAGE
     except StateError as error:
         print(f"不合格: {error}", file=sys.stderr)
         return EXIT_STATE_INVALID
