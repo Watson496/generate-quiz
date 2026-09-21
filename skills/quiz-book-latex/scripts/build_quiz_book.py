@@ -440,13 +440,13 @@ def main() -> int:
                     ExternalCommand.LATEXMK, result
                 )
         print(f"{len(quizzes)}問の問題集を生成しました: {output_dir}")
-        return 0
     except QuizBookError as error:
         print(f"error: {error}", file=sys.stderr)
         return 2
     except OSError as error:
         print(f"error: ファイル操作に失敗しました: {error}", file=sys.stderr)
         return 2
+    return 0
 
 
 if __name__ == "__main__":
