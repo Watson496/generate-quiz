@@ -118,7 +118,7 @@ tests/                     開発用の回帰テスト
 
 工程制御は `skills/generate-quiz/SKILL.md` と `GPT/generate-quiz/Instructions.txt` で管理し、実行環境に応じて更新します。題材選定・履歴は `selection_and_history_spec.md`、問題文生成は `quiz_generation_spec.md`、裏取り・正誤判定は `verification_and_judging_spec.md` に定義します。
 
-開発にはPython 3.14以上を使用します。Agent Skillsに同梱するPythonスクリプトの回帰テストは、リポジトリのルートで実行します。
+開発にはPython 3.14以上を使用します。`tests/`にはAgent Skillsに同梱するPythonスクリプトの単体テストとCLIの入出力テストを置きます。スクリプトの処理を追加・変更するときは、対応するテストも追加・更新します。テストはリポジトリのルートで実行します。
 
 ```bash
 uv run pytest tests/
@@ -131,7 +131,7 @@ uv run ruff check --fix skills/generate-quiz/scripts skills/quiz-book-latex/scri
 uv run ruff format skills/generate-quiz/scripts skills/quiz-book-latex/scripts tests
 ```
 
-変更後は`check`と`format --check`を実行し、上記の回帰テストも通します。
+変更後は`check`と`format --check`を実行し、上記のテストも通します。
 
 `tests/` は開発用で、各環境へインストール・登録するファイルには含めません。
 
