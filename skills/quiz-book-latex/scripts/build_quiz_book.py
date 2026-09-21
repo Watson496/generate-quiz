@@ -27,6 +27,10 @@ class InputError(Exception):
     pass
 
 
+class ExternalToolError(Exception):
+    pass
+
+
 @dataclass
 class Quiz:
     number: int
@@ -44,9 +48,12 @@ class BibEntry:
 
 
 def command_path(name: str) -> str:
-    path = shutil.which(name)
+    try:
+        path = shutil.which(name)
+    except OSError as error:
+        raise ExternalToolError(f"コマンドを確認できません: {name}: {error}") from error
     if not path:
-        raise InputError(f"必要なコマンドが見つかりません: {name}")
+        raise ExternalToolError(f"必要なコマンドが見つかりません: {name}")
     return path
 
 
@@ -55,7 +62,11 @@ def quiz_files(input_dir: Path) -> list[Path]:
     for path in input_dir.glob("*.md"):
         match = PREFIX_RE.match(path.name)
         if match:
-            found.append((int(match.group(1)), path))
+            try:
+                number = int(match.group(1))
+            except ValueError as error:
+                raise InputError(f"ファイル名の問題番号を解釈できません: {path.name}") from error
+            found.append((number, path))
     found.sort(key=lambda item: (item[0], item[1].name))
     if not found:
         raise InputError(f"番号で始まるMarkdownファイルが見つかりません: {input_dir}")
@@ -66,11 +77,17 @@ def quiz_files(input_dir: Path) -> list[Path]:
 
 
 def parse_quiz(path: Path, expected_number: int) -> Quiz:
-    text = path.read_text(encoding="utf-8")
+    try:
+        text = path.read_text(encoding="utf-8")
+    except UnicodeDecodeError as error:
+        raise InputError(f"{path.name}: UTF-8として読めません") from error
     title_matches = list(TITLE_RE.finditer(text))
     if len(title_matches) != 1:
         raise InputError(f"{path.name}: '# 第N問' 見出しは1つだけ必要です")
-    number = int(title_matches[0].group(1))
+    try:
+        number = int(title_matches[0].group(1))
+    except ValueError as error:
+        raise InputError(f"{path.name}: 見出しの問題番号を解釈できません") from error
     prefix_match = PREFIX_RE.match(path.name)
     assert prefix_match is not None
     prefix = int(prefix_match.group(1))
@@ -115,9 +132,12 @@ def pandoc_latex(markdown: str, *, inline: bool = False) -> str:
         "--wrap=preserve",
         f"--lua-filter={heading_filter}",
     ]
-    result = subprocess.run(command, input=markdown, text=True, capture_output=True)
+    try:
+        result = subprocess.run(command, input=markdown, text=True, capture_output=True)
+    except (OSError, UnicodeError) as error:
+        raise ExternalToolError(f"Pandocを実行できません: {error}") from error
     if result.returncode:
-        raise InputError(f"Pandocの変換に失敗しました:\n{result.stderr.strip()}")
+        raise ExternalToolError(f"Pandocの変換に失敗しました:\n{result.stderr.strip()}")
     latex = result.stdout.strip()
     # 一般的なTeX Live環境の日本語斜体フォールバックにはU+2070がないため置換する。
     latex = latex.replace("⁰", r"\textsuperscript{0}")
@@ -243,8 +263,11 @@ def main() -> int:
     parser.add_argument("--no-compile", action="store_true")
     args = parser.parse_args()
     try:
-        input_dir = args.input.resolve()
-        output_dir = args.output.resolve()
+        try:
+            input_dir = args.input.resolve()
+            output_dir = args.output.resolve()
+        except RuntimeError as error:
+            raise InputError(f"入出力パスを解決できません: {error}") from error
         if not input_dir.is_dir():
             raise InputError(f"入力ディレクトリが見つかりません: {input_dir}")
         command_path("pandoc")
@@ -266,22 +289,28 @@ def main() -> int:
             build_env = os.environ.copy()
             build_env["TEXMFVAR"] = str(tex_cache)
             build_env["TEXMFCACHE"] = str(tex_cache)
-            result = subprocess.run(
-                [command_path("latexmk"), "-g", "-interaction=nonstopmode", "main.tex"],
-                cwd=output_dir,
-                env=build_env,
-                text=True,
-                capture_output=True,
-            )
+            try:
+                result = subprocess.run(
+                    [command_path("latexmk"), "-g", "-interaction=nonstopmode", "main.tex"],
+                    cwd=output_dir,
+                    env=build_env,
+                    text=True,
+                    capture_output=True,
+                )
+            except (OSError, UnicodeError) as error:
+                raise ExternalToolError(f"LaTeXを実行できません: {error}") from error
             if result.returncode:
                 diagnostic = "\n".join((result.stdout + result.stderr).splitlines()[-80:])
-                raise InputError(
+                raise ExternalToolError(
                     f"LaTeXのビルドに失敗しました（終了コード: {result.returncode}）:\n{diagnostic}"
                 )
         print(f"{len(quizzes)}問の問題集を生成しました: {output_dir}")
         return 0
-    except InputError as error:
+    except (InputError, ExternalToolError) as error:
         print(f"error: {error}", file=sys.stderr)
+        return 2
+    except OSError as error:
+        print(f"error: ファイル操作に失敗しました: {error}", file=sys.stderr)
         return 2
 
 
