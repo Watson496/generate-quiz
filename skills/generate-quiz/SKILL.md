@@ -45,7 +45,8 @@ argument-hint: <作問条件（主題・問題数・文字数・履歴など。�
 - 同梱スクリプトにはPython 3.14以上を使用する。
 - 毎問Web検索を使う。検索手段が一切使えない場合は、内部知識で代替せず作問を中止する。
 - 重み付き乱択、履歴補正、文字数判定、作業状態の構造検査は、必ず同梱スクリプトを実行する。
-  - ファセット・題材候補の抽選：`scripts/weighted_pick.py`
+  - ファセットの抽選：`scripts/weighted_pick.py`
+  - 題材候補の抽選：`scripts/topic_pick.py`
   - 文字数と採否：`scripts/length_check.py`
   - ファセットノードの取得：`scripts/facet_node.py`
   - 作業状態の構造検査：`scripts/work_state_check.py`
@@ -74,7 +75,11 @@ python3 "$SKILL_DIR/scripts/weighted_pick.py" <<'JSON'
 JSON
 ```
 
-抽選した候補が題材品質ゲートに不合格なら、`weighted_pick.py`へ`--exclude <key>`を渡し、その候補を除いて再抽選する。
+題材候補の抽選には、探索状態のJSONを`topic_pick.py`へ渡す。このスクリプトは探索状態にある選択対象のIDと抽選用JSONの候補IDが一致することを検査する。題材品質ゲートで候補を棄却した場合は、その候補の`quality_rejection_reason`に理由を記録し、記録済みの全候補IDを`--exclude <key>`で渡して再抽選する。探索段階の`disposition`は書き換えない。ファセットの抽選には`weighted_pick.py`を使う。
+
+```bash
+python3 "$SKILL_DIR/scripts/topic_pick.py" state.json --json candidates.json
+```
 
 問題文の版ごとに文字数判定の`DRAW`を保持する。同じ版を監査するときは`--draw`へ同じ値を渡し、再抽選しない。
 
@@ -82,6 +87,7 @@ JSON
 
 ```bash
 python3 "$SKILL_DIR/scripts/work_state_check.py" --stage intersection-checkpoint state.json
+python3 "$SKILL_DIR/scripts/work_state_check.py" --stage discovery state.json
 python3 "$SKILL_DIR/scripts/work_state_check.py" --stage selection state.json
 python3 "$SKILL_DIR/scripts/work_state_check.py" --stage generation state.json
 python3 "$SKILL_DIR/scripts/work_state_check.py" --stage audit state.json

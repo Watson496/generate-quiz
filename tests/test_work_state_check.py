@@ -47,7 +47,15 @@ REQUIRED_OUTPUT_IDS = {
 def complete_state():
     """全工程を通過できる一問分の作業状態を作る。"""
     evidence = ["Q1"]
-    roles = ("exploration", "generation", "exposure", "audit", "finalization")
+    roles = (
+        "exploration",
+        "alternate_exploration",
+        "saturation_review",
+        "generation",
+        "exposure",
+        "audit",
+        "finalization",
+    )
     agents = {role: f"agent-{index}" for index, role in enumerate(roles, 1)}
     checks = [
         {
@@ -221,126 +229,6 @@ def complete_state():
             "output_element_ids": sorted(REQUIRED_OUTPUT_IDS),
         },
     }
-
-
-@pytest.fixture
-def intersection_state():
-    """交差領域の成立性を確認した状態を作る。"""
-    return {
-        "execution": {
-            "delegation_available": True,
-            "agents": {"intersection": "agent-1"},
-            "assignment_log": {
-                "intersection": {
-                    "agent_id": "agent-1",
-                    "recorded_at_spawn": True,
-                    "artifact_refs": ["intersection.md"],
-                }
-            },
-        },
-        "facet_nodes": {
-            "subject": "subject::66",
-            "place": "place::ROOT",
-            "time": "time::ROOT",
-            "type": "type::ROOT",
-        },
-        "intersection_review": {
-            "source_refs": [
-                "https://example.org/outline",
-                "https://example.org/lesson",
-            ],
-            "candidate_examples": [
-                {
-                    "name": "候補1",
-                    "source_ref": "https://example.org/outline",
-                    "beginner_source_ref": "https://example.org/lesson",
-                    "beginner_learning_basis": "名称と代表情報を学習項目として扱う",
-                },
-                {"name": "候補2", "source_ref": "https://example.org/outline"},
-            ],
-            "scope_reason": "対象の種類と下位領域を区分できる",
-            "result": "viable",
-        },
-    }
-
-
-@pytest.fixture
-def selection_state(intersection_state):
-    """探索範囲と候補の展開が完了した状態を作る。"""
-    state = {
-        **intersection_state,
-        "entry_points": [
-            {"id": "E1", "kind": "分類表", "label": "産業分類"},
-            {"id": "E2", "kind": "事典索引", "label": "化学事典"},
-        ],
-        "coverage_areas": [
-            {
-                "id": "D1",
-                "label": "無機化学工業",
-                "basis": "分類表の区分",
-                "explored": True,
-                "entry_point_ids": ["E1"],
-            },
-            {
-                "id": "D2",
-                "label": "有機化学工業",
-                "basis": "事典の区分",
-                "explored": True,
-                "entry_point_ids": ["E2"],
-            },
-        ],
-        "candidates": [
-            {
-                "id": "K1",
-                "label": "候補1",
-                "coverage_area_ids": ["D1"],
-                "discovery_entry_point_ids": ["E1"],
-                "disposition": "eligible",
-                "expanded": True,
-                "exposure_precheck": {
-                    "representative_descriptions": ["対象を説明する語句"],
-                    "accepted_names": ["候補1"],
-                    "formations": [],
-                    "status": "passed",
-                },
-            },
-            {
-                "id": "K2",
-                "label": "候補2",
-                "coverage_area_ids": ["D2"],
-                "discovery_entry_point_ids": ["E2"],
-                "disposition": "eligible",
-                "expanded": True,
-                "exposure_precheck": {
-                    "representative_descriptions": ["対象を説明する語句"],
-                    "accepted_names": ["候補2"],
-                    "formations": [],
-                    "status": "passed",
-                },
-            },
-        ],
-        "frontier_ids": [],
-        "saturated": True,
-    }
-    for candidate in state["candidates"]:
-        name = candidate["label"]
-        candidate["exposure_precheck"]["formations"] = [
-            {
-                "name": name,
-                "formation_rule": "対象との既知の対応から名称を選ぶ",
-                "components": [
-                    {
-                        "form": name,
-                        "source": "対象との既知の対応",
-                        "knowledge": "target_association",
-                    }
-                ],
-                "formation_requires_target_association": True,
-                "formation_target_association_step": "名称要素を選ぶ",
-                "standard_name_confirmation_requires_target_association": True,
-            }
-        ]
-    return state
 
 
 @pytest.fixture
@@ -592,9 +480,72 @@ class TestSelectionState:
         """異種の入口と展開済み候補が揃えば探索状態が合格する。"""
         assert check_state(run_script, "selection", selection_state).returncode == 0
 
+    def test_selection_accepts_quality_rejection(self, run_script, selection_state):
+        """抽選後の品質棄却理由は探索段階の選択可否を変えずに記録できる。"""
+        selection_state["candidates"][0]["quality_rejection_reason"] = "難易度が不適合"
+        assert check_state(run_script, "selection", selection_state).returncode == 0
+
+    def test_selection_rejects_empty_quality_reason(self, run_script, selection_state):
+        """品質棄却の理由を空のまま記録できない。"""
+        selection_state["candidates"][0]["quality_rejection_reason"] = ""
+        assert check_state(run_script, "selection", selection_state).returncode == 1
+
+    def test_discovery_precedes_exposure_precheck(self, run_script, selection_state):
+        """露出予備検査の前に題材探索の完了だけを検査できる。"""
+        for candidate in selection_state["candidates"]:
+            del candidate["exposure_precheck"]
+        assert check_state(run_script, "discovery", selection_state).returncode == 0
+        assert check_state(run_script, "selection", selection_state).returncode == 1
+
+    def test_selection_requires_opened_source(self, run_script, selection_state):
+        """本文を開いていない資料を候補の発見元にできない。"""
+        selection_state["entry_points"][0]["opened"] = False
+        result = check_state(run_script, "selection", selection_state)
+        assert result.returncode == 1
+        assert "本文を開いていない" in result.stderr
+
+    def test_selection_requires_name_use(self, run_script, selection_state):
+        """候補名が対象の呼称として使われる箇所を欠く台帳を拒否する。"""
+        del selection_state["candidates"][0]["name_use_note"]
+        assert check_state(run_script, "selection", selection_state).returncode == 1
+
+    def test_selection_requires_facet_membership(self, run_script, selection_state):
+        """四軸への所属理由を欠く候補を拒否する。"""
+        del selection_state["candidates"][0]["facet_membership_reason"]
+        assert check_state(run_script, "selection", selection_state).returncode == 1
+
+    def test_selection_requires_independent_review(self, run_script, selection_state):
+        """別経路の探索が欠けた下位領域を拒否する。"""
+        selection_state["independent_review"].pop()
+        assert check_state(run_script, "selection", selection_state).returncode == 1
+
+    def test_selection_requires_processed_challenge(self, run_script, selection_state):
+        """反証調査で得た候補を未処理のまま抽選させない。"""
+        selection_state["saturation_challenge"]["resolved"] = False
+        assert check_state(run_script, "selection", selection_state).returncode == 1
+
+    def test_selection_rejects_candidate_name_in_open_search(
+        self, run_script, selection_state
+    ):
+        """候補名を用いた検索を候補名なしの入口探索として扱わない。"""
+        selection_state["coverage_areas"][0]["source_searches"][0]["query"] = (
+            "候補1 関連項目"
+        )
+        assert check_state(run_script, "selection", selection_state).returncode == 1
+
+    def test_selection_requires_following_next_search(
+        self, run_script, selection_state
+    ):
+        """記録した有望な検索先を調べずに探索を終えられない。"""
+        selection_state["coverage_areas"][0]["source_searches"][0]["next_searches"] = [
+            "未調査の資料"
+        ]
+        assert check_state(run_script, "selection", selection_state).returncode == 1
+
     def test_selection_requires_distinct_entry_kinds(self, run_script, selection_state):
         """探索入口が同じ種類だけなら探索状態を拒否する。"""
-        selection_state["entry_points"][1]["kind"] = "分類表"
+        for entry in selection_state["entry_points"]:
+            entry["kind"] = "分類表"
         result = check_state(run_script, "selection", selection_state)
         assert result.returncode == 1
         assert "異なる種類の入口" in result.stderr
@@ -636,6 +587,20 @@ class TestSelectionState:
         result = check_state(run_script, "selection", selection_state)
         assert result.returncode == 1
         assert "exclusion_codeが不正" in result.stderr
+
+    def test_selection_accepts_unverified_name_exclusion(
+        self, run_script, selection_state
+    ):
+        """資料で実際の名称を確認できない仮称を探索段階で除外できる。"""
+        candidate = selection_state["candidates"][0]
+        candidate.update(
+            disposition="excluded",
+            exclusion_code="unverified_name",
+            exclusion_reason="日本語資料中で対象の名称として確認できない",
+        )
+        del candidate["name_use_note"]
+        assert check_state(run_script, "discovery", selection_state).returncode == 0
+        assert check_state(run_script, "selection", selection_state).returncode == 0
 
     def test_selection_rejects_exposed_eligible_candidate(
         self, run_script, selection_state, exposed_precheck
