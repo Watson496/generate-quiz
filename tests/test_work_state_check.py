@@ -213,18 +213,61 @@ def selection_state():
                 "label": "候補1",
                 "coverage_area_ids": ["D1"],
                 "discovery_entry_point_ids": ["E1"],
+                "disposition": "eligible",
                 "expanded": True,
+                "exposure_precheck": {
+                    "representative_descriptions": ["対象を説明する語句"],
+                    "accepted_names": ["候補1"],
+                    "formations": [],
+                    "status": "passed",
+                },
             },
             {
                 "id": "K2",
                 "label": "候補2",
                 "coverage_area_ids": ["D2"],
                 "discovery_entry_point_ids": ["E2"],
+                "disposition": "eligible",
                 "expanded": True,
+                "exposure_precheck": {
+                    "representative_descriptions": ["対象を説明する語句"],
+                    "accepted_names": ["候補2"],
+                    "formations": [],
+                    "status": "passed",
+                },
             },
         ],
         "frontier_ids": [],
         "saturated": True,
+    }
+
+
+@pytest.fixture
+def exposed_precheck():
+    """代表説明から解答名を形成できる露出予備検査を作る。"""
+    return {
+        "representative_descriptions": ["高いエネルギー状態へ移った粒子のようなもの"],
+        "accepted_names": ["励起子"],
+        "formations": [
+            {
+                "name": "励起子",
+                "formation_rule": "状態名と粒子を表す接尾要素を結ぶ",
+                "components": [
+                    {
+                        "form": "励起",
+                        "source": "分野の一般語",
+                        "knowledge": "general_domain",
+                    },
+                    {
+                        "form": "子",
+                        "source": "生産的な接尾要素",
+                        "knowledge": "general_domain",
+                    },
+                ],
+                "requires_target_association": False,
+            }
+        ],
+        "status": "rejected",
     }
 
 
@@ -341,6 +384,45 @@ class TestSelectionState:
         assert result.returncode == 1
         assert "空でない文字列ID" in result.stderr
         assert "Traceback" not in result.stderr
+
+    def test_selection_rejects_unclassified_candidate(
+        self, run_script, selection_state
+    ):
+        """採否が未記録の候補を含む探索状態を拒否する。"""
+        del selection_state["candidates"][0]["disposition"]
+        result = check_state(run_script, "selection", selection_state)
+        assert result.returncode == 1
+        assert "dispositionが不正" in result.stderr
+
+    def test_selection_rejects_speculative_exclusion(self, run_script, selection_state):
+        """定められていない理由で候補を除外できない。"""
+        selection_state["candidates"][0].update(
+            disposition="excluded",
+            exclusion_code="difficulty_outlook",
+            exclusion_reason="一般層に知られていそうである",
+        )
+        result = check_state(run_script, "selection", selection_state)
+        assert result.returncode == 1
+        assert "exclusion_codeが不正" in result.stderr
+
+    def test_selection_rejects_exposed_eligible_candidate(
+        self, run_script, selection_state, exposed_precheck
+    ):
+        """代表説明から解答名を形成できる候補を採用対象にしない。"""
+        selection_state["candidates"][0]["exposure_precheck"] = exposed_precheck
+        result = check_state(run_script, "selection", selection_state)
+        assert result.returncode == 1
+        assert "選択対象にできない" in result.stderr
+
+    def test_selection_accepts_exposure_as_explicit_exclusion(
+        self, run_script, selection_state, exposed_precheck
+    ):
+        """解答露出を記録した候補を探索台帳に残して除外できる。"""
+        candidate = selection_state["candidates"][0]
+        candidate.update(disposition="excluded", exclusion_code="unavoidable_exposure")
+        candidate["exclusion_reason"] = "自然な代表説明から正答名を形成できる"
+        candidate["exposure_precheck"] = exposed_precheck
+        assert check_state(run_script, "selection", selection_state).returncode == 0
 
 
 class TestWorkState:

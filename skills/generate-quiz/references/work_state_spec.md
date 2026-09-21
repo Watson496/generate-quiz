@@ -14,7 +14,8 @@
 - 資料から分けた下位領域と、各領域を探索したか
 - 種類の異なる探索の入口と、各領域で使った入口
 - 発見した題材候補と、その候補が属する下位領域
-- 各候補を発見した入口と、その候補から探索を展開したか
+- 各候補を発見した入口、選択対象か、選択対象ならその候補から探索を展開したか
+- 各選択対象の代表説明、正答名・許容別名、名称形成の分析、解答露出の予備判定
 - 候補の採否と、棄却した場合の理由
 - 新しい有力候補が増えなくなったか
 
@@ -160,7 +161,7 @@ JSON manifestは、検査対象を具体的な内容へ結び付け、確定的�
     {"id": "D2", "label": "有機化学工業", "basis": "事典の区分", "explored": true, "entry_point_ids": ["E2"]}
   ],
   "candidates": [
-    {"id": "K1", "label": "候補", "coverage_area_ids": ["D1"], "discovery_entry_point_ids": ["E1"], "expanded": true}
+    {"id": "K1", "label": "候補", "coverage_area_ids": ["D1"], "discovery_entry_point_ids": ["E1"], "disposition": "eligible", "expanded": true, "exposure_precheck": {"representative_descriptions": ["対象を表す代表説明"], "accepted_names": ["候補"], "formations": [], "status": "passed"}}
   ],
   "frontier_ids": [],
   "saturated": true
