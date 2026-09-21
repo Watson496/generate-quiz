@@ -94,7 +94,7 @@ def main():
     for c in cands:
         try:
             b = float(c.get("base_weight", 0.0))
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             fail(f"base_weight が数値ではありません: {c.get('key')}")
         if b < 0:
             fail(f"base_weight は0以上です: {c.get('key')} -> {b}")
@@ -107,12 +107,12 @@ def main():
     probs = [b / total for b in base]
 
     adjusted = []
-    for c, b, p in zip(cands, base, probs):
+    for c, b, p in zip(cands, base, probs, strict=True):
         w = b
         for distance in c.get("history_distances") or []:
             try:
                 d = float(distance)
-            except (TypeError, ValueError):
+            except TypeError, ValueError:
                 fail(f"history_distances が数値ではありません: {c.get('key')}")
             if d <= 0:
                 fail(f"history_distances は1以上（直前=1）です: {c.get('key')} -> {d}")
@@ -128,7 +128,7 @@ def main():
 
     if args.verbose:
         print("# 内部用: この内訳はユーザーへ表示しない", file=sys.stderr)
-        for c, b, p, w in zip(cands, base, probs, adjusted):
+        for c, b, p, w in zip(cands, base, probs, adjusted, strict=True):
             print(
                 f"# {c.get('key')}\tbase={b:.4f}\tp={p:.4f}\tadj={w:.4f}\t"
                 f"final_p={w / w_total:.4f}",

@@ -189,7 +189,7 @@ class WeightedPickTest(SkillCase):
         base = [3.0, 2.0, 2.5]
         total = sum(base)
         expected = []
-        for c, b in zip(cands, base):
+        for c, b in zip(cands, base, strict=True):
             w = b
             for d in c.get("history_distances", []):
                 w *= min(1.0, d * (b / total))
@@ -210,7 +210,7 @@ class WeightedPickTest(SkillCase):
                     continue
                 fields = line.lstrip("# ").split("\t")
                 got[fields[0]] = float(fields[-1].split("=")[1])
-            for c, exp in zip(cands, exp_final):
+            for c, exp in zip(cands, exp_final, strict=True):
                 self.assertAlmostEqual(got[c["key"]], exp, places=4)
 
     def test_exclude_removes_candidate(self):

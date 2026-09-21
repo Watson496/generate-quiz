@@ -118,7 +118,7 @@ tests/                     開発用の回帰テスト
 
 工程制御は `skills/generate-quiz/SKILL.md` と `GPT/generate-quiz/Instructions.txt` で管理し、実行環境に応じて更新します。題材選定・履歴は `selection_and_history_spec.md`、問題文生成は `quiz_generation_spec.md`、裏取り・正誤判定は `verification_and_judging_spec.md` に定義します。
 
-Agent Skillsに同梱するPythonスクリプトの回帰テストは、リポジトリのルートで実行します。
+開発にはPython 3.14以上を使用します。Agent Skillsに同梱するPythonスクリプトの回帰テストは、リポジトリのルートで実行します。
 
 ```bash
 python3 tests/test_cli_contracts.py

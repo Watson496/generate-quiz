@@ -41,4 +41,4 @@ description: generate-quiz形式のMarkdown群から、日本語クイズ問題�
 
 ## 依存コマンド
 
-Pandoc 3以降、LuaLaTeX、`latexmk`、Biberを使う。不足している依存物を無断でインストールせず、コマンド名を報告して停止する。
+Python 3.14以上、Pandoc 3以降、LuaLaTeX、`latexmk`、Biberを使う。不足している依存物を無断でインストールせず、コマンド名を報告して停止する。
