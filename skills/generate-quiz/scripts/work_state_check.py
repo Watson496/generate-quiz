@@ -2,7 +2,7 @@
 """題材探索と作問状態の内容、参照関係、工程境界を検査する。
 
 入力はJSONファイルのパスまたは標準入力から受け取る。--stageには
-intersection-checkpoint、selection、generation、audit、finalのいずれかを指定する。
+intersection-checkpoint、discovery、selection、generation、audit、finalのいずれかを指定する。
 
 終了コード:
     0  指定工程の条件を満たす
@@ -65,6 +65,7 @@ MIN_ENTRY_POINT_KINDS = 2
 MIN_COVERAGE_AREAS = 2
 MIN_EXPRESSION_ALTERNATIVES = 2
 MIN_INTERSECTION_EXAMPLES = 2
+MIN_CANDIDATE_NAME_LENGTH = 2
 EXIT_OK, EXIT_STATE_INVALID, EXIT_USAGE = 0, 1, 2
 
 
@@ -345,15 +346,23 @@ def validate_intersection_state(state):
     )
 
 
-def validate_selection_state(state):
-    validate_intersection_state(state)
+def validate_selection_entries_areas(state):
     entries, entry_ids = records_with_ids(
         state.get("entry_points"), "entry_points", nonempty=True
     )
     kinds = set()
     for item in entries:
-        required_text(item, "label", f"entry_points.{item['id']}")
-        kinds.add(required_text(item, "kind", f"entry_points.{item['id']}"))
+        name = f"entry_points.{item['id']}"
+        required_text(item, "label", name)
+        kinds.add(required_text(item, "kind", name))
+        source = required_text(item, "url", name)
+        parsed = urlsplit(source)
+        require_condition(
+            parsed.scheme in {"http", "https"} and parsed.hostname is not None,
+            f"{name}.urlがURLではない",
+        )
+        required_text(item, "access_note", name)
+        require_condition(item.get("opened") is True, f"{name}の本文を開いていない")
     require_condition(
         len(entries) >= MIN_ENTRY_POINTS and len(kinds) >= MIN_ENTRY_POINT_KINDS,
         "異なる種類の入口を二つ以上使っていない",
@@ -367,28 +376,104 @@ def validate_selection_state(state):
         name = f"coverage_areas.{item['id']}"
         required_text(item, "label", name)
         required_text(item, "basis", name)
+        required_text(item, "target_kinds", name)
         require_condition(item.get("explored") is True, f"{name}が未探索である")
-        referenced_ids(item, "entry_point_ids", entry_ids, name)
+        used_entries = set(referenced_ids(item, "entry_point_ids", entry_ids, name))
+        searches = required_list(
+            item.get("source_searches"), f"{name}.source_searches", nonempty=True
+        )
+        opened_entries = set()
+        open_searches = 0
+        for index, search in enumerate(searches):
+            search_name = f"{name}.source_searches[{index}]"
+            require_condition(
+                isinstance(search, dict), f"{search_name}がオブジェクトではない"
+            )
+            required_text(search, "query", search_name)
+            required_text(search, "angle", search_name)
+            required_text(search, "result", search_name)
+            require_condition(
+                search.get("mode") in {"open", "nearby"},
+                f"{search_name}.modeが不正である",
+            )
+            source_ids = referenced_ids(
+                search, "entry_point_ids", entry_ids, search_name, nonempty=False
+            )
+            opened_entries.update(source_ids)
+            if search["mode"] == "open":
+                require_condition(source_ids, f"{search_name}で入口を開いていない")
+                open_searches += 1
+            required_list(search.get("next_searches"), f"{search_name}.next_searches")
+        require_condition(open_searches > 0, f"{name}で候補名を含めない入口探しがない")
+        require_condition(
+            used_entries <= opened_entries, f"{name}の入口が探索記録にない"
+        )
+    return entries, entry_ids, areas, area_ids
+
+
+def validate_selection_candidates(
+    state, entry_ids, areas, area_ids, *, discovery_only=False
+):
     candidates, candidate_ids = records_with_ids(
         state.get("candidates"), "candidates", nonempty=True
     )
+    for area in areas:
+        for index, search in enumerate(area["source_searches"]):
+            referenced_ids(
+                search,
+                "found_candidate_ids",
+                candidate_ids,
+                f"coverage_areas.{area['id']}.source_searches[{index}]",
+                nonempty=False,
+            )
     for item in candidates:
         name = f"candidates.{item['id']}"
         required_text(item, "label", name)
         referenced_ids(item, "coverage_area_ids", area_ids, name)
         referenced_ids(item, "discovery_entry_point_ids", entry_ids, name)
+        required_text(item, "facet_membership_reason", name)
         disposition = item.get("disposition")
         require_condition(
             disposition in {"eligible", "excluded"}, f"{name}.dispositionが不正である"
         )
+        if not (
+            disposition == "excluded"
+            and item.get("exclusion_code") == "unverified_name"
+        ):
+            required_text(item, "name_use_note", name)
+        if "quality_rejection_reason" in item:
+            require_condition(
+                disposition == "eligible", f"{name}は探索段階で選択対象ではない"
+            )
+            required_text(item, "quality_rejection_reason", name)
         if disposition == "eligible":
             require_condition(
                 item.get("expanded") is True, f"{name}から探索を展開していない"
             )
-            require_condition(
-                not validate_exposure_precheck(item, name),
-                f"{name}は代表説明から正答名を形成できるため選択対象にできない",
+            searches = required_list(
+                item.get("expansion_searches"),
+                f"{name}.expansion_searches",
+                nonempty=True,
             )
+            for index, search in enumerate(searches):
+                search_name = f"{name}.expansion_searches[{index}]"
+                require_condition(
+                    isinstance(search, dict), f"{search_name}がオブジェクトではない"
+                )
+                required_text(search, "source_or_query", search_name)
+                required_text(search, "relation_checked", search_name)
+                referenced_ids(
+                    search,
+                    "found_candidate_ids",
+                    candidate_ids,
+                    search_name,
+                    nonempty=False,
+                )
+            if not discovery_only:
+                require_condition(
+                    not validate_exposure_precheck(item, name),
+                    f"{name}は代表説明から正答名を形成できるため選択対象にできない",
+                )
         else:
             code = item.get("exclusion_code")
             require_condition(
@@ -398,6 +483,7 @@ def validate_selection_state(state):
                     "duplicate",
                     "no_japanese_context",
                     "prohibited_format",
+                    "unverified_name",
                     "unavoidable_exposure",
                 },
                 f"{name}.exclusion_codeが不正である",
@@ -410,9 +496,109 @@ def validate_selection_state(state):
                 )
             if code == "unavoidable_exposure":
                 require_condition(
+                    not discovery_only, f"{name}は露出予備検査前に除外できない"
+                )
+                require_condition(
                     validate_exposure_precheck(item, name),
                     f"{name}.exposure_precheckが解答露出による除外を示していない",
                 )
+    return candidates, candidate_ids
+
+
+def validate_selection_review(state, entries, areas, candidates, entry_ids):
+    area_ids = {item["id"] for item in areas}
+    candidate_ids = {item["id"] for item in candidates}
+    candidate_names = {
+        normalize_candidate_name(item["label"])
+        for item in candidates
+        if len(normalize_candidate_name(item["label"])) >= MIN_CANDIDATE_NAME_LENGTH
+    }
+    for area in areas:
+        for index, search in enumerate(area["source_searches"]):
+            if search["mode"] != "open":
+                continue
+            query = normalize_candidate_name(search["query"])
+            contained = {name for name in candidate_names if name in query}
+            require_condition(
+                not contained,
+                f"coverage_areas.{area['id']}.source_searches[{index}]の入口検索に候補名がある",
+            )
+    reviews, review_ids = records_with_ids(
+        state.get("independent_review"), "independent_review", nonempty=True
+    )
+    require_condition(
+        review_ids == area_ids, "別経路の探索が全下位領域に対応していない"
+    )
+    completed_searches = {
+        normalize_candidate_name(search["query"])
+        for area in areas
+        for search in area["source_searches"]
+    }
+    for review in reviews:
+        name = f"independent_review.{review['id']}"
+        required_text(review, "difference_from_exploration", name)
+        query = required_text(review, "source_discovery_query", name)
+        require_condition(
+            not any(
+                item in normalize_candidate_name(query) for item in candidate_names
+            ),
+            f"{name}の入口検索に候補名がある",
+        )
+        completed_searches.add(normalize_candidate_name(query))
+        checked = set(
+            referenced_ids(review, "checked_entry_point_ids", entry_ids, name)
+        )
+        area = next(item for item in areas if item["id"] == review["id"])
+        require_condition(
+            checked - set(area["entry_point_ids"]), f"{name}で別の入口を開いていない"
+        )
+        referenced_ids(
+            review, "found_candidate_ids", candidate_ids, name, nonempty=False
+        )
+        spotchecked = set(
+            referenced_ids(review, "spotchecked_entry_point_ids", entry_ids, name)
+        )
+        require_condition(
+            spotchecked <= set(area["entry_point_ids"]),
+            f"{name}の照合元が元の探索入口にない",
+        )
+        required_text(review, "spotcheck_result", name)
+    challenge = state.get("saturation_challenge")
+    require_condition(isinstance(challenge, dict), "saturation_challengeがない")
+    required_text(challenge, "search_perspective", "saturation_challenge")
+    challenge_query = required_text(challenge, "query", "saturation_challenge")
+    completed_searches.add(normalize_candidate_name(challenge_query))
+    referenced_ids(
+        challenge, "opened_entry_point_ids", entry_ids, "saturation_challenge"
+    )
+    referenced_ids(
+        challenge,
+        "found_candidate_ids",
+        candidate_ids,
+        "saturation_challenge",
+        nonempty=False,
+    )
+    required_text(challenge, "resolution", "saturation_challenge")
+    require_condition(challenge.get("resolved") is True, "反証調査の結果が未処理である")
+    opened_urls = {normalize_candidate_name(item["url"]) for item in entries}
+    for area in areas:
+        for index, search in enumerate(area["source_searches"]):
+            for next_search in search["next_searches"]:
+                require_condition(
+                    isinstance(next_search, str)
+                    and normalize_candidate_name(next_search)
+                    in completed_searches | opened_urls,
+                    f"coverage_areas.{area['id']}.source_searches[{index}]の次の検索先が未調査である",
+                )
+
+
+def validate_selection_state(state, *, discovery_only=False):
+    validate_intersection_state(state)
+    entries, entry_ids, areas, area_ids = validate_selection_entries_areas(state)
+    candidates, candidate_ids = validate_selection_candidates(
+        state, entry_ids, areas, area_ids, discovery_only=discovery_only
+    )
+    validate_selection_review(state, entries, areas, candidates, entry_ids)
     frontier = required_id_list(state.get("frontier_ids"), "frontier_ids")
     require_condition(
         not (set(frontier) - candidate_ids), "frontier_idsに存在しない候補がある"
@@ -430,9 +616,31 @@ def validate_execution_assignments(state, stage):
     )
     if available:
         roles = {
-            "generation": ("exploration", "generation", "exposure"),
-            "audit": ("exploration", "generation", "exposure", "audit"),
-            "final": ("exploration", "generation", "exposure", "audit", "finalization"),
+            "selection": ("exploration", "alternate_exploration", "saturation_review"),
+            "generation": (
+                "exploration",
+                "alternate_exploration",
+                "saturation_review",
+                "generation",
+                "exposure",
+            ),
+            "audit": (
+                "exploration",
+                "alternate_exploration",
+                "saturation_review",
+                "generation",
+                "exposure",
+                "audit",
+            ),
+            "final": (
+                "exploration",
+                "alternate_exploration",
+                "saturation_review",
+                "generation",
+                "exposure",
+                "audit",
+                "finalization",
+            ),
         }[stage]
         agents = data.get("agents")
         require_condition(isinstance(agents, dict), "execution.agentsがない")
@@ -772,6 +980,7 @@ def main():
         "--stage",
         choices=(
             "intersection-checkpoint",
+            "discovery",
             "selection",
             "generation",
             "audit",
@@ -795,8 +1004,9 @@ def main():
         )
         if args.stage == "intersection-checkpoint":
             validate_intersection_state(state)
-        elif args.stage == "selection":
-            validate_selection_state(state)
+        elif args.stage in {"discovery", "selection"}:
+            validate_selection_state(state, discovery_only=args.stage == "discovery")
+            validate_execution_assignments(state, "selection")
         else:
             validate_work_state(state, args.stage)
     except StateError as error:

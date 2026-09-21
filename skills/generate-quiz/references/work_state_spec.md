@@ -15,19 +15,26 @@
 現在の問題番号について、次を保持する。
 
 - 選択した4軸の正規ノードキー
-- 資料から分けた下位領域と、各領域を探索したか
-- 種類の異なる探索の入口と、各領域で使った入口
-- 発見した題材候補と、その候補が属する下位領域
-- 各候補を発見した入口、選択対象か、選択対象ならその候補から探索を展開したか
+- 資料から分けた下位領域、そこに含まれる解答対象の種類、各領域を探索したか
+- 各領域で候補名を含めず入口を探した検索語・観点と、候補名から近接対象を探した経路
+- 本文を開いた資料のURL・確認箇所と、そこで発見した候補
+- 各候補の名称の使用箇所（資料で名称を確認できず除外した候補を除く）、選択範囲への所属理由、発見元、選択対象か、選択対象なら近接探索の記録
+- 別経路の探索で各下位領域に開いた入口、元の探索と異なる観点、得た候補、親agentが元の資料と台帳を照合した結果
+- 探索完了の反証調査で使った観点・検索語・開いた資料、得た候補と未探索経路の処理結果
 - 各選択対象の代表説明、正答名・許容別名、名称形成の分析、解答露出の予備判定
-- 候補の採否と、棄却した場合の理由
+- 探索段階で選択対象となるか、除外する場合はその理由
+- 抽選後に題材品質ゲートで棄却した場合は、満たせなかった条件
 - 新しい有力候補が増えなくなったか
 
 一つの解答対象を棄却しても、この状態は同じ問題番号で題材を再選定するために保持する。棄却した対象に固有の引用、推論、問題文、監査履歴は、新しい解答対象の作業状態へ渡さない。
 
-題材候補の探索状態は最終出力へ含めない。
+題材候補の探索状態は最終出力へ含めない。探索が飽和したら露出予備検査の前に`work_state_check.py --stage discovery`で検査する。
 
-探索状態は、題材を抽選する前に `work_state_check.py --stage selection` へ渡す。検査を通った後で候補を追加した場合は、その候補からも探索を展開し、再度検査する。
+探索状態は、題材を抽選する前に `topic_pick.py` へ渡す。入口には本文を開いたURL、`opened: true`、確認箇所を`access_note`として記録する。下位領域の`source_searches`には、候補名を含めない入口探しを`mode: open`、既知候補からの近接探索を`mode: nearby`として記録する。資料で名称を確認できず除外する候補を除き、`name_use_note`には名称の使用箇所を記す。`facet_membership_reason`には四軸の範囲に属すると判断した理由を記す。選択対象の`expansion_searches`には近接探索の検索先・調べた関係・得た候補IDを残す。検査を通った後で候補を追加した場合は、その候補からも探索を展開し、再度検査する。
+
+`independent_review`には下位領域IDごとに、最初の探索と異なる観点、候補名を含めない検索語、別経路で開いた入口IDと候補ID、親agentが照合した元の入口IDと結果を記録する。`saturation_challenge`には別の立場・用途からの検索、開いた入口ID、得た候補ID、未探索経路の処理と完了状態を残す。形式検査の合格は資料の内容と記録が対応することや、探索の十分さを保証しない。
+
+`disposition`は探索段階で選択対象となるかを表す。抽選後に題材品質ゲートで棄却した候補は`eligible`のまま、満たせなかった条件を`quality_rejection_reason`へ記録する。再抽選では、この記録がある全候補のIDを`topic_pick.py --exclude`へ渡す。
 
 ## 解答対象ごとの作業状態
 
@@ -157,12 +164,12 @@ JSON manifestは、検査対象を具体的な内容へ結び付け、確定的�
 
 委譲機能を利用できる環境では、交差領域の確認、探索、生成、解答露出検査、監査、最終出力を別々のagentへ割り当てる。親agentは起動toolが返した正規の識別子を起動直後に `execution.agents` へ記録し、各成果物に記載された担当識別子と照合する。候補変更時にも、継続して使う探索担当の識別子を別名へ置き換えない。利用できない環境では、その事実と理由を記録する。
 
-具体的なJSONの形は `scripts/work_state_check.py` が検査するフィールドに従う。次は題材探索状態の最小例である。
+具体的なJSONの形は `scripts/work_state_check.py` が検査するフィールドに従う。次は架空の名称・URLを使った題材探索状態の形式例である。
 
 ```json
 {
   "facet_nodes": {"subject": "subject::66", "place": "place::ROOT", "time": "time::ROOT", "type": "type::ROOT"},
-  "execution": {"delegation_available": true, "agents": {"intersection": "agent-1"}, "assignment_log": {"intersection": {"agent_id": "agent-1", "recorded_at_spawn": true, "artifact_refs": ["intersection.md"]}}},
+  "execution": {"delegation_available": true, "agents": {"intersection": "agent-1", "exploration": "agent-2", "alternate_exploration": "agent-3", "saturation_review": "agent-4"}, "assignment_log": {"intersection": {"agent_id": "agent-1", "recorded_at_spawn": true, "artifact_refs": ["intersection.md"]}, "exploration": {"agent_id": "agent-2", "recorded_at_spawn": true, "artifact_refs": ["exploration.md"]}, "alternate_exploration": {"agent_id": "agent-3", "recorded_at_spawn": true, "artifact_refs": ["alternate_exploration.md"]}, "saturation_review": {"agent_id": "agent-4", "recorded_at_spawn": true, "artifact_refs": ["saturation_review.md"]}}},
   "intersection_review": {
     "source_refs": ["https://example.org/outline", "https://example.org/lesson"],
     "candidate_examples": [
@@ -173,17 +180,24 @@ JSON manifestは、検査対象を具体的な内容へ結び付け、確定的�
     "result": "viable"
   },
   "entry_points": [
-    {"id": "E1", "kind": "分類表", "label": "産業分類"},
-    {"id": "E2", "kind": "事典索引", "label": "化学事典"}
+    {"id": "E1", "kind": "分類表", "label": "産業分類", "url": "https://example.org/industry", "access_note": "分類項目", "opened": true},
+    {"id": "E2", "kind": "事典索引", "label": "化学事典", "url": "https://example.org/encyclopedia", "access_note": "索引項目", "opened": true},
+    {"id": "E3", "kind": "利用者記事", "label": "実務記事", "url": "https://example.org/practice", "access_note": "記事本文", "opened": true},
+    {"id": "E4", "kind": "産業誌", "label": "産業誌記事", "url": "https://example.org/trade", "access_note": "記事本文", "opened": true}
   ],
   "coverage_areas": [
-    {"id": "D1", "label": "無機化学工業", "basis": "分類表の区分", "explored": true, "entry_point_ids": ["E1"]},
-    {"id": "D2", "label": "有機化学工業", "basis": "事典の区分", "explored": true, "entry_point_ids": ["E2"]}
+    {"id": "D1", "label": "無機化学工業", "basis": "分類表の区分", "target_kinds": "工業技術", "explored": true, "entry_point_ids": ["E1"], "source_searches": [{"mode": "open", "query": "無機化学工業 技術", "angle": "分野の分類", "result": "候補1を発見", "entry_point_ids": ["E1"], "found_candidate_ids": ["K1"], "next_searches": []}]},
+    {"id": "D2", "label": "有機化学工業", "basis": "事典の区分", "target_kinds": "工業技術", "explored": true, "entry_point_ids": ["E2"], "source_searches": [{"mode": "open", "query": "有機化学工業 技術", "angle": "分野の索引", "result": "候補2を発見", "entry_point_ids": ["E2"], "found_candidate_ids": ["K2"], "next_searches": []}]}
   ],
   "candidates": [
-    {"id": "K1", "label": "候補1", "coverage_area_ids": ["D1"], "discovery_entry_point_ids": ["E1"], "disposition": "eligible", "expanded": true, "exposure_precheck": {"representative_descriptions": ["対象を表す代表説明"], "accepted_names": ["候補1"], "formations": [{"name": "候補1", "formation_rule": "対象との対応を知って名称を想起する", "components": [{"form": "候補1", "source": "対象と名称要素の既知の対応", "knowledge": "target_association"}], "formation_requires_target_association": true, "formation_target_association_step": "名称要素『候補1』を選ぶ", "standard_name_confirmation_requires_target_association": true}], "status": "passed"}},
-    {"id": "K2", "label": "候補2", "coverage_area_ids": ["D2"], "discovery_entry_point_ids": ["E2"], "disposition": "eligible", "expanded": true, "exposure_precheck": {"representative_descriptions": ["対象を表す代表説明"], "accepted_names": ["候補2"], "formations": [{"name": "候補2", "formation_rule": "対象との対応を知って名称を想起する", "components": [{"form": "候補2", "source": "対象と名称要素の既知の対応", "knowledge": "target_association"}], "formation_requires_target_association": true, "formation_target_association_step": "名称要素『候補2』を選ぶ", "standard_name_confirmation_requires_target_association": true}], "status": "passed"}}
+    {"id": "K1", "label": "候補1", "coverage_area_ids": ["D1"], "discovery_entry_point_ids": ["E1"], "name_use_note": "本文で対象の名称として使われる", "facet_membership_reason": "選択した四軸の内側にある", "disposition": "eligible", "expanded": true, "expansion_searches": [{"source_or_query": "候補1の関連項目", "relation_checked": "同じ分野の並列項目", "found_candidate_ids": []}], "exposure_precheck": {"representative_descriptions": ["対象を説明する語句"], "accepted_names": ["候補1"], "formations": [{"name": "候補1", "formation_rule": "対象との既知の対応から名称を選ぶ", "components": [{"form": "候補1", "source": "対象との既知の対応", "knowledge": "target_association"}], "formation_requires_target_association": true, "formation_target_association_step": "名称要素を選ぶ", "standard_name_confirmation_requires_target_association": true}], "status": "passed"}},
+    {"id": "K2", "label": "候補2", "coverage_area_ids": ["D2"], "discovery_entry_point_ids": ["E2"], "name_use_note": "本文で対象の名称として使われる", "facet_membership_reason": "選択した四軸の内側にある", "disposition": "eligible", "expanded": true, "expansion_searches": [{"source_or_query": "候補2の関連項目", "relation_checked": "同じ分野の並列項目", "found_candidate_ids": []}], "exposure_precheck": {"representative_descriptions": ["対象を説明する語句"], "accepted_names": ["候補2"], "formations": [{"name": "候補2", "formation_rule": "対象との既知の対応から名称を選ぶ", "components": [{"form": "候補2", "source": "対象との既知の対応", "knowledge": "target_association"}], "formation_requires_target_association": true, "formation_target_association_step": "名称要素を選ぶ", "standard_name_confirmation_requires_target_association": true}], "status": "passed"}}
   ],
+  "independent_review": [
+    {"id": "D1", "difference_from_exploration": "実務者の利用場面", "source_discovery_query": "無機化学工業 実務者 利用", "checked_entry_point_ids": ["E3"], "found_candidate_ids": [], "spotchecked_entry_point_ids": ["E1"], "spotcheck_result": "分類項目と候補を照合した"},
+    {"id": "D2", "difference_from_exploration": "産業誌の利用場面", "source_discovery_query": "有機化学工業 産業誌", "checked_entry_point_ids": ["E4"], "found_candidate_ids": [], "spotchecked_entry_point_ids": ["E2"], "spotcheck_result": "索引項目と候補を照合した"}
+  ],
+  "saturation_challenge": {"search_perspective": "別の書き手の産業資料", "query": "化学工業 現場 使用", "opened_entry_point_ids": ["E3", "E4"], "found_candidate_ids": [], "resolution": "新しい候補なし", "resolved": true},
   "frontier_ids": [],
   "saturated": true
 }
