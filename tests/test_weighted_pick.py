@@ -106,6 +106,40 @@ class TestWeightedPickFunctions:
             weighted_module.weights_for(candidates)
         assert error.value.code == weighted_module.EXIT_USAGE
 
+    @pytest.mark.parametrize(
+        "value", ["nan", "inf", "-inf", float("nan"), float("inf")]
+    )
+    def test_weights_for_rejects_nonfinite_base(self, weighted_module, value):
+        """NaNや無限大の基礎重みを重み計算の前に拒否する。"""
+        with pytest.raises(SystemExit) as error:
+            weighted_module.weights_for([{"key": "a", "base_weight": value}])
+        assert error.value.code == weighted_module.EXIT_USAGE
+
+    @pytest.mark.parametrize(
+        "value", ["nan", "inf", "-inf", float("nan"), float("inf")]
+    )
+    def test_weights_for_rejects_nonfinite_distance(self, weighted_module, value):
+        """NaNや無限大の履歴距離を重み計算の前に拒否する。"""
+        with pytest.raises(SystemExit) as error:
+            weighted_module.weights_for(
+                [{"key": "a", "base_weight": 1, "history_distances": [value]}]
+            )
+        assert error.value.code == weighted_module.EXIT_USAGE
+
+    def test_weights_for_rejects_nonfinite_sum(self, weighted_module):
+        """個々の重みが有限でも合計が無限大になる候補群を拒否する。"""
+        with pytest.raises(SystemExit) as error:
+            weighted_module.weights_for(
+                [{"key": "a", "base_weight": 1e308}, {"key": "b", "base_weight": 1e308}]
+            )
+        assert error.value.code == weighted_module.EXIT_USAGE
+
+    def test_weights_for_rejects_unconvertible_integer(self, weighted_module):
+        """浮動小数点数に変換できない巨大な整数を入力エラーとして扱う。"""
+        with pytest.raises(SystemExit) as error:
+            weighted_module.weights_for([{"key": "a", "base_weight": 10**400}])
+        assert error.value.code == weighted_module.EXIT_USAGE
+
 
 class TestWeightedPick:
     """履歴補正付きの重み付き乱択。既定の出力にweightや抽選の内訳が混じらないことも見る。"""
@@ -249,6 +283,13 @@ class TestWeightedPick:
             {"key": "a", "base_weight": -1.0}, {"key": "b", "base_weight": 2.0}
         )
         assert run_script("weighted_pick.py", stdin=p).returncode == 2
+
+    def test_nonfinite_base_weight_exits_2_without_traceback(self, run_script):
+        """不正な重みをCLIで処理しても例外の追跡表示を出さない。"""
+        p = self.payload({"key": "a", "base_weight": "nan"})
+        result = run_script("weighted_pick.py", stdin=p)
+        assert result.returncode == 2
+        assert "Traceback" not in result.stderr
 
     def test_missing_json_file_exits_2(self, run_script, tmp_path):
         """存在しない候補ファイルを入力エラーとして扱うことを確認する。"""
