@@ -10,6 +10,7 @@ import shutil
 import subprocess
 import sys
 from dataclasses import dataclass
+from enum import Enum
 from functools import lru_cache
 from pathlib import Path
 
@@ -23,12 +24,124 @@ REFERENCE_HEADING_RE = re.compile(r"^### 参考文献\s*$", re.MULTILINE)
 URL_RE = re.compile(r"^https?://\S+$")
 
 
-class InputError(Exception):
+class ExternalCommand(Enum):
+    PANDOC = "pandoc"
+    LATEXMK = "latexmk"
+
+
+class QuizBookError(Exception):
     pass
 
 
-class ExternalToolError(Exception):
-    pass
+class QuizFileError(QuizBookError):
+    @classmethod
+    def invalid_filename_number(cls, filename: str) -> QuizFileError:
+        return cls(f"ファイル名の問題番号を解釈できません: {filename}")
+
+    @classmethod
+    def numbered_files_missing(cls, directory: Path) -> QuizFileError:
+        return cls(f"番号で始まるMarkdownファイルが見つかりません: {directory}")
+
+    @classmethod
+    def duplicate_file_number(cls, number: int) -> QuizFileError:
+        return cls(f"ファイル名の問題番号が重複しています: {number}")
+
+    @classmethod
+    def invalid_encoding(cls, filename: str) -> QuizFileError:
+        return cls(f"{filename}: UTF-8として読めません")
+
+
+class QuizFormatError(QuizBookError):
+    @classmethod
+    def invalid_title_count(cls, filename: str) -> QuizFormatError:
+        return cls(f"{filename}: '# 第N問' 見出しが1つではありません")
+
+    @classmethod
+    def invalid_title_number(cls, filename: str) -> QuizFormatError:
+        return cls(f"{filename}: 見出しの問題番号を解釈できません")
+
+    @classmethod
+    def inconsistent_number(
+        cls, filename: str, title: int, prefix: int, expected: int
+    ) -> QuizFormatError:
+        return cls(
+            f"{filename}: 見出し={title}, ファイル名の番号={prefix}, 想定する連番={expected}"
+        )
+
+    @classmethod
+    def section_heading_missing(cls, filename: str) -> QuizFormatError:
+        return cls(f"{filename}: レベル2見出しが見つかりません")
+
+    @classmethod
+    def invalid_question_answer_lines(cls, filename: str) -> QuizFormatError:
+        return cls(f"{filename}: 問題行・解答行の個数または順序が規定と異なります")
+
+    @classmethod
+    def invalid_sections(cls, filename: str, actual: list[str]) -> QuizFormatError:
+        return cls(
+            f"{filename}: レベル2見出しが規定と異なります\n"
+            f"  規定: {' / '.join(SECTIONS)}\n"
+            f"  入力: {' / '.join(actual)}"
+        )
+
+    @classmethod
+    def empty_section(cls, filename: str, section: str) -> QuizFormatError:
+        return cls(f"{filename}: section '{section}' is empty")
+
+    @classmethod
+    def reference_heading_missing(cls, filename: str) -> QuizFormatError:
+        return cls(f"{filename}: 裏取り情報に '### 参考文献' がありません")
+
+    @classmethod
+    def invalid_reference(cls, filename: str, index: int) -> QuizFormatError:
+        return cls(f"{filename}: 参考文献{index}に文献記述と末尾のURLが揃っていません")
+
+
+class InlineConversionError(QuizBookError):
+    def __init__(self) -> None:
+        super().__init__("一行として扱う文章が複数段落へ変換されました")
+
+
+class PathError(QuizBookError):
+    @classmethod
+    def output_not_empty(cls, directory: Path) -> PathError:
+        return cls(
+            f"出力ディレクトリが空ではありません: {directory} "
+            "（更新が許可されている場合だけ --update を指定してください）"
+        )
+
+    @classmethod
+    def path_resolution_failed(cls, error: RuntimeError) -> PathError:
+        return cls(f"入出力パスを解決できません: {error}")
+
+    @classmethod
+    def input_directory_missing(cls, directory: Path) -> PathError:
+        return cls(f"入力ディレクトリが見つかりません: {directory}")
+
+
+class ExternalToolError(QuizBookError):
+    @classmethod
+    def command_lookup_failed(cls, name: str, error: OSError) -> ExternalToolError:
+        return cls(f"コマンドを確認できません: {name}: {error}")
+
+    @classmethod
+    def command_missing(cls, name: str) -> ExternalToolError:
+        return cls(f"必要なコマンドが見つかりません: {name}")
+
+    @classmethod
+    def execution_unavailable(
+        cls, command: ExternalCommand, error: OSError | UnicodeError
+    ) -> ExternalToolError:
+        return cls(f"{command.value}を実行できません: {error}")
+
+    @classmethod
+    def execution_failed(
+        cls, command: ExternalCommand, result: subprocess.CompletedProcess[str]
+    ) -> ExternalToolError:
+        diagnostic = "\n".join((result.stdout + result.stderr).splitlines()[-80:])
+        return cls(
+            f"{command.value}の実行に失敗しました（終了コード: {result.returncode}）:\n{diagnostic}"
+        )
 
 
 @dataclass
@@ -51,9 +164,9 @@ def command_path(name: str) -> str:
     try:
         path = shutil.which(name)
     except OSError as error:
-        raise ExternalToolError(f"コマンドを確認できません: {name}: {error}") from error
+        raise ExternalToolError.command_lookup_failed(name, error) from error
     if not path:
-        raise ExternalToolError(f"必要なコマンドが見つかりません: {name}")
+        raise ExternalToolError.command_missing(name)
     return path
 
 
@@ -65,14 +178,14 @@ def quiz_files(input_dir: Path) -> list[Path]:
             try:
                 number = int(match.group(1))
             except ValueError as error:
-                raise InputError(f"ファイル名の問題番号を解釈できません: {path.name}") from error
+                raise QuizFileError.invalid_filename_number(path.name) from error
             found.append((number, path))
     found.sort(key=lambda item: (item[0], item[1].name))
     if not found:
-        raise InputError(f"番号で始まるMarkdownファイルが見つかりません: {input_dir}")
+        raise QuizFileError.numbered_files_missing(input_dir)
     for previous, current in zip(found, found[1:]):
         if previous[0] == current[0]:
-            raise InputError(f"ファイル名の問題番号が重複しています: {current[0]}")
+            raise QuizFileError.duplicate_file_number(current[0])
     return [path for _, path in found]
 
 
@@ -80,44 +193,40 @@ def parse_quiz(path: Path, expected_number: int) -> Quiz:
     try:
         text = path.read_text(encoding="utf-8")
     except UnicodeDecodeError as error:
-        raise InputError(f"{path.name}: UTF-8として読めません") from error
+        raise QuizFileError.invalid_encoding(path.name) from error
     title_matches = list(TITLE_RE.finditer(text))
     if len(title_matches) != 1:
-        raise InputError(f"{path.name}: '# 第N問' 見出しは1つだけ必要です")
+        raise QuizFormatError.invalid_title_count(path.name)
     try:
         number = int(title_matches[0].group(1))
     except ValueError as error:
-        raise InputError(f"{path.name}: 見出しの問題番号を解釈できません") from error
+        raise QuizFormatError.invalid_title_number(path.name) from error
     prefix_match = PREFIX_RE.match(path.name)
     assert prefix_match is not None
     prefix = int(prefix_match.group(1))
     if number != prefix or number != expected_number:
-        raise InputError(
-            f"{path.name}: 見出し={number}, ファイル名の番号={prefix}, 想定する連番={expected_number}"
+        raise QuizFormatError.inconsistent_number(
+            path.name, number, prefix, expected_number
         )
 
     first_section = HEADING_RE.search(text)
     if not first_section:
-        raise InputError(f"{path.name}: レベル2見出しが見つかりません")
+        raise QuizFormatError.section_heading_missing(path.name)
     lead = text[title_matches[0].end() : first_section.start()]
     qa = list(QA_RE.finditer(lead))
     if [match.group(1) for match in qa] != ["問題", "解答"]:
-        raise InputError(f"{path.name}: 問題行と解答行をこの順に1つずつ置いてください")
+        raise QuizFormatError.invalid_question_answer_lines(path.name)
 
     headings = list(HEADING_RE.finditer(text))
     names = [match.group(1) for match in headings]
     if names != SECTIONS:
-        raise InputError(
-            f"{path.name}: レベル2見出しが規定と異なります\n"
-            f"  規定: {' / '.join(SECTIONS)}\n"
-            f"  入力: {' / '.join(names)}"
-        )
+        raise QuizFormatError.invalid_sections(path.name, names)
     sections = []
     for index, heading in enumerate(headings):
         end = headings[index + 1].start() if index + 1 < len(headings) else len(text)
         body = text[heading.end() : end].strip()
         if not body:
-            raise InputError(f"{path.name}: section '{names[index]}' is empty")
+            raise QuizFormatError.empty_section(path.name, names[index])
         sections.append((names[index], body))
     return Quiz(number, path, qa[0].group(2).strip(), qa[1].group(2).strip(), sections)
 
@@ -135,21 +244,23 @@ def pandoc_latex(markdown: str, *, inline: bool = False) -> str:
     try:
         result = subprocess.run(command, input=markdown, text=True, capture_output=True)
     except (OSError, UnicodeError) as error:
-        raise ExternalToolError(f"Pandocを実行できません: {error}") from error
+        raise ExternalToolError.execution_unavailable(
+            ExternalCommand.PANDOC, error
+        ) from error
     if result.returncode:
-        raise ExternalToolError(f"Pandocの変換に失敗しました:\n{result.stderr.strip()}")
+        raise ExternalToolError.execution_failed(ExternalCommand.PANDOC, result)
     latex = result.stdout.strip()
     # 一般的なTeX Live環境の日本語斜体フォールバックにはU+2070がないため置換する。
     latex = latex.replace("⁰", r"\textsuperscript{0}")
     if inline and "\n\n" in latex:
-        raise InputError("問題または解答が複数段落へ変換されました")
+        raise InlineConversionError
     return latex
 
 
 def parse_references(quiz: Quiz, body: str) -> tuple[str, list[BibEntry]]:
     match = REFERENCE_HEADING_RE.search(body)
     if not match:
-        raise InputError(f"{quiz.source.name}: 裏取り情報に '### 参考文献' がありません")
+        raise QuizFormatError.reference_heading_missing(quiz.source.name)
     before = body[: match.start()].rstrip()
     reference_text = body[match.end() :].strip()
     blocks = re.split(r"\n\s*\n", reference_text)
@@ -157,9 +268,7 @@ def parse_references(quiz: Quiz, body: str) -> tuple[str, list[BibEntry]]:
     for index, block in enumerate(blocks, 1):
         lines = [line.strip() for line in block.splitlines() if line.strip()]
         if len(lines) < 2 or not URL_RE.fullmatch(lines[-1]):
-            raise InputError(
-                f"{quiz.source.name}: 参考文献{index}は、文献記述の直後にURLを置いてください"
-            )
+            raise QuizFormatError.invalid_reference(quiz.source.name, index)
         description = "\n".join(lines[:-1])
         entries.append(
             BibEntry(
@@ -247,10 +356,7 @@ def write_generated(output_dir: Path, quizzes: list[Quiz]) -> None:
 
 def prepare_output(template: Path, output: Path, update: bool) -> None:
     if output.exists() and any(output.iterdir()) and not update:
-        raise InputError(
-            f"出力ディレクトリが空ではありません: {output} "
-            "（更新が許可されている場合だけ --update を指定してください）"
-        )
+        raise PathError.output_not_empty(output)
     output.mkdir(parents=True, exist_ok=True)
     shutil.copytree(template, output, dirs_exist_ok=True)
 
@@ -267,9 +373,9 @@ def main() -> int:
             input_dir = args.input.resolve()
             output_dir = args.output.resolve()
         except RuntimeError as error:
-            raise InputError(f"入出力パスを解決できません: {error}") from error
+            raise PathError.path_resolution_failed(error) from error
         if not input_dir.is_dir():
-            raise InputError(f"入力ディレクトリが見つかりません: {input_dir}")
+            raise PathError.input_directory_missing(input_dir)
         command_path("pandoc")
         if not args.no_compile:
             command_path("latexmk")
@@ -298,15 +404,14 @@ def main() -> int:
                     capture_output=True,
                 )
             except (OSError, UnicodeError) as error:
-                raise ExternalToolError(f"LaTeXを実行できません: {error}") from error
+                raise ExternalToolError.execution_unavailable(
+                    ExternalCommand.LATEXMK, error
+                ) from error
             if result.returncode:
-                diagnostic = "\n".join((result.stdout + result.stderr).splitlines()[-80:])
-                raise ExternalToolError(
-                    f"LaTeXのビルドに失敗しました（終了コード: {result.returncode}）:\n{diagnostic}"
-                )
+                raise ExternalToolError.execution_failed(ExternalCommand.LATEXMK, result)
         print(f"{len(quizzes)}問の問題集を生成しました: {output_dir}")
         return 0
-    except (InputError, ExternalToolError) as error:
+    except QuizBookError as error:
         print(f"error: {error}", file=sys.stderr)
         return 2
     except OSError as error:
