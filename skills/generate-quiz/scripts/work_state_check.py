@@ -360,6 +360,24 @@ def validate_sources_propositions_and_clues(state, version, stage):
             item.get("draft_version") == version, f"{name}の問題文の版が一致しない"
         )
         require_stage_completion(item, name, stage)
+        elements = required_list(
+            item.get("verification_elements", []),
+            f"{name}.verification_elements",
+        )
+        for index, element in enumerate(elements):
+            element_name = f"{name}.verification_elements[{index}]"
+            require_condition(
+                isinstance(element, dict),
+                f"{element_name}はオブジェクトでなければならない",
+            )
+            required_text(element, "text", element_name)
+            required_text(element, "reason", element_name)
+            require_condition(
+                element.get("inference_type")
+                in {"direct", "deduction", "interpretation", "synthesis"},
+                f"{element_name}.inference_typeが不正である",
+            )
+            referenced_ids(element, "evidence_ids", quote_ids, element_name)
     require_condition(active_props, "activeな命題がない")
     clues, _ = records_with_ids(state.get("clues"), "clues", nonempty=True)
     active_clues = []
