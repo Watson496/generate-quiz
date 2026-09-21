@@ -210,7 +210,8 @@ def parse_quiz(path: Path, expected_number: int) -> Quiz:
     except ValueError as error:
         raise QuizFormatError.invalid_title_number(path.name) from error
     prefix_match = PREFIX_RE.match(path.name)
-    assert prefix_match is not None
+    if prefix_match is None:
+        raise QuizFileError.invalid_filename_number(path.name)
     prefix = int(prefix_match.group(1))
     if number != prefix or number != expected_number:
         raise QuizFormatError.inconsistent_number(
