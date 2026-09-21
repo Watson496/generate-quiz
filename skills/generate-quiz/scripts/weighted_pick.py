@@ -31,6 +31,7 @@
 
 import argparse
 import json
+import math
 import random
 import sys
 from pathlib import Path
@@ -74,13 +75,17 @@ def weights_for(cands):
     for c in cands:
         try:
             b = float(c.get("base_weight", 0.0))
-        except TypeError, ValueError:
+        except TypeError, ValueError, OverflowError:
             fail(f"base_weight が数値ではありません: {c.get('key')}")
+        if not math.isfinite(b):
+            fail(f"base_weight は有限の数値を指定してください: {c.get('key')}")
         if b < 0:
             fail(f"base_weight は0以上です: {c.get('key')} -> {b}")
         base.append(b)
 
     total = sum(base)
+    if not math.isfinite(total):
+        fail("base_weight の合計は有限の数値である必要があります。")
     if total <= 0:
         fail("base_weight の合計が0です。成立する候補には正のweightを与えてください。")
 
@@ -92,8 +97,12 @@ def weights_for(cands):
         for distance in c.get("history_distances") or []:
             try:
                 d = float(distance)
-            except TypeError, ValueError:
+            except TypeError, ValueError, OverflowError:
                 fail(f"history_distances が数値ではありません: {c.get('key')}")
+            if not math.isfinite(d):
+                fail(
+                    f"history_distances は有限の数値を指定してください: {c.get('key')}"
+                )
             if d <= 0:
                 fail(f"history_distances は1以上（直前=1）です: {c.get('key')} -> {d}")
             w *= min(1.0, d * p)
