@@ -36,6 +36,7 @@ import math
 import random
 import sys
 import unicodedata
+from pathlib import Path
 
 SIGMA = 0.23
 PREFIXES = ("問題：", "問題:")
@@ -106,8 +107,7 @@ def main():
 
     if args.file:
         try:
-            with open(args.file, encoding="utf-8") as f:
-                raw = f.read()
+            raw = Path(args.file).read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError) as exc:
             fail(f"問題文ファイルを読めません: {args.file}: {exc}")
     elif args.text is not None:

@@ -33,6 +33,7 @@ import argparse
 import json
 import random
 import sys
+from pathlib import Path
 
 EXIT_OK, EXIT_USAGE = 0, 2
 
@@ -45,8 +46,7 @@ def fail(message):
 def load_input(path):
     if path:
         try:
-            with open(path, encoding="utf-8") as f:
-                raw = f.read()
+            raw = Path(path).read_text(encoding="utf-8")
         except OSError as exc:
             fail(f"候補JSONを読めません: {path}: {exc}")
     else:
