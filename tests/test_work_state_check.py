@@ -1073,6 +1073,28 @@ class TestSelectionState:
 class TestWorkState:
     """生成・監査・最終出力の作業状態を検査する。"""
 
+    def test_generation_start_accepts_target_state(self, run_script, complete_state):
+        """生成担当の起動後に解答対象だけの状態を検査できる。"""
+        assert (
+            check_state(run_script, "generation-start", complete_state).returncode == 0
+        )
+
+    def test_generation_start_rejects_selection_ledger(
+        self, run_script, complete_state
+    ):
+        """題材探索の台帳を解答対象ごとの状態に混ぜない。"""
+        complete_state["candidates"] = []
+        result = check_state(run_script, "generation-start", complete_state)
+        assert result.returncode == 1
+        assert "題材探索台帳が混入" in result.stderr
+
+    def test_generation_start_requires_spawn_record(self, run_script, complete_state):
+        """生成担当の起動時記録がない状態を拒否する。"""
+        del complete_state["execution"]["assignment_log"]["generation"]
+        result = check_state(run_script, "generation-start", complete_state)
+        assert result.returncode == 1
+        assert "assignment_log.generation" in result.stderr
+
     @pytest.mark.parametrize("stage", ["audit", "final"])
     def test_complete_state_passes(
         self, run_script, complete_state, reviewed_state, stage

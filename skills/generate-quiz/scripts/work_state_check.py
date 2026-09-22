@@ -2,7 +2,8 @@
 """題材探索と作問状態の内容、参照関係、工程境界を検査する。
 
 入力はJSONファイルのパスまたは標準入力から受け取る。--stageには
-intersection-checkpoint、discovery、selection、difficulty、generation、audit、finalのいずれかを指定する。
+intersection-checkpoint、discovery、selection、
+generation-start、difficulty、generation、audit、finalのいずれかを指定する。
 
 終了コード:
     0  指定工程の条件を満たす
@@ -770,7 +771,9 @@ def validate_execution_assignments(state, stage, selection_mode="random"):
             selection_roles
             + {
                 "discovery-progress": (),
+                "discovery": (),
                 "selection": (),
+                "generation-start": ("generation",),
                 "difficulty": ("generation", "difficulty_review"),
                 "generation": (
                     "generation",
@@ -1348,6 +1351,7 @@ def validate_terminology(state, quote_ids, version, stage, draft_text):
 
 
 def validate_work_state(state, stage):
+    require_no_selection_ledger(state)
     selection_mode = validate_selection_mode(state)
     validate_execution_assignments(state, stage, selection_mode)
     required_text(state, "answer_target", "state")
@@ -1459,6 +1463,29 @@ def validate_difficulty_checkpoint(state):
     validate_difficulty_review(state, quote_ids, "difficulty")
 
 
+def require_no_selection_ledger(state):
+    selection_fields = {
+        "entry_points",
+        "coverage_areas",
+        "candidates",
+        "independent_review",
+        "saturation_challenge",
+        "frontier_ids",
+        "saturated",
+    }
+    require_condition(
+        not selection_fields.intersection(state),
+        "解答対象ごとの作業状態に題材探索台帳が混入している",
+    )
+
+
+def validate_generation_start(state):
+    require_no_selection_ledger(state)
+    selection_mode = validate_selection_mode(state)
+    validate_execution_assignments(state, "generation-start", selection_mode)
+    required_text(state, "answer_target", "state")
+
+
 def main():
     parser = argparse.ArgumentParser(description="題材探索と作問状態を検査する")
     parser.add_argument("path", nargs="?")
@@ -1469,6 +1496,7 @@ def main():
             "discovery-progress",
             "discovery",
             "selection",
+            "generation-start",
             "difficulty",
             "generation",
             "audit",
@@ -1498,7 +1526,9 @@ def main():
             validate_execution_assignments(state, "discovery-progress")
         elif args.stage in {"discovery", "selection"}:
             validate_selection_state(state, discovery_only=args.stage == "discovery")
-            validate_execution_assignments(state, "selection")
+            validate_execution_assignments(state, args.stage)
+        elif args.stage == "generation-start":
+            validate_generation_start(state)
         elif args.stage == "difficulty":
             validate_difficulty_checkpoint(state)
         elif args.stage == "final":
