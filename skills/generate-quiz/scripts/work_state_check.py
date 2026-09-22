@@ -1385,6 +1385,9 @@ def validate_final_input(state, version, active_props, active_clues, difficulty_
     for key in ("answers", "checks"):
         for item in state[key]:
             cited.update(item.get("evidence_ids", []))
+    for key in ("answers", "candidate_reviews"):
+        for item in state["answer_review"][key]:
+            cited.update(item["evidence_ids"])
     for item in state["terms"]:
         if item["meaning_needed"]:
             cited.update(item["meaning_evidence_ids"])
@@ -1626,6 +1629,123 @@ def validate_exposure_assignment_secrecy(execution, answers):
         )
 
 
+def validate_answers(state, quote_ids, stage):
+    answers, _ = records_with_ids(state.get("answers"), "answers", nonempty=True)
+    seen = set()
+    for item in answers:
+        name = f"answers.{item['id']}"
+        value = required_text(item, "answer", name)
+        judgment = item.get("judgment")
+        require_condition(
+            judgment in {"correct", "prompt", "incorrect"},
+            f"{name}.judgmentが不正である",
+        )
+        require_condition((value, judgment) not in seen, "同じ解答候補が重複している")
+        seen.add((value, judgment))
+        required_text(item, "reason", name)
+        referenced_ids(item, "evidence_ids", quote_ids, name)
+        require_stage_completion(item, name, stage)
+    return answers
+
+
+def validate_reviewed_answer(item, name, quote_ids):
+    require_condition(item.get("status") == "passed", f"{name}.statusが合格していない")
+    judgment = item.get("judgment")
+    require_condition(
+        judgment in {"correct", "prompt", "incorrect"},
+        f"{name}.judgmentが不正である",
+    )
+    required_text(item, "reason", name)
+    referenced_ids(item, "evidence_ids", quote_ids, name)
+    for key in ("same_target", "specified_enough", "clear_error", "scope_matches"):
+        require_condition(isinstance(item.get(key), bool), f"{name}.{key}がない")
+    if judgment == "correct":
+        require_condition(
+            item["same_target"]
+            and item["specified_enough"]
+            and item["scope_matches"]
+            and not item["clear_error"],
+            f"{name}の正答判定と対象・指定・適用範囲が一致しない",
+        )
+    elif judgment == "prompt":
+        require_condition(
+            item["same_target"]
+            and not item["specified_enough"]
+            and item["scope_matches"]
+            and not item["clear_error"],
+            f"{name}の聞き返し判定と指定の不足が一致しない",
+        )
+    else:
+        require_condition(
+            not item["same_target"] or item["clear_error"] or not item["scope_matches"],
+            f"{name}の誤答判定に対象・適用範囲の相違がない",
+        )
+    return judgment
+
+
+def validate_answer_review(state, answers, checks, quote_ids, version):
+    review = state.get("answer_review")
+    require_condition(isinstance(review, dict), "answer_reviewがない")
+    execution = state["execution"]
+    reviewer = (
+        execution["agents"]["exposure"] if execution["delegation_available"] else "self"
+    )
+    require_condition(
+        review.get("reviewer_id") == reviewer,
+        "answer_review.reviewer_idが露出検査担当と一致しない",
+    )
+    require_condition(
+        review.get("draft_version") == version,
+        "answer_review.draft_versionが問題文と一致しない",
+    )
+    reviewed, reviewed_ids = records_with_ids(
+        review.get("answers"), "answer_review.answers", nonempty=True
+    )
+    by_id = {item["id"]: item for item in answers}
+    require_condition(
+        reviewed_ids == set(by_id),
+        "answer_review.answersが解答候補と一致しない",
+    )
+    for item in reviewed:
+        name = f"answer_review.answers.{item['id']}"
+        judgment = validate_reviewed_answer(item, name, quote_ids)
+        require_condition(
+            judgment == by_id[item["id"]]["judgment"],
+            f"{name}.judgmentが採用判定と一致しない",
+        )
+    exposure = next(item for item in checks if item["id"] == "answer_exposure")
+    names = {
+        normalize_candidate_name(item["name"])
+        for key in ("blind_candidates", "semantic_candidates")
+        for item in exposure[key]
+    }
+    candidates = required_list(
+        review.get("candidate_reviews"), "answer_review.candidate_reviews"
+    )
+    seen = set()
+    adopted = {
+        normalize_candidate_name(item["answer"]): item["judgment"] for item in answers
+    }
+    for index, candidate in enumerate(candidates):
+        name = f"answer_review.candidate_reviews[{index}]"
+        require_condition(isinstance(candidate, dict), f"{name}がない")
+        value = normalize_candidate_name(required_text(candidate, "name", name))
+        require_condition(value not in seen, f"{name}.nameが重複している")
+        seen.add(value)
+        judgment = validate_reviewed_answer(candidate, name, quote_ids)
+        require_condition(
+            value in adopted or judgment != "correct",
+            f"{name}の正答名が解答範囲にない",
+        )
+        require_condition(
+            value not in adopted or judgment == adopted[value],
+            f"{name}.judgmentが採用判定と一致しない",
+        )
+    require_condition(
+        seen == names, "answer_review.candidate_reviewsが露出候補と一致しない"
+    )
+
+
 def validate_work_state(state, stage):
     require_no_selection_ledger(state)
     if stage == "generation":
@@ -1650,21 +1770,7 @@ def validate_work_state(state, stage):
     if stage in {"audit", "final"}:
         validate_evidence_challenge(state, quote_ids, active_clues, version)
     validate_terminology(state, quote_ids, version, stage, draft["text"])
-    answers, _ = records_with_ids(state.get("answers"), "answers", nonempty=True)
-    seen = set()
-    for item in answers:
-        name = f"answers.{item['id']}"
-        value = required_text(item, "answer", name)
-        judgment = item.get("judgment")
-        require_condition(
-            judgment in {"correct", "prompt", "incorrect"},
-            f"{name}.judgmentが不正である",
-        )
-        require_condition((value, judgment) not in seen, "同じ解答候補が重複している")
-        seen.add((value, judgment))
-        required_text(item, "reason", name)
-        referenced_ids(item, "evidence_ids", quote_ids, name)
-        require_stage_completion(item, name, stage)
+    answers = validate_answers(state, quote_ids, stage)
     validate_exposure_assignment_secrecy(state["execution"], answers)
     checks, check_ids = records_with_ids(state.get("checks"), "checks", nonempty=True)
     require_condition(
@@ -1723,6 +1829,7 @@ def validate_work_state(state, stage):
         if item["id"] != "expression.naturalness":
             referenced_ids(item, "evidence_ids", quote_ids, name)
         require_stage_completion(item, name, stage)
+    validate_answer_review(state, answers, checks, quote_ids, version)
     if stage in {"audit", "final"}:
         validate_exposure_review(state, checks, answers, version)
     outputs, output_ids = records_with_ids(
