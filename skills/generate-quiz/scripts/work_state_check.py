@@ -987,6 +987,20 @@ def validate_structure_check(item, name, draft_text, active_clues):
             after_otoshi.startswith(("を", "のことを")),
             f"{name}.otoshiが核名詞句の直前にない",
         )
+    prefuri_segments = required_list(
+        item.get("prefuri_segments"), f"{name}.prefuri_segments"
+    )
+    otoshi_start = draft_text.rfind(otoshi)
+    for index, segment in enumerate(prefuri_segments):
+        sname = f"{name}.prefuri_segments[{index}]"
+        require_condition(isinstance(segment, dict), f"{sname}が辞書ではない")
+        passage = required_text(segment, "passage", sname)
+        require_condition(
+            passage in draft_text[:otoshi_start],
+            f"{sname}.passageが落としより前の問題文にない",
+        )
+        required_text(segment, "target_predication", sname)
+        required_text(segment, "reason", sname)
     otoshi_clue_ids = referenced_ids(
         item, "otoshi_clue_ids", {x["id"] for x in active_clues}, name
     )

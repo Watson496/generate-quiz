@@ -86,6 +86,7 @@ def complete_state():
                     "otoshi": "同じ長さの線分が矢羽の向きで異なる長さに見える錯視",
                     "otoshi_clue_ids": ["C1"],
                     "otoshi_direct_description": "錯視の図形条件と知覚結果を直接示す",
+                    "prefuri_segments": [],
                     "connective_scan": "連用中止・テ形接続はない",
                     "connective_forms": [],
                 }
@@ -425,6 +426,37 @@ def state_module(load_script):
 
 class TestWorkStateFunctions:
     """作業状態の独立した検査規則を確認する。"""
+
+    def test_structure_accepts_prefuri_predication(self, state_module):
+        """落としの前にある叙述の記録を構文検査が受け付ける。"""
+        state_module.validate_structure_check(
+            {
+                "question_form": "SC",
+                "question_phrase": "は何でしょう？",
+                "nucleus": "錯視",
+                "otoshi": "同じ長さの線分が異なる長さに見える錯視",
+                "otoshi_direct_description": "図形と知覚結果を直接示す",
+                "otoshi_clue_ids": ["C1"],
+                "prefuri_segments": [
+                    {
+                        "passage": "1889年に発表された",
+                        "target_predication": "錯視は1889年に発表された",
+                        "reason": "解答対象の成立について独立した事実を述べる",
+                    }
+                ],
+                "connective_scan": "連用中止・テ形接続はない",
+                "connective_forms": [],
+            },
+            "checks.structure",
+            "1889年に発表された、同じ長さの線分が異なる長さに見える錯視は何でしょう？",
+            [
+                {
+                    "id": "C1",
+                    "text": "同じ長さの線分が異なる長さに見える錯視",
+                    "directly_describes_target": True,
+                }
+            ],
+        )
 
     def test_required_id_list_accepts_valid_ids(self, state_module):
         """空でない文字列IDの配列をそのまま受け付ける。"""
@@ -1308,6 +1340,45 @@ class TestWorkState:
         )
         del structure["connective_scan"]
         assert check_state(run_script, "audit", complete_state).returncode == 1
+
+    def test_structure_requires_prefuri_segments(self, run_script, complete_state):
+        """前フリがない問題でも検査済みの空配列を要求する。"""
+        structure = next(
+            check for check in complete_state["checks"] if check["id"] == "structure"
+        )
+        del structure["prefuri_segments"]
+        assert check_state(run_script, "audit", complete_state).returncode == 1
+
+    def test_structure_rejects_prefuri_after_otoshi(self, run_script, complete_state):
+        """落としの後の表現を前フリとして記録できない。"""
+        structure = next(
+            check for check in complete_state["checks"] if check["id"] == "structure"
+        )
+        structure["prefuri_segments"] = [
+            {
+                "passage": "錯視",
+                "target_predication": "錯視は線分を示す",
+                "reason": "対象の属性を述べる",
+            }
+        ]
+        result = check_state(run_script, "audit", complete_state)
+        assert result.returncode == 1
+        assert "passageが落としより前の問題文にない" in result.stderr
+
+    def test_structure_requires_prefuri_predication(self, run_script, complete_state):
+        """前フリの叙述内容を記録しない状態を拒否する。"""
+        complete_state["draft"]["text"] = (
+            "1889年に発表された、" + complete_state["draft"]["text"]
+        )
+        structure = next(
+            check for check in complete_state["checks"] if check["id"] == "structure"
+        )
+        structure["prefuri_segments"] = [
+            {"passage": "1889年に発表された", "reason": "対象の属性を述べる"}
+        ]
+        result = check_state(run_script, "audit", complete_state)
+        assert result.returncode == 1
+        assert "target_predication" in result.stderr
 
     def test_structure_rejects_connection_without_semantic_relation(
         self, run_script, complete_state
