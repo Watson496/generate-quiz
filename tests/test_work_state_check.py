@@ -770,8 +770,42 @@ class TestSelectionState:
     def test_discovery_precedes_exposure_precheck(self, run_script, selection_state):
         """露出予備検査の前に題材探索の完了だけを検査できる。"""
         for candidate in selection_state["candidates"]:
-            del candidate["exposure_precheck"]
+            candidate.pop("exposure_precheck", None)
+            del candidate["exposure_screen"]
         assert check_state(run_script, "discovery", selection_state).returncode == 0
+        assert check_state(run_script, "selection", selection_state).returncode == 1
+
+    def test_selection_accepts_screen_without_detailed_precheck(
+        self, run_script, selection_state
+    ):
+        """露出の疑いがない候補には全説明案の詳細分析を要求しない。"""
+        assert "exposure_precheck" not in selection_state["candidates"][1]
+        assert check_state(run_script, "selection", selection_state).returncode == 0
+
+    def test_selection_requires_two_descriptions_for_suspected_exposure(
+        self, run_script, selection_state
+    ):
+        """露出の疑いがある候補では複数の代表説明を検査する。"""
+        precheck = selection_state["candidates"][0]["exposure_precheck"]
+        precheck["representative_descriptions"] = precheck[
+            "representative_descriptions"
+        ][:1]
+        precheck["formations"] = precheck["formations"][:1]
+        result = check_state(run_script, "selection", selection_state)
+        assert result.returncode == 1
+        assert "異なる代表説明を十分に調べていない" in result.stderr
+
+    def test_selection_requires_screen(self, run_script, selection_state):
+        """選択対象の中心的説明と露出の疑いの記録を要求する。"""
+        del selection_state["candidates"][0]["exposure_screen"]
+        assert check_state(run_script, "selection", selection_state).returncode == 1
+
+    def test_selection_requires_detail_for_suspected_exposure(
+        self, run_script, selection_state
+    ):
+        """疑いを記録した候補は詳細な名称形成分析なしに通さない。"""
+        candidate = selection_state["candidates"][0]
+        del candidate["exposure_precheck"]
         assert check_state(run_script, "selection", selection_state).returncode == 1
 
     def test_selection_requires_opened_source(self, run_script, selection_state):

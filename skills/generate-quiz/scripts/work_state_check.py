@@ -274,6 +274,20 @@ def validate_exposure_precheck(item, name):
     return unavoidable
 
 
+def validate_exposure_screen(item, entry_ids, name):
+    screen = item.get("exposure_screen")
+    require_condition(isinstance(screen, dict), f"{name}.exposure_screenがない")
+    screen_name = f"{name}.exposure_screen"
+    required_text(screen, "central_description", screen_name)
+    referenced_ids(screen, "source_entry_point_ids", entry_ids, screen_name)
+    require_condition(
+        screen.get("formation_risk") in {"suspected", "none_detected"},
+        f"{screen_name}.formation_riskが不正である",
+    )
+    required_text(screen, "reason", screen_name)
+    return screen["formation_risk"]
+
+
 def validate_intersection_state(state):
     """4軸の選択と交差領域の確認記録を検査する。"""
     nodes = state.get("facet_nodes")
@@ -550,10 +564,25 @@ def validate_selection_candidates(
                     nonempty=False,
                 )
             if not discovery_only:
+                risk = validate_exposure_screen(item, entry_ids, name)
                 require_condition(
-                    not validate_exposure_precheck(item, name),
-                    f"{name}は代表説明から正答名を形成できるため選択対象にできない",
+                    risk != "suspected" or item.get("exposure_precheck") is not None,
+                    f"{name}は露出の疑いを詳細調査していない",
                 )
+                if item.get("exposure_precheck") is not None:
+                    unavoidable = validate_exposure_precheck(item, name)
+                    if risk == "suspected":
+                        require_condition(
+                            len(
+                                item["exposure_precheck"]["representative_descriptions"]
+                            )
+                            >= MIN_EXPOSURE_DESCRIPTIONS,
+                            f"{name}は異なる代表説明を十分に調べていない",
+                        )
+                    require_condition(
+                        not unavoidable,
+                        f"{name}は代表説明から正答名を形成できるため選択対象にできない",
+                    )
         else:
             code = item.get("exclusion_code")
             require_condition(
@@ -577,6 +606,10 @@ def validate_selection_candidates(
             if code == "unavoidable_exposure":
                 require_condition(
                     not discovery_only, f"{name}は露出予備検査前に除外できない"
+                )
+                require_condition(
+                    validate_exposure_screen(item, entry_ids, name) == "suspected",
+                    f"{name}は露出の疑いを記録していない",
                 )
                 require_condition(
                     validate_exposure_precheck(item, name),
