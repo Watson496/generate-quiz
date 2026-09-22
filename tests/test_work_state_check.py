@@ -178,6 +178,12 @@ def complete_state():
     assignment_log["exposure"]["task_label"] = "露出候補の列挙"
     state = {
         "selection_mode": "random",
+        "facet_nodes": {
+            "subject": "subject::66",
+            "place": "place::ROOT",
+            "time": "time::ROOT",
+            "type": "type::ROOT",
+        },
         "execution": {
             "delegation_available": True,
             "agents": agents,
@@ -430,6 +436,22 @@ def complete_state():
         "output_elements": outputs,
         "final_input": {
             "draft_version": 2,
+            "topic_selection": {
+                "answer_target": "ミュラー・リヤー錯視",
+                "facet_nodes": {
+                    "subject": "subject::66",
+                    "place": "place::ROOT",
+                    "time": "time::ROOT",
+                    "type": "type::ROOT",
+                },
+                "facet_paths": {
+                    "subject": "科学 ＞ 心理学",
+                    "place": "地域指定なし",
+                    "time": "時代指定なし",
+                    "type": "錯視",
+                },
+                "history_result": "履歴補正を適用した",
+            },
             "relative_clauses": [
                 {
                     "passage": "同じ長さの線分が矢羽の向きで異なる長さに見える錯視",
@@ -445,6 +467,10 @@ def complete_state():
             "output_element_ids": sorted(REQUIRED_OUTPUT_IDS),
             "quote_ids": ["Q1"],
         },
+    }
+    state["final_input"]["material"] = {
+        "topic_selection": "科学 ＞ 心理学／地域指定なし／時代指定なし／錯視から、"
+        "履歴補正を適用した結果、ミュラー・リヤー錯視を選んだ。"
     }
     sections = final_output_sections(state)
     state["final_input"]["material"] = {
@@ -471,7 +497,7 @@ def final_output_sections(state):
         "補足": "なし",
         "別解": "なし",
         "正誤判定基準": "正答の扱いを示す。",
-        "題材選択": "題材を選んだ。",
+        "題材選択": state["final_input"]["material"]["topic_selection"],
         "難易度": "資料名の第一節では、入門教材での扱いを確認できる。",
         "裏取り": f"資料名（第一節）に次の記述がある。\n\n{quote_texts}",
         "手掛かりの設計": "資料名の第一節にある図形条件を手掛かりに使う。",
@@ -1632,6 +1658,27 @@ class TestWorkState:
         assert result.returncode == 1
         assert "正答名が解答範囲にない" in result.stderr
 
+    def test_audit_requires_all_facet_paths_in_topic_selection(
+        self, run_script, complete_state
+    ):
+        """抽選した題材では四軸の分類経路を完成稿の題材選択へ含める。"""
+        material = complete_state["final_input"]["material"]
+        material["topic_selection"] = material["topic_selection"].replace(
+            "地域指定なし／", ""
+        )
+        result = check_state(run_script, "audit", complete_state)
+        assert result.returncode == 1
+        assert "placeの分類経路がない" in result.stderr
+
+    def test_audit_rejects_internal_facet_key_in_topic_selection(
+        self, run_script, complete_state
+    ):
+        """完成稿の題材選択に内部ノードIDを出さない。"""
+        complete_state["final_input"]["material"]["topic_selection"] += " subject::66"
+        result = check_state(run_script, "audit", complete_state)
+        assert result.returncode == 1
+        assert "内部ノードID" in result.stderr
+
     @pytest.mark.parametrize("stage", ["audit", "final"])
     def test_complete_state_passes(
         self, run_script, complete_state, reviewed_state, stage
@@ -1648,9 +1695,19 @@ class TestWorkState:
         state = complete_state if stage == "audit" else reviewed_state
         state["selection_mode"] = "specified"
         state["user_specified_target"] = state["answer_target"]
+        topic = state["final_input"]["topic_selection"]
+        del topic["facet_paths"]
+        topic["history_result"] = "履歴補正なし"
+        state["final_input"]["material"]["topic_selection"] = (
+            f"ユーザー指定の解答対象：{state['answer_target']}。履歴補正なし。"
+        )
         for role in ("exploration", "alternate_exploration", "saturation_review"):
             del state["execution"]["agents"][role]
             del state["execution"]["assignment_log"][role]
+        if stage == "final":
+            state["final_review"]["output_sha256"] = hashlib.sha256(
+                final_output_text(state).encode()
+            ).hexdigest()
         assert check_state(run_script, stage, state).returncode == 0
 
     def test_specified_target_must_match_answer_target(

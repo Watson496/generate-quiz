@@ -1462,6 +1462,7 @@ def validate_final_input(state, version, active_props, active_clues, difficulty_
         "final_input.quote_idsが判断に用いた引用と一致しない",
     )
     validate_final_material(state, final, active_props, active_clues, cited)
+    validate_topic_selection(state, final)
 
 
 def validate_final_material(state, final, active_props, active_clues, cited):
@@ -1565,6 +1566,54 @@ def validate_final_material(state, final, active_props, active_clues, cited):
             )
 
 
+def validate_topic_selection(state, final):
+    topic = final.get("topic_selection")
+    require_condition(isinstance(topic, dict), "final_input.topic_selectionがない")
+    require_condition(
+        topic.get("answer_target") == state["answer_target"],
+        "final_input.topic_selection.answer_targetが解答対象と一致しない",
+    )
+    content = final["material"]["topic_selection"]
+    require_condition(
+        state["answer_target"] in content,
+        "final_input.material.topic_selectionに解答対象がない",
+    )
+    history = required_text(topic, "history_result", "final_input.topic_selection")
+    require_condition(
+        history in content,
+        "final_input.material.topic_selectionに履歴補正の適用結果がない",
+    )
+    if state["selection_mode"] == "random":
+        nodes = state.get("facet_nodes")
+        require_condition(isinstance(nodes, dict), "facet_nodesがない")
+        require_condition(
+            topic.get("facet_nodes") == nodes,
+            "final_input.topic_selection.facet_nodesが選択結果と一致しない",
+        )
+        paths = topic.get("facet_paths")
+        require_condition(
+            isinstance(paths, dict), "final_input.topic_selection.facet_pathsがない"
+        )
+        for axis in ("subject", "place", "time", "type"):
+            path = required_text(paths, axis, "final_input.topic_selection.facet_paths")
+            require_condition(
+                path in content,
+                f"final_input.material.topic_selectionに{axis}の分類経路がない",
+            )
+    else:
+        require_condition(
+            "facet_paths" not in topic,
+            "final_input.topic_selection.facet_pathsがユーザー指定の題材にある",
+        )
+    require_condition(
+        not re.search(
+            r"重み付きで選択|抽選過程|候補台帳|候補から選|(?:subject|place|time|type)::|\bROOT\b",
+            content,
+        ),
+        "final_input.material.topic_selectionに抽選過程または内部ノードIDがある",
+    )
+
+
 def validate_final_sections(output, state):
     """完成稿の見出し、問題、解答と作業用情報の混入を確認する。"""
     headings = list(re.finditer(r"^##[ \t]+([^\n]+)$", output, re.MULTILINE))
@@ -1588,6 +1637,11 @@ def validate_final_sections(output, state):
     )
     require_condition(
         state["answer_target"] in sections["解答"], "最終出力の解答に解答対象がない"
+    )
+    require_condition(
+        re.sub(r"\s+", "", sections["題材選択"])
+        == re.sub(r"\s+", "", state["final_input"]["material"]["topic_selection"]),
+        "最終出力の題材選択が最終入力と一致しない",
     )
     require_condition(
         not re.search(r"(?:subject|place|time|type)::[^\s、。）」]+", output),
