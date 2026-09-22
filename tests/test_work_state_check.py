@@ -373,6 +373,36 @@ def complete_state():
             "candidates": [],
             "no_candidate_reason": "問題文から名称候補を形成できなかった",
         },
+        "answer_review": {
+            "reviewer_id": agents["exposure"],
+            "draft_version": 2,
+            "answers": [
+                {
+                    "id": "A1",
+                    "judgment": "correct",
+                    "status": "passed",
+                    "same_target": True,
+                    "specified_enough": True,
+                    "clear_error": False,
+                    "scope_matches": True,
+                    "reason": "対象の標準名称を十分に指定する",
+                    "evidence_ids": evidence.copy(),
+                }
+            ],
+            "candidate_reviews": [
+                {
+                    "name": "一般名称",
+                    "judgment": "incorrect",
+                    "status": "passed",
+                    "same_target": False,
+                    "specified_enough": True,
+                    "clear_error": False,
+                    "scope_matches": False,
+                    "reason": "対象の名称ではない",
+                    "evidence_ids": evidence.copy(),
+                }
+            ],
+        },
         "checks": checks,
         "output_elements": outputs,
         "final_input": {
@@ -1462,6 +1492,90 @@ class TestWorkState:
         )
         assert check_state(run_script, "audit", complete_state).returncode == 0
 
+    def test_generation_requires_independent_answer_review(
+        self, run_script, generation_state
+    ):
+        """解答候補ごとの独立した判定を省けない。"""
+        del generation_state["answer_review"]
+        result = check_state(run_script, "generation", generation_state)
+        assert result.returncode == 1
+        assert "answer_reviewがない" in result.stderr
+
+    @pytest.mark.parametrize(
+        ("field", "value", "message"),
+        [
+            ("reviewer_id", "agent-other", "露出検査担当と一致しない"),
+            ("draft_version", 1, "問題文と一致しない"),
+        ],
+    )
+    def test_generation_rejects_invalid_answer_review(
+        self, run_script, generation_state, field, value, message
+    ):
+        """正誤判定を現行問題と露出検査担当へ対応させる。"""
+        generation_state["answer_review"][field] = value
+        result = check_state(run_script, "generation", generation_state)
+        assert result.returncode == 1
+        assert message in result.stderr
+
+    def test_generation_requires_all_answer_reviews(self, run_script, generation_state):
+        """採用した解答候補を一名称ずつ判定する。"""
+        generation_state["answer_review"]["answers"] = []
+        result = check_state(run_script, "generation", generation_state)
+        assert result.returncode == 1
+        assert "answer_review.answersが空である" in result.stderr
+
+    @pytest.mark.parametrize(
+        ("field", "value", "message"),
+        [
+            ("same_target", False, "正答判定と対象・指定・適用範囲が一致しない"),
+            ("specified_enough", False, "正答判定と対象・指定・適用範囲が一致しない"),
+            ("clear_error", True, "正答判定と対象・指定・適用範囲が一致しない"),
+            ("scope_matches", False, "正答判定と対象・指定・適用範囲が一致しない"),
+        ],
+    )
+    def test_generation_rejects_inconsistent_correct_answer_review(
+        self, run_script, generation_state, field, value, message
+    ):
+        """正答判定を対象・指定・誤り・適用範囲の判断と一致させる。"""
+        generation_state["answer_review"]["answers"][0][field] = value
+        result = check_state(run_script, "generation", generation_state)
+        assert result.returncode == 1
+        assert message in result.stderr
+
+    def test_generation_requires_exposure_candidate_judgment(
+        self, run_script, generation_state
+    ):
+        """露出検査で挙がった名称候補の正誤判定を要求する。"""
+        generation_state["answer_review"]["candidate_reviews"] = []
+        result = check_state(run_script, "generation", generation_state)
+        assert result.returncode == 1
+        assert "candidate_reviewsが露出候補と一致しない" in result.stderr
+
+    def test_generation_rejects_inconsistent_exposure_candidate_judgment(
+        self, run_script, generation_state
+    ):
+        """露出候補の誤答判定を対象・誤り・適用範囲の判断と一致させる。"""
+        candidate = generation_state["answer_review"]["candidate_reviews"][0]
+        candidate.update(same_target=True, scope_matches=True)
+        result = check_state(run_script, "generation", generation_state)
+        assert result.returncode == 1
+        assert "誤答判定に対象・適用範囲の相違がない" in result.stderr
+
+    def test_generation_requires_correct_exposure_candidate_in_answer_range(
+        self, run_script, generation_state
+    ):
+        """正答と判定した露出候補を解答範囲へ追加する。"""
+        candidate = generation_state["answer_review"]["candidate_reviews"][0]
+        candidate.update(
+            judgment="correct",
+            same_target=True,
+            specified_enough=True,
+            scope_matches=True,
+        )
+        result = check_state(run_script, "generation", generation_state)
+        assert result.returncode == 1
+        assert "正答名が解答範囲にない" in result.stderr
+
     @pytest.mark.parametrize("stage", ["audit", "final"])
     def test_complete_state_passes(
         self, run_script, complete_state, reviewed_state, stage
@@ -2073,6 +2187,19 @@ class TestWorkState:
                 "standard_name_confirmation_requires_target_association": True,
             }
         ]
+        complete_state["answer_review"]["candidate_reviews"].append(
+            {
+                "name": "ミュラー・リヤー錯視",
+                "judgment": "correct",
+                "status": "passed",
+                "same_target": True,
+                "specified_enough": True,
+                "clear_error": False,
+                "scope_matches": True,
+                "reason": "対象の標準名称である",
+                "evidence_ids": ["Q1"],
+            }
+        )
         assert check_state(run_script, "audit", complete_state).returncode == 0
 
     def test_semantic_candidate_requires_formation_details(
@@ -2546,6 +2673,7 @@ class TestWorkState:
         reviewed_state["evidence_challenge"]["reviewer_id"] = "self"
         reviewed_state["terminology_review"]["reviewer_id"] = "self"
         reviewed_state["exposure_review"]["reviewer_id"] = "self"
+        reviewed_state["answer_review"]["reviewer_id"] = "self"
         reviewed_state["final_review"]["reviewer_id"] = "self"
         result = check_state(run_script, "final", reviewed_state)
         assert result.returncode == 0
@@ -2589,6 +2717,19 @@ class TestWorkState:
                 "evidence_ids": ["Q1"],
                 "generation": "complete",
                 "audit": "passed",
+            }
+        )
+        reviewed_state["answer_review"]["answers"].append(
+            {
+                "id": "A2",
+                "judgment": "prompt",
+                "status": "passed",
+                "same_target": True,
+                "specified_enough": False,
+                "clear_error": False,
+                "scope_matches": True,
+                "reason": "指定が不足する",
+                "evidence_ids": ["Q1"],
             }
         )
         result = check_state(run_script, "final", reviewed_state)
