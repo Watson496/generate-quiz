@@ -172,6 +172,8 @@ JSON manifestは、検査対象を具体的な内容へ結び付け、確定的�
 
 問う知識の内容を`asked_knowledge`に記録し、難易度の独立検査は`difficulty_review`に記録する。後者の`asked_knowledge`には検査対象とした問う知識、`answer_granularity`には要求する解答知識の細かさ、`beginner`と`general`には各集団の`status`、`reason`、`evidence_ids`を置く。`reviewer_id`には難易度検査担当の正規識別子を記録し、委譲機能がない場合は`self`とする。一般層側の`other_access_paths`には、定義的な資料とは別に名称と代表情報の対応が共有され得る経路を`path`、実際に調べた内容を`search_record`、その対応への接触を確認できたかを`outcome`、調査結果を`result`、確認した資料の引用IDを`evidence_ids`として置く。`outcome`は`confirmed`または`not_confirmed`とし、前者では引用IDを必須とする。後者では引用IDを空にできるが、調べた範囲を超える不在の根拠とは扱わない。
 
+初学者側の`name_learning`には解答対象の名称を学ぶ位置を、`relation_learning`には問う関係を対象の特徴として学ぶ位置を記録する。`learning_connection`には両者を結び付け、要求する粒度の知識を1〜2年以内に学びうると判断する推論を記録する。それぞれに`reason`と`evidence_ids`を置き、引用IDを初学者側の`evidence_ids`にも含める。同じ引用を複数の判断に使えるが、その引用が各判断をどう支えるかは別々に示す。
+
 作文前に`--stage difficulty`で解答対象、問う知識、資料中の逐語引用、難易度の独立検査、担当記録を検査する。問う知識を変更したら難易度を再検査し、`difficulty_review.asked_knowledge`を更新する。完成稿については、`checks`の両参照集団の検査単位に問う知識を記録し、問題文の版、監査結果と対応させる。難易度担当の判定に対する監査結果は`difficulty_review.audit`に記録し、作文前と生成工程では`pending`、監査後は`passed`とする。構造検査は、問う知識と問題文の意味上の一致、資料からの推論の妥当性、工程の実行時刻を保証しない。
 
 専門用語の`term`には、現行問題文にある表記を記録する。命題理解に意味内容が必要かを`meaning_needed`に記録する。必要な場合は、語の意味を確認した引用と理由を`meaning_evidence_ids`・`meaning_reason`、想定プレイヤー層がその意味を明白に知っていると判断する引用と理由を`audience_evidence_ids`・`audience_reason`に分ける。必要ない場合は、意味内容を知らなくても問題文を理解できる理由を`understanding_without_meaning`に記録する。同じ引用を両方に使うときも、語義の確認と既習性の判断をそれぞれ説明する。
