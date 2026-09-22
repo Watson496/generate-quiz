@@ -848,9 +848,7 @@ class TestSelectionState:
         assert result.returncode == 1
         assert "発見元・下位領域" in result.stderr
 
-    def test_selection_rejects_extra_unlinked_source(
-        self, run_script, selection_state
-    ):
+    def test_selection_rejects_extra_unlinked_source(self, run_script, selection_state):
         """正しい発見元が一つあっても根拠のない追加入口を拒否する。"""
         selection_state["candidates"][0]["discovery_entry_point_ids"].append("E2")
         result = check_state(run_script, "selection", selection_state)
@@ -1776,9 +1774,7 @@ class TestWorkState:
         complete_state["sources"][0]["quotes"].append(
             {"id": "Q2", "text": "名称を扱う教材", "location": "第二節"}
         )
-        complete_state["difficulty_review"]["beginner"][aspect]["evidence_ids"] = [
-            "Q2"
-        ]
+        complete_state["difficulty_review"]["beginner"][aspect]["evidence_ids"] = ["Q2"]
         result = check_state(run_script, "audit", complete_state)
         assert result.returncode == 1
         assert f"{aspect}.evidence_idsが初学者側の根拠に含まれない" in result.stderr
@@ -1926,14 +1922,14 @@ class TestWorkState:
         competitor["evidence_ids"] = ["Q2"]
         assert check_state(run_script, "audit", complete_state).returncode == 1
 
-    def test_condition_evidence_belongs_to_competitor(
-        self, run_script, complete_state
-    ):
+    def test_condition_evidence_belongs_to_competitor(self, run_script, complete_state):
         """条件の引用を対抗候補の引用にも対応させる。"""
         complete_state["sources"][0]["quotes"].append(
             {"id": "Q2", "text": "条件についての記述", "location": "第二節"}
         )
-        competitor = complete_state["clues"][0]["checks"]["quasi_uniqueness"]["competitors"][0]
+        competitor = complete_state["clues"][0]["checks"]["quasi_uniqueness"][
+            "competitors"
+        ][0]
         competitor["conditions"][0]["evidence_ids"] = ["Q2"]
         assert check_state(run_script, "audit", complete_state).returncode == 1
 
@@ -1968,7 +1964,9 @@ class TestWorkState:
         self, run_script, complete_state
     ):
         """異なる条件を記録した候補を同一対象の別名として通さない。"""
-        competitor = complete_state["clues"][0]["checks"]["quasi_uniqueness"]["competitors"][0]
+        competitor = complete_state["clues"][0]["checks"]["quasi_uniqueness"][
+            "competitors"
+        ][0]
         competitor["disposition"] = "same_target"
         del competitor["exclusion_passage"]
         assert check_state(run_script, "audit", complete_state).returncode == 1
@@ -2389,7 +2387,9 @@ class TestWorkState:
         del review_term["understanding_without_meaning"]
         result = check_state(run_script, "audit", complete_state)
         assert result.returncode == 1
-        assert "terminology_review.terms.T1.understanding_without_meaning" in result.stderr
+        assert (
+            "terminology_review.terms.T1.understanding_without_meaning" in result.stderr
+        )
 
     @pytest.mark.parametrize(
         ("change", "expected"),
