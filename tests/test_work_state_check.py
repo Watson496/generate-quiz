@@ -226,7 +226,23 @@ def complete_state():
                     "quasi_uniqueness": {
                         **clue_check,
                         "comparison_scope": "同じ上位分類",
-                        "competitors": ["近接候補"],
+                        "competitors": [
+                            {
+                                "name": "近接候補",
+                                "evidence_ids": evidence,
+                                "conditions": [
+                                    {
+                                        "passage": "矢羽の向きで異なる長さに見える",
+                                        "matches": False,
+                                        "reason": "引用で候補の図形条件との差を確認した",
+                                        "evidence_ids": evidence,
+                                    }
+                                ],
+                                "disposition": "excluded",
+                                "exclusion_passage": "矢羽の向きで異なる長さに見える",
+                                "reason": "手掛かりに書かれた図形条件で区別する",
+                            }
+                        ],
                         "standalone_sufficient": True,
                         "depends_on_clue_ids": [],
                     },
@@ -1111,6 +1127,98 @@ class TestWorkState:
         """他の手掛かりに依存する準一意性を単独の評価として認めない。"""
         check = complete_state["clues"][0]["checks"]["quasi_uniqueness"]
         check["depends_on_clue_ids"] = ["C2"]
+        assert check_state(run_script, "audit", complete_state).returncode == 1
+
+    @pytest.mark.parametrize(
+        "invalid_part",
+        [
+            "name",
+            "evidence_ids",
+            "conditions",
+            "passage",
+            "matches",
+            "condition_evidence_ids",
+            "exclusion_passage",
+            "reason",
+        ],
+    )
+    def test_competitor_requires_evidence_and_matching_clue_condition(
+        self, run_script, complete_state, invalid_part
+    ):
+        """対抗候補の資料と問題文中の区別条件を欠く記録を拒否する。"""
+        check = complete_state["clues"][0]["checks"]["quasi_uniqueness"]
+        competitor = check["competitors"][0]
+        if invalid_part == "name":
+            competitor["name"] = ""
+        elif invalid_part == "evidence_ids":
+            competitor["evidence_ids"] = []
+        elif invalid_part == "conditions":
+            competitor["conditions"] = []
+        elif invalid_part == "passage":
+            competitor["conditions"][0]["passage"] = "問題文にない条件"
+        elif invalid_part == "matches":
+            competitor["conditions"][0]["matches"] = "未確認"
+        elif invalid_part == "condition_evidence_ids":
+            competitor["conditions"][0]["evidence_ids"] = []
+        elif invalid_part == "exclusion_passage":
+            competitor["exclusion_passage"] = "同じ長さの線分"
+        else:
+            competitor["reason"] = ""
+        assert check_state(run_script, "audit", complete_state).returncode == 1
+
+    def test_competitor_evidence_belongs_to_clue_judgment(
+        self, run_script, complete_state
+    ):
+        """対抗候補の引用を準一意性の判断根拠にも対応させる。"""
+        complete_state["sources"][0]["quotes"].append(
+            {"id": "Q2", "text": "対抗候補の記述", "location": "第二節"}
+        )
+        competitor = complete_state["clues"][0]["checks"]["quasi_uniqueness"][
+            "competitors"
+        ][0]
+        competitor["evidence_ids"] = ["Q2"]
+        assert check_state(run_script, "audit", complete_state).returncode == 1
+
+    def test_condition_evidence_belongs_to_competitor(
+        self, run_script, complete_state
+    ):
+        """条件の引用を対抗候補の引用にも対応させる。"""
+        complete_state["sources"][0]["quotes"].append(
+            {"id": "Q2", "text": "条件についての記述", "location": "第二節"}
+        )
+        competitor = complete_state["clues"][0]["checks"]["quasi_uniqueness"]["competitors"][0]
+        competitor["conditions"][0]["evidence_ids"] = ["Q2"]
+        assert check_state(run_script, "audit", complete_state).returncode == 1
+
+    def test_competitor_with_all_matching_conditions_cannot_be_excluded(
+        self, run_script, complete_state
+    ):
+        """問題文の条件に相違がない別対象を退けない。"""
+        competitor = complete_state["clues"][0]["checks"]["quasi_uniqueness"][
+            "competitors"
+        ][0]
+        competitor["conditions"][0]["matches"] = True
+        assert check_state(run_script, "audit", complete_state).returncode == 1
+
+    def test_same_target_name_does_not_need_exclusion_passage(
+        self, run_script, complete_state
+    ):
+        """同一対象の別名に別対象を退ける表現を要求しない。"""
+        competitor = complete_state["clues"][0]["checks"]["quasi_uniqueness"][
+            "competitors"
+        ][0]
+        competitor["disposition"] = "same_target"
+        competitor["conditions"][0]["matches"] = True
+        del competitor["exclusion_passage"]
+        assert check_state(run_script, "audit", complete_state).returncode == 0
+
+    def test_same_target_name_cannot_have_different_condition(
+        self, run_script, complete_state
+    ):
+        """異なる条件を記録した候補を同一対象の別名として通さない。"""
+        competitor = complete_state["clues"][0]["checks"]["quasi_uniqueness"]["competitors"][0]
+        competitor["disposition"] = "same_target"
+        del competitor["exclusion_passage"]
         assert check_state(run_script, "audit", complete_state).returncode == 1
 
     def test_otoshi_requires_directly_descriptive_clue(

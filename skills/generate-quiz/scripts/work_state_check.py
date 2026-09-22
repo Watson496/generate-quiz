@@ -731,6 +731,69 @@ def validate_source_quotes(state):
     return quote_ids
 
 
+def validate_competitor_comparisons(check, clue_text, quote_ids, name):
+    competitors = required_list(
+        check.get("competitors"), f"{name}.competitors", nonempty=True
+    )
+    for index, competitor in enumerate(competitors):
+        cname = f"{name}.competitors[{index}]"
+        require_condition(
+            isinstance(competitor, dict), f"{cname}はオブジェクトでなければならない"
+        )
+        required_text(competitor, "name", cname)
+        evidence = referenced_ids(competitor, "evidence_ids", quote_ids, cname)
+        require_condition(
+            set(evidence) <= set(check["evidence_ids"]),
+            f"{cname}.evidence_idsが準一意性の引用に含まれていない",
+        )
+        conditions = required_list(
+            competitor.get("conditions"), f"{cname}.conditions", nonempty=True
+        )
+        differences = set()
+        for position, condition in enumerate(conditions):
+            condition_name = f"{cname}.conditions[{position}]"
+            require_condition(
+                isinstance(condition, dict),
+                f"{condition_name}はオブジェクトでなければならない",
+            )
+            passage = required_text(condition, "passage", condition_name)
+            require_condition(
+                passage in clue_text,
+                f"{condition_name}.passageが手掛かり本文にない",
+            )
+            require_condition(
+                isinstance(condition.get("matches"), bool),
+                f"{condition_name}.matchesが真偽値ではない",
+            )
+            if not condition["matches"]:
+                differences.add(passage)
+            required_text(condition, "reason", condition_name)
+            condition_evidence = referenced_ids(
+                condition, "evidence_ids", quote_ids, condition_name
+            )
+            require_condition(
+                set(condition_evidence) <= set(evidence),
+                f"{condition_name}.evidence_idsが候補の引用に含まれていない",
+            )
+        disposition = competitor.get("disposition")
+        require_condition(
+            disposition in {"excluded", "same_target"},
+            f"{cname}.dispositionが不正である",
+        )
+        if disposition == "excluded":
+            exclusion = required_text(competitor, "exclusion_passage", cname)
+            require_condition(
+                exclusion in differences,
+                f"{cname}.exclusion_passageが相違する条件ではない",
+            )
+        else:
+            require_condition(
+                not differences and "exclusion_passage" not in competitor,
+                f"{cname}は同一対象の別名として扱う条件と矛盾している",
+            )
+        required_text(competitor, "reason", cname)
+
+
 def validate_sources_propositions_and_clues(state, version, stage):
     quote_ids = validate_source_quotes(state)
     props, prop_ids = records_with_ids(
@@ -794,9 +857,7 @@ def validate_sources_propositions_and_clues(state, version, stage):
             referenced_ids(check, "evidence_ids", quote_ids, cname)
             if key == "quasi_uniqueness":
                 required_text(check, "comparison_scope", cname)
-                required_list(
-                    check.get("competitors"), f"{cname}.competitors", nonempty=True
-                )
+                validate_competitor_comparisons(check, item["text"], quote_ids, cname)
                 require_condition(
                     check.get("standalone_sufficient") is True,
                     f"{cname}.standalone_sufficientがtrueではない",
