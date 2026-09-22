@@ -28,7 +28,7 @@
 
 一つの解答対象を棄却しても、この状態は同じ問題番号で題材を再選定するために保持する。棄却した対象に固有の引用、推論、問題文、監査履歴は、新しい解答対象の作業状態へ渡さない。
 
-題材候補の探索状態は最終出力へ含めない。探索が飽和したら露出予備検査の前に`work_state_check.py --stage discovery`で検査する。
+題材候補の探索状態は最終出力へ含めない。探索が飽和したら露出予備検査の前に`work_state_check.py --stage discovery`で検査する。抽選に使う探索状態は`--stage selection`で確認する。解答対象を決めた後は探索台帳を含まない作問状態を別に作り、生成担当の起動時記録とともに`--stage generation-start`で確認する。
 
 探索状態は、題材を抽選する前に `topic_pick.py` へ渡す。入口には本文を開いたURL、`opened: true`、確認箇所を`access_note`として記録する。下位領域の`source_searches`には、候補名を含めない入口探しを`mode: open`、既知候補からの近接探索を`mode: nearby`として記録する。候補の`discovery_entry_point_ids`と`coverage_area_ids`は、同じ`source_searches`の`entry_point_ids`と`found_candidate_ids`に対応させる。最初の候補を記録した時点と入口・候補を追加した節目に`--stage discovery-progress`でこの対応を検査する。内部知識から挙げ、まだ資料で確認していない候補は、途中状態では`discovery_entry_point_ids`を空配列にできる。資料の探索記録にその候補を加えたら発見元も記録し、`--stage discovery`までに対応を確定する。途中検査では探索の完了や露出予備検査の記録を要求しない。資料で名称を確認できず除外する候補を除き、`name_use_note`には名称の使用箇所を記す。`facet_membership_reason`には四軸の範囲に属すると判断した理由を記す。選択対象の`expansion_searches`には近接探索の検索先・調べた関係・得た候補IDを残す。検査を通った後で候補を追加した場合は、その候補からも探索を展開し、再度検査する。
 
