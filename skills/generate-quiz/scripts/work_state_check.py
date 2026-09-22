@@ -864,6 +864,7 @@ def validate_execution_assignments(state, stage, selection_mode="random"):
                     "evidence_challenge",
                     "audit",
                     "finalization",
+                    "final_review",
                 ),
             }[stage]
         )
@@ -1686,16 +1687,41 @@ def validate_final_review(state, output_bytes):
     review = state.get("final_review")
     require_condition(isinstance(review, dict), "final_reviewがない")
     require_condition(
-        review.get("status") == "passed", "最終出力の照合が合格していない"
+        review.get("status") == "passed", "final_review.statusが合格していない"
     )
     execution = state["execution"]
     reviewer = (
-        execution["agents"]["audit"] if execution["delegation_available"] else "self"
+        execution["agents"]["final_review"]
+        if execution["delegation_available"]
+        else "self"
     )
     require_condition(
         review.get("reviewer_id") == reviewer,
-        "final_review.reviewer_idが監査担当と一致しない",
+        "final_review.reviewer_idが最終照合担当と一致しない",
     )
+    expected_checks = {
+        "current_draft",
+        "evidence_and_inference",
+        "difficulty",
+        "competitors",
+        "answer_judging",
+        "exposure",
+    }
+    checks = review.get("checks")
+    require_condition(isinstance(checks, dict), "final_review.checksがない")
+    require_condition(
+        set(checks) == expected_checks, "final_review.checksの項目が一致しない"
+    )
+    require_condition(
+        all(value == "passed" for value in checks.values()),
+        "final_review.checksに未合格の項目がある",
+    )
+    for key in ("quote_ids", "answer_ids", "clue_ids"):
+        refs = required_id_list(review.get(key), f"final_review.{key}")
+        require_condition(
+            len(refs) == len(set(refs)) and set(refs) == set(state["final_input"][key]),
+            f"final_review.{key}が最終入力と一致しない",
+        )
     require_condition(
         review.get("output_sha256") == hashlib.sha256(output_bytes).hexdigest(),
         "final_review.output_sha256が完成稿と一致しない",

@@ -84,6 +84,7 @@ def complete_state():
         "exposure",
         "audit",
         "finalization",
+        "final_review",
     )
     agents = {role: f"agent-{index}" for index, role in enumerate(roles, 1)}
     checks = [
@@ -548,11 +549,25 @@ def generation_state(complete_state):
 
 @pytest.fixture
 def reviewed_state(complete_state):
-    """完成稿を監査担当が照合した最終段階の作業状態を作る。"""
+    """完成稿を最終照合担当が照合した最終段階の作業状態を作る。"""
     state = copy.deepcopy(complete_state)
     state["final_review"] = {
         "status": "passed",
-        "reviewer_id": state["execution"]["agents"]["audit"],
+        "reviewer_id": state["execution"]["agents"]["final_review"],
+        "checks": dict.fromkeys(
+            (
+                "current_draft",
+                "evidence_and_inference",
+                "difficulty",
+                "competitors",
+                "answer_judging",
+                "exposure",
+            ),
+            "passed",
+        ),
+        "quote_ids": state["final_input"]["quote_ids"].copy(),
+        "answer_ids": state["final_input"]["answer_ids"].copy(),
+        "clue_ids": state["final_input"]["clue_ids"].copy(),
         "output_sha256": hashlib.sha256(
             final_output_text(state).encode("utf-8")
         ).hexdigest(),
@@ -2856,11 +2871,11 @@ class TestWorkState:
     @pytest.mark.parametrize(
         ("field", "value", "message"),
         [
-            ("status", "pending", "最終出力の照合が合格していない"),
+            ("status", "pending", "final_review.statusが合格していない"),
             (
                 "reviewer_id",
                 "別の担当者",
-                "final_review.reviewer_idが監査担当と一致しない",
+                "final_review.reviewer_idが最終照合担当と一致しない",
             ),
             (
                 "output_sha256",
@@ -2872,7 +2887,7 @@ class TestWorkState:
     def test_final_requires_review_of_current_output(
         self, run_script, reviewed_state, field, value, message
     ):
-        """完成稿の照合結果は監査担当と現行ファイルに対応する。"""
+        """完成稿の照合結果は最終照合担当と現行ファイルに対応する。"""
         reviewed_state["final_review"][field] = value
         result = check_state(run_script, "final", reviewed_state)
         assert result.returncode == 1
@@ -2884,6 +2899,32 @@ class TestWorkState:
         result = check_state(run_script, "final", reviewed_state)
         assert result.returncode == 1
         assert "final_reviewがない" in result.stderr
+
+    def test_final_requires_independent_reviewer(self, run_script, reviewed_state):
+        """最終照合担当を監査担当と兼任させない。"""
+        audit_agent = reviewed_state["execution"]["agents"]["audit"]
+        reviewed_state["execution"]["agents"]["final_review"] = audit_agent
+        reviewed_state["execution"]["assignment_log"]["final_review"]["agent_id"] = (
+            audit_agent
+        )
+        reviewed_state["final_review"]["reviewer_id"] = audit_agent
+        result = check_state(run_script, "final", reviewed_state)
+        assert result.returncode == 1
+        assert "工程を別々のagentへ割り当てていない" in result.stderr
+
+    def test_final_requires_all_review_checks(self, run_script, reviewed_state):
+        """完成稿の照合で未合格の判断を残さない。"""
+        reviewed_state["final_review"]["checks"]["exposure"] = "pending"
+        result = check_state(run_script, "final", reviewed_state)
+        assert result.returncode == 1
+        assert "final_review.checksに未合格の項目がある" in result.stderr
+
+    def test_final_rejects_duplicate_reviewed_quote(self, run_script, reviewed_state):
+        """最終照合の対象引用を重複させない。"""
+        reviewed_state["final_review"]["quote_ids"].append("Q1")
+        result = check_state(run_script, "final", reviewed_state)
+        assert result.returncode == 1
+        assert "final_review.quote_idsが最終入力と一致しない" in result.stderr
 
     def test_final_accepts_self_review_without_delegation(
         self, run_script, reviewed_state
