@@ -8,7 +8,7 @@
 
 ## ファセットの交差領域
 
-ファセット選択後、題材探索前に4軸の正規ノードキーと交差領域の確認記録をJSONへ保存し、`work_state_check.py --stage intersection-checkpoint`で検査する。確認記録には、開いた資料のURL、資料中に実名がある異なる候補二つ以上と各資料のURL、うち一件以上の初級学習資料と扱いの根拠、交差領域の広さを判断した理由、成立の判定を含める。委譲機能の有無は`execution.delegation_available`に記録する。別agentが確認する場合は、その正規IDと起動時の記録を`execution.agents`と`execution.assignment_log`へ保存する。委譲機能がない場合は、利用できない理由を記録して親agentが確認する。形式検査は資料の独立性や判断の妥当性を保証しない。
+ファセット選択後、題材探索前に4軸の正規ノードキーと交差領域の確認記録をJSONへ保存し、`work_state_check.py --stage intersection-checkpoint`で検査する。確認記録には、開いた資料のURL、交差領域の広さを判断した理由、資料中に実名がある異なる候補二つ以上と各資料のURL、うち一件以上の初級学習資料と扱いの根拠、成立の判定を含める。広さの理由には、選択範囲に入る大区分と、異なる用途の資料で確かめた対象の種類・下位領域を対応させ、候補探索の経路を設けられるかを記す。委譲機能の有無は`execution.delegation_available`に記録する。別agentが確認する場合は、その正規IDと起動時の記録を`execution.agents`と`execution.assignment_log`へ保存する。委譲機能がない場合は、利用できない理由を記録して親agentが確認する。形式検査は資料の独立性や判断の妥当性を保証しない。
 
 ## 題材候補の探索状態
 
