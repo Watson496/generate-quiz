@@ -185,8 +185,17 @@ def selection_state(intersection_state):
                         "found_candidate_ids": [],
                     }
                 ],
+                "exposure_screen": {
+                    "central_description": "対象を説明する語句",
+                    "source_entry_point_ids": ["E1"],
+                    "formation_risk": "suspected",
+                    "reason": "名称形成の可能性を詳しく調べる",
+                },
                 "exposure_precheck": {
-                    "representative_descriptions": ["対象を説明する語句"],
+                    "representative_descriptions": [
+                        "対象を説明する語句",
+                        "別の中心的な特徴を説明する語句",
+                    ],
                     "accepted_names": ["候補1"],
                     "formations": [],
                     "status": "passed",
@@ -208,11 +217,11 @@ def selection_state(intersection_state):
                         "found_candidate_ids": [],
                     }
                 ],
-                "exposure_precheck": {
-                    "representative_descriptions": ["対象を説明する語句"],
-                    "accepted_names": ["候補2"],
-                    "formations": [],
-                    "status": "passed",
+                "exposure_screen": {
+                    "central_description": "対象を説明する語句",
+                    "source_entry_point_ids": ["E2"],
+                    "formation_risk": "none_detected",
+                    "reason": "中心的説明からは名称を形成できない",
                 },
             },
         ],
@@ -257,23 +266,24 @@ def selection_state(intersection_state):
             "recorded_at_spawn": True,
             "artifact_refs": [f"{role}.md"],
         }
-    for candidate in state["candidates"]:
-        name = candidate["label"]
-        candidate["exposure_precheck"]["formations"] = [
-            {
-                "name": name,
-                "description_index": 0,
-                "formation_rule": "対象との既知の対応から名称を選ぶ",
-                "components": [
-                    {
-                        "form": name,
-                        "source": "対象との既知の対応",
-                        "knowledge": "target_association",
-                    }
-                ],
-                "formation_requires_target_association": True,
-                "formation_target_association_step": "名称要素を選ぶ",
-                "standard_name_confirmation_requires_target_association": True,
-            }
-        ]
+    candidate = state["candidates"][0]
+    name = candidate["label"]
+    candidate["exposure_precheck"]["formations"] = [
+        {
+            "name": name,
+            "description_index": index,
+            "formation_rule": "対象との既知の対応から名称を選ぶ",
+            "components": [
+                {
+                    "form": name,
+                    "source": "対象との既知の対応",
+                    "knowledge": "target_association",
+                }
+            ],
+            "formation_requires_target_association": True,
+            "formation_target_association_step": "名称要素を選ぶ",
+            "standard_name_confirmation_requires_target_association": True,
+        }
+        for index in range(2)
+    ]
     return state
