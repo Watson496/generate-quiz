@@ -81,6 +81,29 @@ REQUIRED_OUTPUT_IDS = {
     "answer_judging",
     "references",
 }
+OUTPUT_HEADINGS = {
+    "problem": "問題",
+    "answer": "解答",
+    "supplement": "補足",
+    "alternatives": "別解",
+    "judging": "正誤判定基準",
+    "topic_selection": "題材選択",
+    "difficulty.beginner": "難易度",
+    "difficulty.general": "難易度",
+    "verification": "裏取り",
+    "clues": "手掛かりの設計",
+    "answer_limitation": "問題の成立性",
+    "answer_exposure": "問題の成立性",
+    "structure": "問題文の構成",
+    "clue_order": "手掛かりの設計",
+    "expression.naturalness": "問題文の表現",
+    "expression.comprehensibility": "問題文の表現",
+    "expression.accuracy": "問題文の表現",
+    "expression.incremental_comprehension": "問題文の表現",
+    "length": "問題文の長さ",
+    "answer_judging": "解答と正誤判定",
+    "references": "参考文献",
+}
 MIN_ENTRY_POINTS = 2
 MIN_ENTRY_POINT_KINDS = 2
 MIN_COVERAGE_AREAS = 2
@@ -881,6 +904,12 @@ def validate_source_quotes(state):
     quote_ids = set()
     for source in sources:
         required_text(source, "citation", f"sources.{source['id']}")
+        if "url" in source:
+            url = required_text(source, "url", f"sources.{source['id']}")
+            require_condition(
+                re.fullmatch(r"https?://\S+", url) is not None,
+                f"sources.{source['id']}.urlが資料URLではない",
+            )
         quotes, ids = records_with_ids(
             source.get("quotes"), f"sources.{source['id']}.quotes", nonempty=True
         )
@@ -1432,6 +1461,108 @@ def validate_final_input(state, version, active_props, active_clues, difficulty_
         len(quote_refs) == len(set(quote_refs)) and set(quote_refs) == cited,
         "final_input.quote_idsが判断に用いた引用と一致しない",
     )
+    validate_final_material(state, final, active_props, active_clues, cited)
+
+
+def validate_final_material(state, final, active_props, active_clues, cited):
+    material = final.get("material")
+    require_condition(isinstance(material, dict), "final_input.materialがない")
+    require_condition(
+        set(material) == REQUIRED_OUTPUT_IDS,
+        "final_input.materialの出力項目が必須項目と一致しない",
+    )
+    for output_id in REQUIRED_OUTPUT_IDS:
+        required_text(material, output_id, "final_input.material")
+    require_condition(
+        material["problem"] == state["draft"]["text"],
+        "final_input.material.problemが現行版の問題文と一致しない",
+    )
+    require_condition(
+        state["answer_target"] in material["answer"],
+        "final_input.material.answerに解答対象がない",
+    )
+    require_condition(
+        not re.search(r"もう一度|×", material["alternatives"]),
+        "final_input.material.alternativesに正答以外の判定がある",
+    )
+    require_condition(
+        not re.search(
+            r"\b(?:ACCEPTANCE|DRAW|VERDICT|ACCEPT|REJECT)\b|抽選値|乱数値",
+            material["length"],
+            re.IGNORECASE,
+        ),
+        "final_input.material.lengthに判定器の内部表記がある",
+    )
+    for proposition in active_props:
+        require_condition(
+            proposition["passage"] in material["expression.accuracy"],
+            f"final_input.material.expression.accuracyに命題{proposition['id']}の原文箇所がない",
+        )
+    for clause in final["relative_clauses"]:
+        if clause["relation"] == "outer":
+            require_condition(
+                clause["passage"] in material["expression.accuracy"],
+                "final_input.material.expression.accuracyに外の関係の連体修飾節がない",
+            )
+    quotes = {
+        quote["id"]: (source["citation"], quote["location"], quote["text"])
+        for source in state["sources"]
+        for quote in source["quotes"]
+    }
+    all_material = "\n".join(material.values())
+    for quote_id in cited:
+        citation, location, text = quotes[quote_id]
+        require_condition(
+            text in all_material,
+            f"final_input.materialに採用引用{quote_id}の本文がない",
+        )
+        require_condition(
+            citation in all_material and location in all_material,
+            f"final_input.materialに採用引用{quote_id}の書誌または所在がない",
+        )
+    adopted_texts = {quotes[quote_id][2] for quote_id in cited}
+    for quote_id, (_, _, text) in quotes.items():
+        if quote_id not in cited and text not in adopted_texts:
+            require_condition(
+                text not in all_material,
+                f"final_input.materialに不採用の引用{quote_id}がある",
+            )
+    evidence_by_output = {
+        "difficulty.beginner": set(
+            state["difficulty_review"]["beginner"]["evidence_ids"]
+        ),
+        "difficulty.general": set(
+            state["difficulty_review"]["general"]["evidence_ids"]
+        ),
+        "verification": {
+            quote_id for item in active_props for quote_id in item["evidence_ids"]
+        },
+        "clues": {
+            quote_id
+            for clue in active_clues
+            for key in ("centrality", "quasi_uniqueness", "familiarity")
+            for quote_id in clue["checks"][key]["evidence_ids"]
+        },
+        "answer_exposure": {
+            quote_id
+            for item in state["checks"]
+            if item["id"] == "answer_exposure"
+            for quote_id in item["evidence_ids"]
+        },
+        "answer_judging": {
+            quote_id for item in state["answers"] for quote_id in item["evidence_ids"]
+        },
+    }
+    for output_id, evidence_ids in evidence_by_output.items():
+        if evidence_ids:
+            require_condition(
+                any(
+                    quotes[quote_id][0] in material[output_id]
+                    and quotes[quote_id][1] in material[output_id]
+                    for quote_id in evidence_ids
+                ),
+                f"final_input.material.{output_id}に判断根拠の所在がない",
+            )
 
 
 def validate_final_sections(output, state):
@@ -1461,6 +1592,39 @@ def validate_final_sections(output, state):
     require_condition(
         not re.search(r"(?:subject|place|time|type)::[^\s、。）」]+", output),
         "最終出力に内部ノードIDがある",
+    )
+    for output_id, heading in OUTPUT_HEADINGS.items():
+        expected = state["final_input"]["material"][output_id]
+        require_condition(
+            re.sub(r"\s+", "", expected) in re.sub(r"\s+", "", sections[heading]),
+            f"最終出力の{heading}に最終入力の{output_id}がない",
+        )
+
+
+def urls_in_text(text):
+    return {
+        match.rstrip('.,。)）」]>"')
+        for match in re.findall(r"https?://[^\s<>、，。]+", text)
+    }
+
+
+def validate_final_source_urls(output, state):
+    adopted = set(state["final_input"]["quote_ids"])
+    allowed = set()
+    for source in state["sources"]:
+        if not any(quote["id"] in adopted for quote in source["quotes"]):
+            continue
+        if source.get("url"):
+            allowed.add(source["url"])
+        allowed.update(urls_in_text(source["citation"]))
+    urls = urls_in_text(output)
+    require_condition(
+        urls <= allowed,
+        f"最終入力にない資料を完成稿で参照している: {sorted(urls - allowed)}",
+    )
+    require_condition(
+        allowed <= urls,
+        f"採用引用の資料URLが完成稿にない: {sorted(allowed - urls)}",
     )
 
 
@@ -1776,6 +1940,25 @@ def validate_answer_review(state, answers, checks, quote_ids, version):
     )
 
 
+def validate_output_elements(state, stage):
+    outputs, output_ids = records_with_ids(
+        state.get("output_elements"), "output_elements", nonempty=True
+    )
+    require_condition(
+        output_ids == REQUIRED_OUTPUT_IDS,
+        f"出力要素が必須項目と一致しない: {sorted(REQUIRED_OUTPUT_IDS - output_ids)}",
+    )
+    for item in outputs:
+        name = f"output_elements.{item['id']}"
+        content_ref = required_text(item, "content_ref", name)
+        if stage in {"audit", "final"}:
+            require_condition(
+                content_ref == f"final_input.material.{item['id']}",
+                f"{name}.content_refが最終入力を指していない",
+            )
+        require_stage_completion(item, name, stage)
+
+
 def validate_work_state(state, stage):
     require_no_selection_ledger(state)
     if stage == "generation":
@@ -1862,16 +2045,7 @@ def validate_work_state(state, stage):
     validate_answer_review(state, answers, checks, quote_ids, version)
     if stage in {"audit", "final"}:
         validate_exposure_review(state, checks, answers, version)
-    outputs, output_ids = records_with_ids(
-        state.get("output_elements"), "output_elements", nonempty=True
-    )
-    require_condition(
-        output_ids == REQUIRED_OUTPUT_IDS,
-        f"出力要素が必須項目と一致しない: {sorted(REQUIRED_OUTPUT_IDS - output_ids)}",
-    )
-    for item in outputs:
-        required_text(item, "content_ref", f"output_elements.{item['id']}")
-        require_stage_completion(item, f"output_elements.{item['id']}", stage)
+    validate_output_elements(state, stage)
     if stage in {"audit", "final"}:
         validate_final_input(
             state, version, active_props, active_clues, difficulty_review
@@ -1959,7 +2133,6 @@ def main():
             output_bytes = Path(args.output).read_bytes()
             output = output_bytes.decode("utf-8")
             validate_work_state(state, args.stage)
-            validate_final_sections(output, state)
             for source in state["sources"]:
                 for quote in source["quotes"]:
                     if quote["id"] in state["final_input"]["quote_ids"]:
@@ -1967,6 +2140,8 @@ def main():
                             quote["text"] in output,
                             f"最終出力に引用{quote['id']}がない",
                         )
+            validate_final_sections(output, state)
+            validate_final_source_urls(output, state)
             validate_final_review(state, output_bytes)
         else:
             validate_work_state(state, args.stage)

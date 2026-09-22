@@ -44,6 +44,29 @@ REQUIRED_OUTPUT_IDS = {
     "answer_judging",
     "references",
 }
+OUTPUT_HEADINGS = {
+    "problem": "問題",
+    "answer": "解答",
+    "supplement": "補足",
+    "alternatives": "別解",
+    "judging": "正誤判定基準",
+    "topic_selection": "題材選択",
+    "difficulty.beginner": "難易度",
+    "difficulty.general": "難易度",
+    "verification": "裏取り",
+    "clues": "手掛かりの設計",
+    "answer_limitation": "問題の成立性",
+    "answer_exposure": "問題の成立性",
+    "structure": "問題文の構成",
+    "clue_order": "手掛かりの設計",
+    "expression.naturalness": "問題文の表現",
+    "expression.comprehensibility": "問題文の表現",
+    "expression.accuracy": "問題文の表現",
+    "expression.incremental_comprehension": "問題文の表現",
+    "length": "問題文の長さ",
+    "answer_judging": "解答と正誤判定",
+    "references": "参考文献",
+}
 
 
 @pytest.fixture
@@ -153,7 +176,7 @@ def complete_state():
         for role, agent in agents.items()
     }
     assignment_log["exposure"]["task_label"] = "露出候補の列挙"
-    return {
+    state = {
         "selection_mode": "random",
         "execution": {
             "delegation_available": True,
@@ -423,17 +446,26 @@ def complete_state():
             "quote_ids": ["Q1"],
         },
     }
+    sections = final_output_sections(state)
+    state["final_input"]["material"] = {
+        output_id: sections[heading] for output_id, heading in OUTPUT_HEADINGS.items()
+    }
+    state["output_elements"] = [
+        {**item, "content_ref": f"final_input.material.{item['id']}"}
+        for item in state["output_elements"]
+    ]
+    return state
 
 
-def final_output_text(state):
-    """最終段階の構造検査に使う完成稿本文を組み立てる。"""
+def final_output_sections(state):
+    """完成稿の各節に必要な本文を作る。"""
     quote_texts = "\n\n".join(
         f"> {quote['text']}"
         for source in state["sources"]
         for quote in source["quotes"]
         if quote["id"] in state["final_input"]["quote_ids"]
     )
-    sections = {
+    return {
         "問題": state["draft"]["text"],
         "解答": state["answer_target"],
         "補足": "なし",
@@ -443,14 +475,32 @@ def final_output_text(state):
         "難易度": "資料名の第一節では、入門教材での扱いを確認できる。",
         "裏取り": f"資料名（第一節）に次の記述がある。\n\n{quote_texts}",
         "手掛かりの設計": "資料名の第一節にある図形条件を手掛かりに使う。",
-        "問題の成立性": "図形条件によって対象を限定する。",
+        "問題の成立性": "資料名（第一節）の図形条件によって対象を限定する。",
         "問題文の構成": "SC型である。",
-        "問題文の表現": "資料名の第一節にある矢羽の説明と表現を照合する。",
+        "問題文の表現": "同じ長さの線分が矢羽の向きで異なる長さに見える錯視という箇所を、資料名の第一節にある説明と照合する。",
         "問題文の長さ": "文字数を確認した。",
-        "解答と正誤判定": "解答対象の名称を正答とする。",
+        "解答と正誤判定": "資料名（第一節）の解答対象の名称を正答とする。",
         "参考文献": "資料名（第一節）。",
     }
-    return "\n\n".join(f"## {heading}\n\n{body}" for heading, body in sections.items())
+
+
+def final_output_text(state):
+    """最終段階の構造検査に使う完成稿本文を組み立てる。"""
+    return "\n\n".join(
+        f"## {heading}\n\n{body}"
+        for heading, body in final_output_sections(state).items()
+    )
+
+
+def refresh_material_quotes(state):
+    """採用引用を変更したテストの最終入力も同じ資料に揃える。"""
+    adopted = set(state["final_input"]["quote_ids"])
+    state["final_input"]["material"]["verification"] = "\n\n".join(
+        f"{source['citation']}（{quote['location']}）\n> {quote['text']}"
+        for source in state["sources"]
+        for quote in source["quotes"]
+        if quote["id"] in adopted
+    )
 
 
 @pytest.fixture
@@ -1762,6 +1812,7 @@ class TestWorkState:
         beginner["relation_learning"]["evidence_ids"] = ["Q2"]
         beginner["learning_connection"]["evidence_ids"] = ["Q1", "Q2"]
         complete_state["final_input"]["quote_ids"] = ["Q1", "Q2"]
+        refresh_material_quotes(complete_state)
         assert check_state(run_script, "audit", complete_state).returncode == 0
 
     @pytest.mark.parametrize(
@@ -1840,6 +1891,7 @@ class TestWorkState:
         assert result.returncode == 1
         assert "final_input.quote_idsが判断に用いた引用と一致しない" in result.stderr
         complete_state["final_input"]["quote_ids"].append("Q2")
+        refresh_material_quotes(complete_state)
         assert check_state(run_script, "audit", complete_state).returncode == 0
 
     def test_final_input_excludes_other_access_path_evidence(
@@ -2052,6 +2104,9 @@ class TestWorkState:
         complete_state["exposure_review"]["question_sha256"] = hashlib.sha256(
             complete_state["draft"]["text"].encode()
         ).hexdigest()
+        complete_state["final_input"]["material"]["problem"] = complete_state["draft"][
+            "text"
+        ]
         assert check_state(run_script, "audit", complete_state).returncode == 0
 
     def test_structure_requires_connective_scan(self, run_script, complete_state):
@@ -2352,6 +2407,9 @@ class TestWorkState:
         complete_state["exposure_review"]["question_sha256"] = hashlib.sha256(
             complete_state["draft"]["text"].encode()
         ).hexdigest()
+        complete_state["final_input"]["material"]["problem"] = complete_state["draft"][
+            "text"
+        ]
         term = complete_state["terms"][0]
         term["term"] = "ブレンターノ型"
         term["meaning_needed"] = False
@@ -2439,6 +2497,7 @@ class TestWorkState:
         assert result.returncode == 1
         assert "final_input.quote_idsが判断に用いた引用と一致しない" in result.stderr
         complete_state["final_input"]["quote_ids"].append("Q2")
+        refresh_material_quotes(complete_state)
         assert check_state(run_script, "audit", complete_state).returncode == 0
 
     @pytest.mark.parametrize("kind", ["meaning", "audience"])
@@ -2456,6 +2515,7 @@ class TestWorkState:
         assert result.returncode == 1
         assert f"terminology_review.terms.T1.{field}" in result.stderr
         complete_state["terminology_review"]["terms"][0][field].append("Q2")
+        refresh_material_quotes(complete_state)
         assert check_state(run_script, "audit", complete_state).returncode == 0
 
     @pytest.mark.parametrize(
@@ -2599,6 +2659,46 @@ class TestWorkState:
         result = check_state(run_script, "audit", complete_state)
         assert result.returncode == 0
 
+    @pytest.mark.parametrize(
+        "label", ["ACCEPTANCE\t0.9", "DRAW\t0.4", "VERDICT\tACCEPT"]
+    )
+    def test_audit_rejects_length_judge_labels(self, run_script, complete_state, label):
+        """問題文の長さへ判定器の内部表記を渡さない。"""
+        complete_state["final_input"]["material"]["length"] = label
+        result = check_state(run_script, "audit", complete_state)
+        assert result.returncode == 1
+        assert "内部表記" in result.stderr
+
+    def test_audit_requires_original_passage_in_accuracy(
+        self, run_script, complete_state
+    ):
+        """確認した内容との一致に命題の原文箇所を示す。"""
+        complete_state["final_input"]["material"]["expression.accuracy"] = (
+            "資料名（第一節）の表現と照合する。"
+        )
+        result = check_state(run_script, "audit", complete_state)
+        assert result.returncode == 1
+        assert "原文箇所がない" in result.stderr
+
+    def test_audit_rejects_unadopted_quote_in_material(
+        self, run_script, complete_state
+    ):
+        """採用していない引用を最終入力へ追加しない。"""
+        complete_state["sources"][0]["quotes"].append(
+            {"id": "Q2", "text": "未採用の資料記述", "location": "第二節"}
+        )
+        complete_state["final_input"]["material"]["verification"] += "未採用の資料記述"
+        result = check_state(run_script, "audit", complete_state)
+        assert result.returncode == 1
+        assert "不採用の引用Q2" in result.stderr
+
+    def test_audit_rejects_invalid_source_url(self, run_script, complete_state):
+        """資料のURL欄へURLではない値を置かない。"""
+        complete_state["sources"][0]["url"] = "資料の場所"
+        result = check_state(run_script, "audit", complete_state)
+        assert result.returncode == 1
+        assert "urlが資料URLではない" in result.stderr
+
     def test_final_requires_quote_in_output(self, run_script, reviewed_state, tmp_path):
         """採用した引用本文が完成稿にない場合は確定できない。"""
         output = tmp_path / "完成稿.md"
@@ -2618,6 +2718,26 @@ class TestWorkState:
         )
         assert result.returncode == 1
         assert "最終出力に引用Q1がない" in result.stderr
+
+    def test_final_rejects_unadopted_source_url(
+        self, run_script, reviewed_state, tmp_path
+    ):
+        """最終入力にない資料のURLを完成稿へ追加しない。"""
+        output = tmp_path / "完成稿.md"
+        output.write_text(
+            final_output_text(reviewed_state) + "\n\nhttps://example.org/unadopted",
+            encoding="utf-8",
+        )
+        result = run_script(
+            "work_state_check.py",
+            "--stage",
+            "final",
+            "--output",
+            output,
+            stdin=json.dumps(reviewed_state, ensure_ascii=False),
+        )
+        assert result.returncode == 1
+        assert "最終入力にない資料" in result.stderr
 
     def test_final_rejects_wrong_heading(self, run_script, reviewed_state, tmp_path):
         """完成稿の見出し名を照合する。"""
