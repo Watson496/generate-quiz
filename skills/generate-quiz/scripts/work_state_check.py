@@ -1358,8 +1358,38 @@ def validate_final_input(state, version, active_props, active_clues, difficulty_
     require_condition(
         final.get("draft_version") == version, "final_inputの問題文の版が一致しない"
     )
+    clauses = required_list(
+        final.get("relative_clauses"), "final_input.relative_clauses"
+    )
+    seen_passages = set()
+    proposition_ids = {item["id"] for item in active_props}
+    for index, clause in enumerate(clauses):
+        name = f"final_input.relative_clauses[{index}]"
+        require_condition(isinstance(clause, dict), f"{name}がオブジェクトではない")
+        passage = required_text(clause, "passage", name)
+        require_condition(
+            passage in state["draft"]["text"], f"{name}.passageが問題文にない"
+        )
+        require_condition(passage not in seen_passages, f"{name}.passageが重複している")
+        seen_passages.add(passage)
+        required_text(clause, "reason", name)
+        relation = clause.get("relation")
+        require_condition(
+            relation in {"inner", "outer"}, f"{name}.relationが不正である"
+        )
+        relation_ids = referenced_ids(
+            clause,
+            "relation_proposition_ids",
+            proposition_ids,
+            name,
+            nonempty=relation == "outer",
+        )
+        require_condition(
+            relation == "outer" or not relation_ids,
+            f"{name}.relation_proposition_idsが内の関係にある",
+        )
     expected = {
-        "proposition_ids": {item["id"] for item in active_props},
+        "proposition_ids": proposition_ids,
         "clue_ids": {item["id"] for item in active_clues},
         "term_ids": {item["id"] for item in state["terms"]},
         "answer_ids": {item["id"] for item in state["answers"]},
