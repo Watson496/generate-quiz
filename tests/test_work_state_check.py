@@ -56,6 +56,7 @@ def complete_state():
         "saturation_review",
         "generation",
         "difficulty_review",
+        "evidence_challenge",
         "terminology_review",
         "exposure",
         "audit",
@@ -294,6 +295,52 @@ def complete_state():
                 }
             ],
         },
+        "evidence_challenge": {
+            "reviewer_id": agents["evidence_challenge"],
+            "draft_version": 2,
+            "asked_knowledge": "図形条件からミュラー・リヤー錯視の名称を答える",
+            "beginner": {
+                "source_urls_checked": ["https://example.org/beginner"],
+                "adverse_finding": "図中の注記だけでないか確認した",
+                "resolution_evidence_ids": evidence.copy(),
+                "resolution_reason": "名称と図形条件を学習内容として説明する",
+                "status": "passed",
+            },
+            "general": {
+                "source_urls_checked": ["https://example.org/general"],
+                "adverse_finding": "一般向け資料での紹介を確認した",
+                "resolution_evidence_ids": evidence.copy(),
+                "resolution_reason": "紹介の範囲を考慮して判断する",
+                "status": "passed",
+            },
+            "clues": [
+                {
+                    "id": "C1",
+                    "source_urls_checked": ["https://example.org/competitor"],
+                    "adverse_finding": "近接候補を調べた",
+                    "resolution_evidence_ids": evidence.copy(),
+                    "resolution_reason": "候補の図形条件が異なる",
+                    "status": "passed",
+                    "competitor_comparisons": [
+                        {
+                            "name": "近接候補",
+                            "source_url": "https://example.org/competitor",
+                            "evidence_ids": evidence.copy(),
+                            "conditions": [
+                                {
+                                    "passage": "矢羽の向きで異なる長さに見える",
+                                    "match": "不一致",
+                                    "reason": "候補には当てはまらない",
+                                }
+                            ],
+                            "disposition": "excluded",
+                            "resolution_reason": "図形条件で区別する",
+                            "remaining": False,
+                        }
+                    ],
+                }
+            ],
+        },
         "answers": [
             {
                 "id": "A1",
@@ -351,6 +398,9 @@ def final_output_text(state):
 def generation_state(complete_state):
     """生成工程の監査前にある一問分の作業状態を作る。"""
     state = copy.deepcopy(complete_state)
+    del state["evidence_challenge"]
+    del state["execution"]["agents"]["evidence_challenge"]
+    del state["execution"]["assignment_log"]["evidence_challenge"]
     state["difficulty_review"]["audit"] = "pending"
     state["terminology_review"]["audit"] = "pending"
     for group in ("propositions", "terms", "answers", "checks", "output_elements"):
@@ -1095,6 +1145,114 @@ class TestWorkState:
         assert result.returncode == 1
         assert "assignment_log.generation" in result.stderr
 
+    def test_audit_requires_evidence_challenge(self, run_script, complete_state):
+        """難易度と手掛かりの独立した反証確認を省けない。"""
+        del complete_state["evidence_challenge"]
+        result = check_state(run_script, "audit", complete_state)
+        assert result.returncode == 1
+        assert "evidence_challengeがない" in result.stderr
+
+    def test_generation_does_not_require_evidence_challenge(
+        self, run_script, generation_state
+    ):
+        """生成工程の合格後に反証確認を追加できる。"""
+        assert check_state(run_script, "generation", generation_state).returncode == 0
+
+    def test_generation_rejects_premature_evidence_challenge(
+        self, run_script, generation_state, complete_state
+    ):
+        """生成工程の検査前に反証確認の結果を混ぜない。"""
+        generation_state["evidence_challenge"] = complete_state["evidence_challenge"]
+        result = check_state(run_script, "generation", generation_state)
+        assert result.returncode == 1
+        assert "監査前の反証確認が混入" in result.stderr
+
+    def test_audit_rejects_challenge_for_other_knowledge(
+        self, run_script, complete_state
+    ):
+        """別の問う知識についての反証記録を現行問題へ使わない。"""
+        complete_state["evidence_challenge"]["asked_knowledge"] = "別の問う知識"
+        result = check_state(run_script, "audit", complete_state)
+        assert result.returncode == 1
+        assert "asked_knowledgeが問う知識と一致しない" in result.stderr
+
+    def test_audit_rejects_challenge_for_other_clue(self, run_script, complete_state):
+        """別の手掛かりIDについての反証記録を現行問題へ使わない。"""
+        complete_state["evidence_challenge"]["clues"][0]["id"] = "C2"
+        result = check_state(run_script, "audit", complete_state)
+        assert result.returncode == 1
+        assert "evidence_challenge.cluesが採用手掛かりと一致しない" in result.stderr
+
+    def test_audit_rejects_unresolved_competitor(self, run_script, complete_state):
+        """対抗候補が未解決のまま監査を通さない。"""
+        comparison = complete_state["evidence_challenge"]["clues"][0][
+            "competitor_comparisons"
+        ][0]
+        comparison["remaining"] = True
+        result = check_state(run_script, "audit", complete_state)
+        assert result.returncode == 1
+        assert "未解決" in result.stderr
+
+    def test_audit_rejects_excluding_matching_competitor(
+        self, run_script, complete_state
+    ):
+        """全条件に一致する対抗候補を除外しない。"""
+        comparison = complete_state["evidence_challenge"]["clues"][0][
+            "competitor_comparisons"
+        ][0]
+        comparison["conditions"][0]["match"] = "一致"
+        result = check_state(run_script, "audit", complete_state)
+        assert result.returncode == 1
+        assert "相違する条件なしに候補を除外" in result.stderr
+
+    def test_audit_rejects_excluding_near_competitor(self, run_script, complete_state):
+        """近接するだけの条件を相違として候補を除外しない。"""
+        comparison = complete_state["evidence_challenge"]["clues"][0][
+            "competitor_comparisons"
+        ][0]
+        comparison["conditions"][0]["match"] = "近接"
+        result = check_state(run_script, "audit", complete_state)
+        assert result.returncode == 1
+        assert "相違する条件なしに候補を除外" in result.stderr
+
+    def test_audit_accepts_additional_excluded_competitor(
+        self, run_script, complete_state
+    ):
+        """独立調査で見つけた別対象も反証記録に加えられる。"""
+        comparisons = complete_state["evidence_challenge"]["clues"][0][
+            "competitor_comparisons"
+        ]
+        additional = copy.deepcopy(comparisons[0])
+        additional["name"] = "追加の対抗候補"
+        comparisons.append(additional)
+        assert check_state(run_script, "audit", complete_state).returncode == 0
+
+    def test_audit_rejects_omitted_generated_competitor(
+        self, run_script, complete_state
+    ):
+        """生成側が挙げた対抗候補の照合漏れを拒否する。"""
+        competitors = complete_state["clues"][0]["checks"]["quasi_uniqueness"][
+            "competitors"
+        ]
+        additional = copy.deepcopy(competitors[0])
+        additional["name"] = "別の対抗候補"
+        competitors.append(additional)
+        result = check_state(run_script, "audit", complete_state)
+        assert result.returncode == 1
+        assert "生成側の対抗候補が不足" in result.stderr
+
+    def test_audit_rejects_conflicting_competitor_judgment(
+        self, run_script, complete_state
+    ):
+        """生成側と独立反証の候補採否が食い違う場合は合格させない。"""
+        comparison = complete_state["evidence_challenge"]["clues"][0][
+            "competitor_comparisons"
+        ][0]
+        comparison["disposition"] = "same_target"
+        result = check_state(run_script, "audit", complete_state)
+        assert result.returncode == 1
+        assert "生成側の判断と一致しない" in result.stderr
+
     @pytest.mark.parametrize("stage", ["audit", "final"])
     def test_complete_state_passes(
         self, run_script, complete_state, reviewed_state, stage
@@ -1468,6 +1626,11 @@ class TestWorkState:
         competitor["disposition"] = "same_target"
         competitor["conditions"][0]["matches"] = True
         del competitor["exclusion_passage"]
+        comparison = complete_state["evidence_challenge"]["clues"][0][
+            "competitor_comparisons"
+        ][0]
+        comparison["disposition"] = "same_target"
+        comparison["conditions"][0]["match"] = "一致"
         assert check_state(run_script, "audit", complete_state).returncode == 0
 
     def test_same_target_name_cannot_have_different_condition(
@@ -2165,6 +2328,7 @@ class TestWorkState:
         del reviewed_state["execution"]["agents"]
         del reviewed_state["execution"]["assignment_log"]
         reviewed_state["difficulty_review"]["reviewer_id"] = "self"
+        reviewed_state["evidence_challenge"]["reviewer_id"] = "self"
         reviewed_state["terminology_review"]["reviewer_id"] = "self"
         reviewed_state["final_review"]["reviewer_id"] = "self"
         result = check_state(run_script, "final", reviewed_state)
