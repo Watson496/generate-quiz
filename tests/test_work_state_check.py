@@ -407,6 +407,14 @@ def complete_state():
         "output_elements": outputs,
         "final_input": {
             "draft_version": 2,
+            "relative_clauses": [
+                {
+                    "passage": "同じ長さの線分が矢羽の向きで異なる長さに見える錯視",
+                    "relation": "outer",
+                    "reason": "線分が異なる長さに見える現象と錯視名との関係を補う",
+                    "relation_proposition_ids": ["P1"],
+                }
+            ],
             "proposition_ids": ["P1"],
             "clue_ids": ["C1"],
             "term_ids": ["T1"],
@@ -2526,6 +2534,45 @@ class TestWorkState:
         result = check_state(run_script, "audit", complete_state)
         assert result.returncode == 1
         assert "final_input.quote_idsが判断に用いた引用と一致しない" in result.stderr
+
+    def test_audit_requires_relative_clause_records(self, run_script, complete_state):
+        """連体修飾節の関係を記録せずに監査を通さない。"""
+        del complete_state["final_input"]["relative_clauses"]
+        result = check_state(run_script, "audit", complete_state)
+        assert result.returncode == 1
+        assert "final_input.relative_clauses" in result.stderr
+
+    def test_audit_accepts_empty_relative_clauses(self, run_script, complete_state):
+        """連体修飾節がない問題文では空配列を認める。"""
+        complete_state["final_input"]["relative_clauses"] = []
+        assert check_state(run_script, "audit", complete_state).returncode == 0
+
+    def test_audit_requires_proposition_for_outer_clause(
+        self, run_script, complete_state
+    ):
+        """外の関係では修飾節が表す内容と解答対象を結ぶ命題を要求する。"""
+        complete_state["final_input"]["relative_clauses"][0][
+            "relation_proposition_ids"
+        ] = []
+        result = check_state(run_script, "audit", complete_state)
+        assert result.returncode == 1
+        assert "relation_proposition_ids" in result.stderr
+
+    def test_audit_rejects_proposition_for_inner_clause(
+        self, run_script, complete_state
+    ):
+        """内の関係に外の関係用の命題を付けない。"""
+        complete_state["final_input"]["relative_clauses"][0]["relation"] = "inner"
+        result = check_state(run_script, "audit", complete_state)
+        assert result.returncode == 1
+        assert "relation_proposition_idsが内の関係にある" in result.stderr
+
+    def test_audit_requires_clause_from_current_draft(self, run_script, complete_state):
+        """現行問題文にない連体修飾節を監査入力に使わない。"""
+        complete_state["final_input"]["relative_clauses"][0]["passage"] = "別の文章"
+        result = check_state(run_script, "audit", complete_state)
+        assert result.returncode == 1
+        assert "passageが問題文にない" in result.stderr
 
     @pytest.mark.parametrize(
         "key",
