@@ -320,13 +320,31 @@ def complete_state():
 
 
 def final_output_text(state):
-    """最終段階のテストで使う完成稿本文を組み立てる。"""
-    return "\n".join(
-        quote["text"]
+    """最終段階の構造検査に使う完成稿本文を組み立てる。"""
+    quote_texts = "\n\n".join(
+        f"> {quote['text']}"
         for source in state["sources"]
         for quote in source["quotes"]
         if quote["id"] in state["final_input"]["quote_ids"]
     )
+    sections = {
+        "問題": state["draft"]["text"],
+        "解答": state["answer_target"],
+        "補足": "なし",
+        "別解": "なし",
+        "正誤判定基準": "正答の扱いを示す。",
+        "題材選択": "題材を選んだ。",
+        "難易度": "資料名の第一節では、入門教材での扱いを確認できる。",
+        "裏取り": f"資料名（第一節）に次の記述がある。\n\n{quote_texts}",
+        "手掛かりの設計": "資料名の第一節にある図形条件を手掛かりに使う。",
+        "問題の成立性": "図形条件によって対象を限定する。",
+        "問題文の構成": "SC型である。",
+        "問題文の表現": "資料名の第一節にある矢羽の説明と表現を照合する。",
+        "問題文の長さ": "文字数を確認した。",
+        "解答と正誤判定": "解答対象の名称を正答とする。",
+        "参考文献": "資料名（第一節）。",
+    }
+    return "\n\n".join(f"## {heading}\n\n{body}" for heading, body in sections.items())
 
 
 @pytest.fixture
@@ -1909,7 +1927,12 @@ class TestWorkState:
     def test_final_requires_quote_in_output(self, run_script, reviewed_state, tmp_path):
         """採用した引用本文が完成稿にない場合は確定できない。"""
         output = tmp_path / "完成稿.md"
-        output.write_text("引用を含まない完成稿", encoding="utf-8")
+        output.write_text(
+            final_output_text(reviewed_state).replace(
+                reviewed_state["sources"][0]["quotes"][0]["text"], "引用を含まない記述"
+            ),
+            encoding="utf-8",
+        )
         result = run_script(
             "work_state_check.py",
             "--stage",
@@ -1920,6 +1943,63 @@ class TestWorkState:
         )
         assert result.returncode == 1
         assert "最終出力に引用Q1がない" in result.stderr
+
+    def test_final_rejects_wrong_heading(self, run_script, reviewed_state, tmp_path):
+        """完成稿の見出し名を照合する。"""
+        output = tmp_path / "完成稿.md"
+        output.write_text(
+            final_output_text(reviewed_state).replace("## 難易度", "## 難度"),
+            encoding="utf-8",
+        )
+        result = run_script(
+            "work_state_check.py",
+            "--stage",
+            "final",
+            "--output",
+            output,
+            stdin=json.dumps(reviewed_state, ensure_ascii=False),
+        )
+        assert result.returncode == 1
+        assert "見出しに欠落・重複・順序違い" in result.stderr
+
+    def test_final_rejects_preamble(self, run_script, reviewed_state, tmp_path):
+        """完成稿の先頭に作業用記録を置かない。"""
+        output = tmp_path / "完成稿.md"
+        output.write_text(
+            "担当ID: agent-1\n" + final_output_text(reviewed_state), encoding="utf-8"
+        )
+        result = run_script(
+            "work_state_check.py",
+            "--stage",
+            "final",
+            "--output",
+            output,
+            stdin=json.dumps(reviewed_state, ensure_ascii=False),
+        )
+        assert result.returncode == 1
+        assert "先頭に作業用記録" in result.stderr
+
+    def test_final_rejects_different_question(
+        self, run_script, reviewed_state, tmp_path
+    ):
+        """完成稿の問題文を現行版と照合する。"""
+        output = tmp_path / "完成稿.md"
+        output.write_text(
+            final_output_text(reviewed_state).replace(
+                reviewed_state["draft"]["text"], "別の問題文"
+            ),
+            encoding="utf-8",
+        )
+        result = run_script(
+            "work_state_check.py",
+            "--stage",
+            "final",
+            "--output",
+            output,
+            stdin=json.dumps(reviewed_state, ensure_ascii=False),
+        )
+        assert result.returncode == 1
+        assert "問題文が現行版と一致しない" in result.stderr
 
     @pytest.mark.parametrize(
         ("field", "value", "message"),
@@ -1972,10 +2052,7 @@ class TestWorkState:
     ):
         """引用を保持していても照合後に変更した完成稿は確定しない。"""
         output = tmp_path / "完成稿.md"
-        output.write_text(
-            reviewed_state["sources"][0]["quotes"][0]["text"] + "\n",
-            encoding="utf-8",
-        )
+        output.write_text(final_output_text(reviewed_state) + "\n", encoding="utf-8")
         result = run_script(
             "work_state_check.py",
             "--stage",
