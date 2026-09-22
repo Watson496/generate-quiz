@@ -678,8 +678,75 @@ class TestIntersectionState:
         )
 
 
+class TestDiscoveryProgressState:
+    """題材探索途中の状態を検査する。"""
+
+    def test_discovery_progress_accepts_incomplete_ledger(
+        self, run_script, selection_state
+    ):
+        """最初の下位領域だけの台帳でも発見元を途中検査できる。"""
+        selection_state["coverage_areas"] = selection_state["coverage_areas"][:1]
+        selection_state["candidates"] = selection_state["candidates"][:1]
+        selection_state["candidates"][0]["expansion_searches"] = []
+        assert (
+            check_state(run_script, "discovery-progress", selection_state).returncode
+            == 0
+        )
+
+    def test_discovery_progress_requires_candidate_source_link(
+        self, run_script, selection_state
+    ):
+        """候補の発見元が検索記録に結び付かない台帳を拒否する。"""
+        selection_state["candidates"][0]["discovery_entry_point_ids"] = ["E2"]
+        result = check_state(run_script, "discovery-progress", selection_state)
+        assert result.returncode == 1
+        assert "発見元・下位領域" in result.stderr
+
+    def test_discovery_progress_accepts_internal_seed_without_source(
+        self, run_script, selection_state
+    ):
+        """資料で未確認の想起候補は途中記録に残せる。"""
+        selection_state["candidates"][0]["discovery_entry_point_ids"] = []
+        selection_state["coverage_areas"][0]["source_searches"][0][
+            "found_candidate_ids"
+        ] = []
+        assert (
+            check_state(run_script, "discovery-progress", selection_state).returncode
+            == 0
+        )
+        assert check_state(run_script, "discovery", selection_state).returncode == 1
+
+    def test_discovery_progress_validates_recorded_url(
+        self, run_script, selection_state
+    ):
+        """途中状態でも記録済み入口のURLを検査する。"""
+        selection_state["entry_points"][0]["url"] = "資料の場所"
+        assert (
+            check_state(run_script, "discovery-progress", selection_state).returncode
+            == 1
+        )
+
+
 class TestSelectionState:
-    """題材探索の状態を検査する。"""
+    """題材探索の完了状態を検査する。"""
+
+    def test_selection_requires_candidate_source_link(
+        self, run_script, selection_state
+    ):
+        """完成した探索台帳でも候補と発見元の対応を検査する。"""
+        selection_state["candidates"][0]["discovery_entry_point_ids"] = ["E2"]
+        result = check_state(run_script, "selection", selection_state)
+        assert result.returncode == 1
+        assert "発見元・下位領域" in result.stderr
+
+    def test_selection_rejects_extra_unlinked_source(
+        self, run_script, selection_state
+    ):
+        """正しい発見元が一つあっても根拠のない追加入口を拒否する。"""
+        selection_state["candidates"][0]["discovery_entry_point_ids"].append("E2")
+        result = check_state(run_script, "selection", selection_state)
+        assert result.returncode == 1
+        assert "発見元・下位領域" in result.stderr
 
     def test_selection_requires_intersection_review(self, run_script, selection_state):
         """交差領域の確認を省いた探索状態を拒否する。"""

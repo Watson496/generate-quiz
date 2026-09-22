@@ -386,7 +386,7 @@ def validate_intersection_state(state):
     )
 
 
-def validate_selection_entries_areas(state):
+def validate_selection_entries_areas(state, *, complete=True):
     entries, entry_ids = records_with_ids(
         state.get("entry_points"), "entry_points", nonempty=True
     )
@@ -403,21 +403,23 @@ def validate_selection_entries_areas(state):
         )
         required_text(item, "access_note", name)
         require_condition(item.get("opened") is True, f"{name}の本文を開いていない")
-    require_condition(
-        len(entries) >= MIN_ENTRY_POINTS and len(kinds) >= MIN_ENTRY_POINT_KINDS,
-        "異なる種類の入口を二つ以上使っていない",
-    )
+    if complete:
+        require_condition(
+            len(entries) >= MIN_ENTRY_POINTS and len(kinds) >= MIN_ENTRY_POINT_KINDS,
+            "異なる種類の入口を二つ以上使っていない",
+        )
     areas, area_ids = records_with_ids(
         state.get("coverage_areas"), "coverage_areas", nonempty=True
     )
-    if len(areas) < MIN_COVERAGE_AREAS:
+    if complete and len(areas) < MIN_COVERAGE_AREAS:
         required_text(state, "single_area_reason", "selection")
     for item in areas:
         name = f"coverage_areas.{item['id']}"
         required_text(item, "label", name)
         required_text(item, "basis", name)
         required_text(item, "target_kinds", name)
-        require_condition(item.get("explored") is True, f"{name}が未探索である")
+        if complete:
+            require_condition(item.get("explored") is True, f"{name}が未探索である")
         used_entries = set(referenced_ids(item, "entry_point_ids", entry_ids, name))
         searches = required_list(
             item.get("source_searches"), f"{name}.source_searches", nonempty=True
@@ -444,11 +446,58 @@ def validate_selection_entries_areas(state):
                 require_condition(source_ids, f"{search_name}で入口を開いていない")
                 open_searches += 1
             required_list(search.get("next_searches"), f"{search_name}.next_searches")
-        require_condition(open_searches > 0, f"{name}で候補名を含めない入口探しがない")
+        if complete:
+            require_condition(
+                open_searches > 0, f"{name}で候補名を含めない入口探しがない"
+            )
         require_condition(
             used_entries <= opened_entries, f"{name}の入口が探索記録にない"
         )
     return entries, entry_ids, areas, area_ids
+
+
+def require_candidate_discovery_links(
+    candidate, area_ids, entry_ids, discovered, *, allow_pending=False
+):
+    name = f"candidates.{candidate['id']}"
+    candidate_areas = referenced_ids(candidate, "coverage_area_ids", area_ids, name)
+    discovery_entries = referenced_ids(
+        candidate,
+        "discovery_entry_point_ids",
+        entry_ids,
+        name,
+        nonempty=not allow_pending,
+    )
+    if allow_pending and not discovery_entries:
+        require_condition(
+            not discovered[candidate["id"]],
+            f"{name}は発見記録があるのに発見元を記録していない",
+        )
+        return
+    found_areas = {area_id for area_id, _ in discovered[candidate["id"]]}
+    found_entries = {entry_id for _, entry_id in discovered[candidate["id"]]}
+    require_condition(
+        set(candidate_areas) <= found_areas and set(discovery_entries) <= found_entries,
+        f"{name}の発見元・下位領域が探索記録と対応していない",
+    )
+
+
+def candidate_discovery_index(areas, candidate_ids):
+    discovered = {candidate_id: set() for candidate_id in candidate_ids}
+    for area in areas:
+        for index, search in enumerate(area["source_searches"]):
+            found_ids = referenced_ids(
+                search,
+                "found_candidate_ids",
+                candidate_ids,
+                f"coverage_areas.{area['id']}.source_searches[{index}]",
+                nonempty=False,
+            )
+            for candidate_id in found_ids:
+                discovered[candidate_id].update(
+                    (area["id"], entry_id) for entry_id in search["entry_point_ids"]
+                )
+    return discovered
 
 
 def validate_selection_candidates(
@@ -457,20 +506,11 @@ def validate_selection_candidates(
     candidates, candidate_ids = records_with_ids(
         state.get("candidates"), "candidates", nonempty=True
     )
-    for area in areas:
-        for index, search in enumerate(area["source_searches"]):
-            referenced_ids(
-                search,
-                "found_candidate_ids",
-                candidate_ids,
-                f"coverage_areas.{area['id']}.source_searches[{index}]",
-                nonempty=False,
-            )
+    discovered = candidate_discovery_index(areas, candidate_ids)
     for item in candidates:
         name = f"candidates.{item['id']}"
         required_text(item, "label", name)
-        referenced_ids(item, "coverage_area_ids", area_ids, name)
-        referenced_ids(item, "discovery_entry_point_ids", entry_ids, name)
+        require_candidate_discovery_links(item, area_ids, entry_ids, discovered)
         required_text(item, "facet_membership_reason", name)
         disposition = item.get("disposition")
         require_condition(
@@ -632,6 +672,20 @@ def validate_selection_review(state, entries, areas, candidates, entry_ids):
                 )
 
 
+def validate_discovery_progress(state):
+    validate_intersection_state(state)
+    _, entry_ids, areas, area_ids = validate_selection_entries_areas(
+        state, complete=False
+    )
+    candidates, candidate_ids = records_with_ids(state.get("candidates"), "candidates")
+    discovered = candidate_discovery_index(areas, candidate_ids)
+    for candidate in candidates:
+        required_text(candidate, "label", f"candidates.{candidate['id']}")
+        require_candidate_discovery_links(
+            candidate, area_ids, entry_ids, discovered, allow_pending=True
+        )
+
+
 def validate_selection_state(state, *, discovery_only=False):
     validate_intersection_state(state)
     entries, entry_ids, areas, area_ids = validate_selection_entries_areas(state)
@@ -669,14 +723,20 @@ def validate_execution_assignments(state, stage, selection_mode="random"):
         isinstance(available, bool), "execution.delegation_availableがない"
     )
     if available:
-        selection_roles = (
-            ()
-            if selection_mode == "specified"
-            else ("exploration", "alternate_exploration", "saturation_review")
-        )
+        if selection_mode == "specified":
+            selection_roles = ()
+        elif stage == "discovery-progress":
+            selection_roles = ("exploration",)
+        else:
+            selection_roles = (
+                "exploration",
+                "alternate_exploration",
+                "saturation_review",
+            )
         roles = (
             selection_roles
             + {
+                "discovery-progress": (),
                 "selection": (),
                 "difficulty": ("generation", "difficulty_review"),
                 "generation": (
@@ -1373,6 +1433,7 @@ def main():
         "--stage",
         choices=(
             "intersection-checkpoint",
+            "discovery-progress",
             "discovery",
             "selection",
             "difficulty",
@@ -1399,6 +1460,9 @@ def main():
         )
         if args.stage == "intersection-checkpoint":
             validate_intersection_state(state)
+        elif args.stage == "discovery-progress":
+            validate_discovery_progress(state)
+            validate_execution_assignments(state, "discovery-progress")
         elif args.stage in {"discovery", "selection"}:
             validate_selection_state(state, discovery_only=args.stage == "discovery")
             validate_execution_assignments(state, "selection")

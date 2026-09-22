@@ -87,6 +87,7 @@ python3 "$SKILL_DIR/scripts/topic_pick.py" state.json --json candidates.json
 
 ```bash
 python3 "$SKILL_DIR/scripts/work_state_check.py" --stage intersection-checkpoint state.json
+python3 "$SKILL_DIR/scripts/work_state_check.py" --stage discovery-progress state.json
 python3 "$SKILL_DIR/scripts/work_state_check.py" --stage discovery state.json
 python3 "$SKILL_DIR/scripts/work_state_check.py" --stage selection state.json
 python3 "$SKILL_DIR/scripts/work_state_check.py" --stage difficulty state.json
