@@ -144,19 +144,29 @@ def complete_state():
         "generation": "complete",
         "audit": "passed",
     }
+    assignment_log = {
+        role: {
+            "agent_id": agent,
+            "recorded_at_spawn": True,
+            "artifact_refs": [f"{role}.md"],
+        }
+        for role, agent in agents.items()
+    }
+    assignment_log["exposure"]["task_label"] = "露出候補の列挙"
     return {
         "selection_mode": "random",
         "execution": {
             "delegation_available": True,
             "agents": agents,
-            "assignment_log": {
-                role: {
-                    "agent_id": agent,
+            "assignment_log": assignment_log,
+            "exposure_assignments": [
+                {
+                    "draft_version": 2,
+                    "agent_id": agents["exposure"],
                     "recorded_at_spawn": True,
-                    "artifact_refs": [f"{role}.md"],
+                    "task_label": "露出候補の列挙",
                 }
-                for role, agent in agents.items()
-            },
+            ],
         },
         "answer_target": "ミュラー・リヤー錯視",
         "asked_knowledge": "図形条件からミュラー・リヤー錯視の名称を答える",
@@ -352,6 +362,17 @@ def complete_state():
                 "audit": "passed",
             }
         ],
+        "exposure_review": {
+            "reviewer_id": agents["audit"],
+            "draft_version": 2,
+            "question_sha256": hashlib.sha256(
+                "同じ長さの線分が矢羽の向きで異なる長さに見える錯視は何でしょう？".encode()
+            ).hexdigest(),
+            "checked_answer_ids": ["A1"],
+            "status": "passed",
+            "candidates": [],
+            "no_candidate_reason": "問題文から名称候補を形成できなかった",
+        },
         "checks": checks,
         "output_elements": outputs,
         "final_input": {
@@ -1253,6 +1274,194 @@ class TestWorkState:
         assert result.returncode == 1
         assert "生成側の判断と一致しない" in result.stderr
 
+    def test_generation_rejects_answer_in_exposure_artifact_ref(
+        self, run_script, generation_state
+    ):
+        """露出検査担当の成果物経路から解答を漏らさない。"""
+        generation_state["execution"]["assignment_log"]["exposure"]["artifact_refs"] = [
+            "ミュラー・リヤー錯視の露出検査.md"
+        ]
+        result = check_state(run_script, "generation", generation_state)
+        assert result.returncode == 1
+        assert "正答名が含まれている" in result.stderr
+
+    def test_generation_rejects_answer_in_exposure_agent_id(
+        self, run_script, generation_state
+    ):
+        """露出検査担当の識別子へ解答を含めない。"""
+        agent_id = "agent-ミュラー・リヤー錯視"
+        generation_state["execution"]["agents"]["exposure"] = agent_id
+        generation_state["execution"]["assignment_log"]["exposure"]["agent_id"] = (
+            agent_id
+        )
+        generation_state["execution"]["exposure_assignments"][0]["agent_id"] = agent_id
+        result = check_state(run_script, "generation", generation_state)
+        assert result.returncode == 1
+        assert "正答名が含まれている" in result.stderr
+
+    def test_generation_rejects_answer_in_exposure_task_label(
+        self, run_script, generation_state
+    ):
+        """版別に記録する露出検査の依頼名へ解答を含めない。"""
+        generation_state["execution"]["exposure_assignments"][0]["task_label"] = (
+            "ミュラー・リヤー錯視の露出検査"
+        )
+        result = check_state(run_script, "generation", generation_state)
+        assert result.returncode == 1
+        assert "正答名が含まれている" in result.stderr
+
+    def test_generation_rejects_answer_in_exposure_assignment_label(
+        self, run_script, generation_state
+    ):
+        """担当記録にある露出検査の依頼名へ解答を含めない。"""
+        generation_state["execution"]["assignment_log"]["exposure"]["task_label"] = (
+            "ミュラー・リヤー錯視の露出検査"
+        )
+        result = check_state(run_script, "generation", generation_state)
+        assert result.returncode == 1
+        assert "正答名が含まれている" in result.stderr
+
+    def test_generation_requires_current_exposure_assignment(
+        self, run_script, generation_state
+    ):
+        """現行版に対応する露出検査担当の起動記録を要求する。"""
+        generation_state["execution"]["exposure_assignments"][0]["draft_version"] = 1
+        result = check_state(run_script, "generation", generation_state)
+        assert result.returncode == 1
+        assert "現行版の露出検査担当" in result.stderr
+
+    @pytest.mark.parametrize(
+        ("field", "value", "message"),
+        [
+            ("task_label", "", "task_labelがない"),
+            ("recorded_at_spawn", False, "起動時に記録されていない"),
+        ],
+    )
+    def test_generation_requires_exposure_assignment_metadata(
+        self, run_script, generation_state, field, value, message
+    ):
+        """版別の露出検査記録に依頼名と起動時の記録を要求する。"""
+        generation_state["execution"]["exposure_assignments"][0][field] = value
+        result = check_state(run_script, "generation", generation_state)
+        assert result.returncode == 1
+        assert message in result.stderr
+
+    def test_generation_rejects_duplicate_exposure_assignment_version(
+        self, run_script, generation_state
+    ):
+        """同じ問題文の版に複数の露出検査記録を置かない。"""
+        assignment = copy.deepcopy(
+            generation_state["execution"]["exposure_assignments"][0]
+        )
+        assignment["agent_id"] = "agent-new-exposure"
+        generation_state["execution"]["exposure_assignments"].append(assignment)
+        result = check_state(run_script, "generation", generation_state)
+        assert result.returncode == 1
+        assert "draft_versionが重複" in result.stderr
+
+    def test_generation_rejects_reused_exposure_agent(
+        self, run_script, generation_state
+    ):
+        """問題文の版を変えた露出検査に同じ担当を再利用しない。"""
+        assignment = copy.deepcopy(
+            generation_state["execution"]["exposure_assignments"][0]
+        )
+        assignment["draft_version"] = 1
+        generation_state["execution"]["exposure_assignments"].append(assignment)
+        result = check_state(run_script, "generation", generation_state)
+        assert result.returncode == 1
+        assert "agent_idを再利用" in result.stderr
+
+    def test_audit_requires_independent_exposure_record(
+        self, run_script, complete_state
+    ):
+        """監査担当が正答範囲と照合した露出検査結果を省けない。"""
+        del complete_state["exposure_review"]
+        result = check_state(run_script, "audit", complete_state)
+        assert result.returncode == 1
+        assert "exposure_reviewがない" in result.stderr
+
+    @pytest.mark.parametrize(
+        ("field", "value", "message"),
+        [
+            ("reviewer_id", "agent-other", "監査担当と一致しない"),
+            ("draft_version", 1, "問題文と一致しない"),
+            ("question_sha256", "0" * 64, "問題文と一致しない"),
+            ("checked_answer_ids", [], "正答範囲と一致しない"),
+            ("status", "pending", "合格していない"),
+        ],
+    )
+    def test_audit_rejects_invalid_exposure_record(
+        self, run_script, complete_state, field, value, message
+    ):
+        """露出検査記録を現行問題と監査担当へ対応させる。"""
+        complete_state["exposure_review"][field] = value
+        result = check_state(run_script, "audit", complete_state)
+        assert result.returncode == 1
+        assert message in result.stderr
+
+    def test_audit_requires_reason_when_exposure_candidates_are_empty(
+        self, run_script, complete_state
+    ):
+        """露出候補がない場合も判断理由を記録する。"""
+        del complete_state["exposure_review"]["no_candidate_reason"]
+        result = check_state(run_script, "audit", complete_state)
+        assert result.returncode == 1
+        assert "no_candidate_reason" in result.stderr
+
+    def test_audit_rejects_unrecorded_exposure_candidate(
+        self, run_script, complete_state
+    ):
+        """監査で見つけた候補を生成側の露出検査へ反映する。"""
+        candidate = copy.deepcopy(
+            next(
+                check
+                for check in complete_state["checks"]
+                if check["id"] == "answer_exposure"
+            )["semantic_candidates"][0]
+        )
+        candidate["name"] = "別の名称候補"
+        candidate["components"][0]["form"] = "別の名称候補"
+        complete_state["exposure_review"]["candidates"] = [candidate]
+        result = check_state(run_script, "audit", complete_state)
+        assert result.returncode == 1
+        assert "露出検査に反映されていない" in result.stderr
+
+    def test_audit_rejects_exposed_correct_answer(self, run_script, complete_state):
+        """対応知識なしに形成できる正答名を監査で見逃さない。"""
+        complete_state["exposure_review"]["candidates"] = [
+            {
+                "name": "ミュラー・リヤー錯視",
+                "formation_rule": "問題文中の語を連結する",
+                "components": [
+                    {
+                        "form": "ミュラー・リヤー錯視",
+                        "source": "問題文の表層",
+                        "knowledge": "surface",
+                    }
+                ],
+                "formation_requires_target_association": False,
+                "standard_name_confirmation_requires_target_association": False,
+            }
+        ]
+        result = check_state(run_script, "audit", complete_state)
+        assert result.returncode == 1
+        assert "対象との対応知識なしに形成できる" in result.stderr
+
+    def test_audit_accepts_reflected_exposure_candidate(
+        self, run_script, complete_state
+    ):
+        """生成側にもある候補の独立した照合記録を受け付ける。"""
+        exposure = next(
+            check
+            for check in complete_state["checks"]
+            if check["id"] == "answer_exposure"
+        )
+        complete_state["exposure_review"]["candidates"] = copy.deepcopy(
+            exposure["semantic_candidates"]
+        )
+        assert check_state(run_script, "audit", complete_state).returncode == 0
+
     @pytest.mark.parametrize("stage", ["audit", "final"])
     def test_complete_state_passes(
         self, run_script, complete_state, reviewed_state, stage
@@ -1720,6 +1929,9 @@ class TestWorkState:
             check for check in complete_state["checks"] if check["id"] == "structure"
         )
         structure.update(question_form="OV", question_phrase="何というでしょう？")
+        complete_state["exposure_review"]["question_sha256"] = hashlib.sha256(
+            complete_state["draft"]["text"].encode()
+        ).hexdigest()
         assert check_state(run_script, "audit", complete_state).returncode == 0
 
     def test_structure_requires_connective_scan(self, run_script, complete_state):
@@ -2004,6 +2216,9 @@ class TestWorkState:
             "「ブレンターノ型」という変形版も知られる、"
             + complete_state["draft"]["text"]
         )
+        complete_state["exposure_review"]["question_sha256"] = hashlib.sha256(
+            complete_state["draft"]["text"].encode()
+        ).hexdigest()
         term = complete_state["terms"][0]
         term["term"] = "ブレンターノ型"
         term["meaning_needed"] = False
@@ -2330,6 +2545,7 @@ class TestWorkState:
         reviewed_state["difficulty_review"]["reviewer_id"] = "self"
         reviewed_state["evidence_challenge"]["reviewer_id"] = "self"
         reviewed_state["terminology_review"]["reviewer_id"] = "self"
+        reviewed_state["exposure_review"]["reviewer_id"] = "self"
         reviewed_state["final_review"]["reviewer_id"] = "self"
         result = check_state(run_script, "final", reviewed_state)
         assert result.returncode == 0
@@ -2403,6 +2619,7 @@ class TestWorkState:
         complete_state["execution"]["agents"] = dict.fromkeys(
             complete_state["execution"]["agents"], "agent-1"
         )
+        complete_state["execution"]["exposure_assignments"][0]["agent_id"] = "agent-1"
         result = check_state(run_script, "audit", complete_state)
         assert result.returncode == 1
         assert "工程を別々のagentへ割り当てていない" in result.stderr

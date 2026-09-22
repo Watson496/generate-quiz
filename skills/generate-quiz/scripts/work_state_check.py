@@ -757,6 +757,50 @@ def validate_execution_assignments(state, stage, selection_mode="random"):
         isinstance(available, bool), "execution.delegation_availableがない"
     )
     if available:
+        if stage in {"generation", "audit", "final"}:
+            exposure_assignments = required_list(
+                data.get("exposure_assignments"),
+                "execution.exposure_assignments",
+                nonempty=True,
+            )
+            versions = set()
+            agent_ids = set()
+            for index, assignment in enumerate(exposure_assignments):
+                name = f"execution.exposure_assignments[{index}]"
+                require_condition(isinstance(assignment, dict), f"{name}がない")
+                version = assignment.get("draft_version")
+                require_condition(
+                    type(version) is int and version >= 1,
+                    f"{name}.draft_versionが不正である",
+                )
+                agent_id = required_text(assignment, "agent_id", name)
+                required_text(assignment, "task_label", name)
+                require_condition(
+                    version not in versions, f"{name}.draft_versionが重複している"
+                )
+                require_condition(
+                    agent_id not in agent_ids, f"{name}.agent_idを再利用している"
+                )
+                require_condition(
+                    assignment.get("recorded_at_spawn") is True,
+                    f"{name}が起動時に記録されていない",
+                )
+                versions.add(version)
+                agent_ids.add(agent_id)
+            draft = state.get("draft")
+            draft_version = draft.get("version") if isinstance(draft, dict) else None
+            assigned = data.get("agents")
+            exposure_id = (
+                assigned.get("exposure") if isinstance(assigned, dict) else None
+            )
+            require_condition(
+                any(
+                    assignment["draft_version"] == draft_version
+                    and assignment["agent_id"] == exposure_id
+                    for assignment in exposure_assignments
+                ),
+                "現行版の露出検査担当が版別記録と一致しない",
+            )
         if selection_mode == "specified":
             selection_roles = ()
         elif stage == "discovery-progress":
@@ -1496,6 +1540,92 @@ def validate_terminology(state, quote_ids, version, stage, draft_text):
             )
 
 
+def validate_exposure_review(state, checks, answers, version):
+    exposure_review = state.get("exposure_review")
+    require_condition(isinstance(exposure_review, dict), "exposure_reviewがない")
+    execution = state["execution"]
+    reviewer_id = (
+        execution["agents"]["audit"] if execution["delegation_available"] else "self"
+    )
+    require_condition(
+        exposure_review.get("reviewer_id") == reviewer_id,
+        "exposure_review.reviewer_idが監査担当と一致しない",
+    )
+    require_condition(
+        exposure_review.get("draft_version") == version,
+        "exposure_review.draft_versionが問題文と一致しない",
+    )
+    require_condition(
+        exposure_review.get("question_sha256")
+        == hashlib.sha256(state["draft"]["text"].encode()).hexdigest(),
+        "exposure_review.question_sha256が問題文と一致しない",
+    )
+    correct_answers = {item["id"] for item in answers if item["judgment"] == "correct"}
+    checked = required_id_list(
+        exposure_review.get("checked_answer_ids"),
+        "exposure_review.checked_answer_ids",
+    )
+    require_condition(
+        set(checked) == correct_answers,
+        "exposure_review.checked_answer_idsが正答範囲と一致しない",
+    )
+    require_condition(
+        exposure_review.get("status") == "passed", "exposure_reviewが合格していない"
+    )
+    candidates = required_list(
+        exposure_review.get("candidates"), "exposure_review.candidates"
+    )
+    if not candidates:
+        required_text(exposure_review, "no_candidate_reason", "exposure_review")
+    correct_names = {
+        normalize_candidate_name(item["answer"])
+        for item in answers
+        if item["judgment"] == "correct"
+    }
+    exposure_check = next(item for item in checks if item["id"] == "answer_exposure")
+    recorded_names = {
+        normalize_candidate_name(candidate["name"])
+        for key in ("blind_candidates", "semantic_candidates")
+        for candidate in exposure_check[key]
+    }
+    for index, candidate in enumerate(candidates):
+        cname = f"exposure_review.candidates[{index}]"
+        name, requires_target = validate_name_formation(candidate, cname)
+        normalized = normalize_candidate_name(name)
+        require_condition(
+            normalized not in correct_names or requires_target,
+            f"{cname}は正答名と一致し、対象との対応知識なしに形成できる",
+        )
+        require_condition(
+            normalized in recorded_names, f"{cname}が露出検査に反映されていない"
+        )
+
+
+def validate_exposure_assignment_secrecy(execution, answers):
+    if not execution["delegation_available"]:
+        return
+    assignment = execution["assignment_log"]["exposure"]
+    metadata_values = (
+        execution["agents"]["exposure"],
+        assignment["agent_id"],
+        required_text(assignment, "task_label", "execution.assignment_log.exposure"),
+        *assignment["artifact_refs"],
+        *(item["task_label"] for item in execution["exposure_assignments"]),
+    )
+    correct_names = {
+        normalize_candidate_name(item["answer"])
+        for item in answers
+        if item["judgment"] == "correct"
+    }
+    for value in metadata_values:
+        require_condition(isinstance(value, str), "露出検査担当の識別情報が不正である")
+        normalized_value = normalize_candidate_name(value)
+        require_condition(
+            all(name not in normalized_value for name in correct_names),
+            "露出検査担当の識別子・依頼名・成果物経路に正答名が含まれている",
+        )
+
+
 def validate_work_state(state, stage):
     require_no_selection_ledger(state)
     if stage == "generation":
@@ -1535,6 +1665,7 @@ def validate_work_state(state, stage):
         required_text(item, "reason", name)
         referenced_ids(item, "evidence_ids", quote_ids, name)
         require_stage_completion(item, name, stage)
+    validate_exposure_assignment_secrecy(state["execution"], answers)
     checks, check_ids = records_with_ids(state.get("checks"), "checks", nonempty=True)
     require_condition(
         not (REQUIRED_CHECK_IDS - check_ids),
@@ -1592,6 +1723,8 @@ def validate_work_state(state, stage):
         if item["id"] != "expression.naturalness":
             referenced_ids(item, "evidence_ids", quote_ids, name)
         require_stage_completion(item, name, stage)
+    if stage in {"audit", "final"}:
+        validate_exposure_review(state, checks, answers, version)
     outputs, output_ids = records_with_ids(
         state.get("output_elements"), "output_elements", nonempty=True
     )
