@@ -4,11 +4,9 @@
 
 ## 利用方法
 
-| 利用環境 | 設定・利用手順 | インストールするファイル |
-|---|---|---|
-| Agent Skills対応のAI agent | [skills/README.md](skills/README.md) | `skills/generate-quiz/` |
+Agent Skillsに対応したAI agentに、`skills/generate-quiz/` をインストールして利用します。インストールと利用の手順は[skills/README.md](skills/README.md)を参照してください。
 
-generate-quizのほかに、生成した問題群をLaTeX問題集へ組版する付属スキル [`quiz-book-latex`](skills/quiz-book-latex/) も収録しています。導入方法と依存関係は[インストールと利用](skills/README.md#quiz-book-latex)を参照してください。
+generate-quizのほかに、生成した問題群をLaTeX問題集へ組版する付属スキル [`quiz-book-latex`](skills/quiz-book-latex/) も収録しています。導入方法と依存関係は[skills/README.md](skills/README.md#quiz-book-latex)を参照してください。
 
 ## 作問の既定動作
 
