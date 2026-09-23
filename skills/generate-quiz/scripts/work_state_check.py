@@ -206,31 +206,31 @@ def validate_name_formation(item, name):
         required_text(component, "form", component_name)
         required_text(component, "source", component_name)
         require_condition(
-            component.get("knowledge")
-            in {"surface", "general_language", "general_domain", "target_association"},
+            component.get("knowledge") in {"surface", "audience_known", "answer_side"},
             f"{component_name}.knowledgeが不正である",
         )
-    requires_target = item.get("formation_requires_target_association")
+        if component["knowledge"] == "answer_side":
+            required_text(component, "answer_side_reason", component_name)
+    requires_answer_side = item.get("formation_requires_answer_side_knowledge")
     require_condition(
-        isinstance(requires_target, bool),
-        f"{name}.formation_requires_target_associationがない",
+        isinstance(requires_answer_side, bool),
+        f"{name}.formation_requires_answer_side_knowledgeがない",
     )
-    component_requires_target = any(
-        component.get("knowledge") == "target_association" for component in components
+    component_requires_answer_side = any(
+        component.get("knowledge") == "answer_side" for component in components
     )
     require_condition(
-        requires_target == component_requires_target,
-        f"{name}.formation_requires_target_associationが構成要素の分析と一致しない",
+        requires_answer_side == component_requires_answer_side,
+        f"{name}.formation_requires_answer_side_knowledgeが構成要素の分析と一致しない",
     )
     require_condition(
         isinstance(
-            item.get("standard_name_confirmation_requires_target_association"), bool
+            item.get("standard_name_confirmation_requires_answer_side_knowledge"),
+            bool,
         ),
-        f"{name}.standard_name_confirmation_requires_target_associationがない",
+        f"{name}.standard_name_confirmation_requires_answer_side_knowledgeがない",
     )
-    if requires_target:
-        required_text(item, "formation_target_association_step", name)
-    return candidate_name, requires_target
+    return candidate_name, requires_answer_side
 
 
 def validate_exposure_precheck(item, name):
@@ -260,7 +260,7 @@ def validate_exposure_precheck(item, name):
     examined = set()
     exposed_descriptions = set()
     for index, formation in enumerate(formations):
-        candidate_name, requires_target = validate_name_formation(
+        candidate_name, requires_answer_side = validate_name_formation(
             formation, f"{check_name}.formations[{index}]"
         )
         formation_name = f"{check_name}.formations[{index}]"
@@ -277,7 +277,7 @@ def validate_exposure_precheck(item, name):
                 f"{check_name}.formationsで同じ名称と説明の組合せが重複している",
             )
             examined.add(pair)
-            if not requires_target:
+            if not requires_answer_side:
                 exposed_descriptions.add(position)
     require_condition(
         {
@@ -1867,11 +1867,11 @@ def validate_exposure_review(state, checks, answers, version):
     }
     for index, candidate in enumerate(candidates):
         cname = f"exposure_review.candidates[{index}]"
-        name, requires_target = validate_name_formation(candidate, cname)
+        name, requires_answer_side = validate_name_formation(candidate, cname)
         normalized = normalize_candidate_name(name)
         require_condition(
-            normalized not in correct_names or requires_target,
-            f"{cname}は正答名と一致し、対象との対応知識なしに形成できる",
+            normalized not in correct_names or requires_answer_side,
+            f"{cname}は正答名と一致し、解答側の知識なしに形成できる",
         )
         require_condition(
             normalized in recorded_names, f"{cname}が露出検査に反映されていない"
@@ -2099,7 +2099,7 @@ def validate_work_state(state, stage):
             semantic = required_list(
                 item.get("semantic_candidates"), f"{name}.semantic_candidates"
             )
-            required_text(item, "target_knowledge_required", name)
+            required_text(item, "answer_side_knowledge_required", name)
             correct = {
                 normalize_candidate_name(answer["answer"])
                 for answer in answers
@@ -2111,13 +2111,13 @@ def validate_work_state(state, stage):
             ):
                 for index, candidate in enumerate(candidates):
                     cname = f"{name}.{key}[{index}]"
-                    candidate_name, requires_target = validate_name_formation(
+                    candidate_name, requires_answer_side = validate_name_formation(
                         candidate, cname
                     )
                     require_condition(
                         normalize_candidate_name(candidate_name) not in correct
-                        or requires_target,
-                        f"{cname}は正解と一致し、対象との対応知識なしに名称候補を形成できる",
+                        or requires_answer_side,
+                        f"{cname}は正解と一致し、解答側の知識なしに名称候補を形成できる",
                     )
         if item["id"] != "expression.naturalness":
             referenced_ids(item, "evidence_ids", quote_ids, name)

@@ -277,12 +277,12 @@ def selection_state(intersection_state):
                 {
                     "form": name,
                     "source": "対象との既知の対応",
-                    "knowledge": "target_association",
+                    "knowledge": "answer_side",
+                    "answer_side_reason": "名称そのものを知っている必要がある",
                 }
             ],
-            "formation_requires_target_association": True,
-            "formation_target_association_step": "名称要素を選ぶ",
-            "standard_name_confirmation_requires_target_association": True,
+            "formation_requires_answer_side_knowledge": True,
+            "standard_name_confirmation_requires_answer_side_knowledge": True,
         }
         for index in range(2)
     ]
