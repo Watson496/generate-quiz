@@ -50,7 +50,7 @@ def load_script(monkeypatch):
 
 @pytest.fixture
 def intersection_state():
-    """交差領域の成立性を確認した状態を作る。"""
+    """4軸の交差領域の成立性を確認した状態を作る。"""
     return {
         "execution": {
             "delegation_available": True,

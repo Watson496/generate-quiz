@@ -754,7 +754,7 @@ class TestWorkStateFunctions:
 
 
 class TestIntersectionState:
-    """題材探索前の交差領域の記録を検査する。"""
+    """題材探索前の4軸の交差領域の記録を検査する。"""
 
     def test_complete_intersection_passes(self, run_script, intersection_state):
         """四軸、候補例、初級学習資料の記録を受け付ける。"""
@@ -810,7 +810,7 @@ class TestIntersectionState:
     def test_assignment_agent_must_match_spawn_record(
         self, run_script, intersection_state
     ):
-        """交差確認担当と起動時の担当記録の不一致を拒否する。"""
+        """4軸の交差領域の確認担当と起動時の担当記録の不一致を拒否する。"""
         intersection_state["execution"]["assignment_log"]["intersection"][
             "agent_id"
         ] = "agent-2"
@@ -868,7 +868,7 @@ class TestIntersectionState:
         )
 
     def test_unconfirmed_intersection_fails(self, run_script, intersection_state):
-        """成立を確認していない交差領域を題材探索へ進めない。"""
+        """成立を確認していない4軸の交差領域を題材探索へ進めない。"""
         intersection_state["intersection_review"]["result"] = "pending"
         assert (
             check_state(
@@ -947,7 +947,7 @@ class TestSelectionState:
         assert "発見元・下位領域" in result.stderr
 
     def test_selection_requires_intersection_review(self, run_script, selection_state):
-        """交差領域の確認を省いた探索状態を拒否する。"""
+        """4軸の交差領域の確認を省いた探索状態を拒否する。"""
         del selection_state["intersection_review"]
         assert check_state(run_script, "selection", selection_state).returncode == 1
 
