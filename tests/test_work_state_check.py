@@ -58,7 +58,7 @@ OUTPUT_HEADINGS = {
     "answer_limitation": "問題の成立性",
     "answer_exposure": "問題の成立性",
     "structure": "問題文の構成",
-    "clue_order": "手掛かりの設計",
+    "clue_order": "問題文の構成",
     "expression.naturalness": "問題文の表現",
     "expression.comprehensibility": "問題文の表現",
     "expression.accuracy": "問題文の表現",
