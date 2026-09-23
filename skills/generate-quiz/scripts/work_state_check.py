@@ -341,7 +341,7 @@ def validate_intersection_state(state):
         require_condition(isinstance(agents, dict), "execution.agentsがない")
         reviewer_id = required_text(agents, "intersection", "execution.agents")
         require_condition(
-            reviewer_id != "parent", "交差領域の確認を選択担当と分離していない"
+            reviewer_id != "parent", "4軸の交差領域の確認を選択担当と分離していない"
         )
         assignments = execution.get("assignment_log")
         require_condition(
@@ -420,7 +420,7 @@ def validate_intersection_state(state):
     )
     required_text(review, "scope_reason", "intersection_review")
     require_condition(
-        review.get("result") == "viable", "交差領域の独立確認が合格していない"
+        review.get("result") == "viable", "4軸の交差領域の独立確認が合格していない"
     )
 
 
