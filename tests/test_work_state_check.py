@@ -129,15 +129,15 @@ def complete_state():
                                 {
                                     "form": "一般名称",
                                     "source": "対象と名称の既知の対応",
-                                    "knowledge": "target_association",
+                                    "knowledge": "answer_side",
+                                    "answer_side_reason": "名称そのものを知っている必要がある",
                                 }
                             ],
-                            "formation_requires_target_association": True,
-                            "formation_target_association_step": "名称要素を選ぶ",
-                            "standard_name_confirmation_requires_target_association": True,
+                            "formation_requires_answer_side_knowledge": True,
+                            "standard_name_confirmation_requires_answer_side_knowledge": True,
                         }
                     ],
-                    "target_knowledge_required": "対象固有の対応知識が必要",
+                    "answer_side_knowledge_required": "図形条件と名称の対応を知っている必要がある",
                 }
                 if check_id == "answer_exposure"
                 else {}
@@ -601,8 +601,8 @@ def exposed_precheck():
                         "knowledge": "surface",
                     },
                 ],
-                "formation_requires_target_association": False,
-                "standard_name_confirmation_requires_target_association": True,
+                "formation_requires_answer_side_knowledge": False,
+                "standard_name_confirmation_requires_answer_side_knowledge": True,
             },
             {
                 "name": "踵骨腱",
@@ -620,8 +620,8 @@ def exposed_precheck():
                         "knowledge": "surface",
                     },
                 ],
-                "formation_requires_target_association": False,
-                "standard_name_confirmation_requires_target_association": True,
+                "formation_requires_answer_side_knowledge": False,
+                "standard_name_confirmation_requires_answer_side_knowledge": True,
             },
         ],
         "status": "rejected",
@@ -1169,7 +1169,8 @@ class TestSelectionState:
                         {
                             "form": "アキレス",
                             "source": "対象との既知の対応",
-                            "knowledge": "target_association",
+                            "knowledge": "answer_side",
+                            "answer_side_reason": "人名との対応は想定プレイヤー層にとって明白に既習ではない",
                         },
                         {
                             "form": "腱",
@@ -1177,9 +1178,8 @@ class TestSelectionState:
                             "knowledge": "surface",
                         },
                     ],
-                    "formation_requires_target_association": True,
-                    "formation_target_association_step": "人名由来の名称要素を選ぶ",
-                    "standard_name_confirmation_requires_target_association": True,
+                    "formation_requires_answer_side_knowledge": True,
+                    "standard_name_confirmation_requires_answer_side_knowledge": True,
                 }
             )
         selection_state["candidates"][0]["exposure_precheck"] = exposed_precheck
@@ -1198,7 +1198,7 @@ class TestSelectionState:
             {
                 "form": "候補1",
                 "source": "問題文の一般語から複合する",
-                "knowledge": "general_language",
+                "knowledge": "audience_known",
             }
         ]
         assert check_state(run_script, "selection", selection_state).returncode == 1
@@ -1225,12 +1225,12 @@ class TestSelectionState:
                         {
                             "form": part,
                             "source": exposed_description,
-                            "knowledge": "general_language",
+                            "knowledge": "audience_known",
                         }
                         for part in ("土地", "区画", "整理", "事業")
                     ],
-                    "formation_requires_target_association": False,
-                    "standard_name_confirmation_requires_target_association": True,
+                    "formation_requires_answer_side_knowledge": False,
+                    "standard_name_confirmation_requires_answer_side_knowledge": True,
                 },
                 {
                     "name": answer,
@@ -1240,12 +1240,12 @@ class TestSelectionState:
                         {
                             "form": answer,
                             "source": alternative_description,
-                            "knowledge": "target_association",
+                            "knowledge": "answer_side",
+                            "answer_side_reason": "説明と名称の対応を知っている必要がある",
                         }
                     ],
-                    "formation_requires_target_association": True,
-                    "formation_target_association_step": "名称を選ぶ",
-                    "standard_name_confirmation_requires_target_association": True,
+                    "formation_requires_answer_side_knowledge": True,
+                    "standard_name_confirmation_requires_answer_side_knowledge": True,
                 },
             ],
             status="passed",
@@ -1555,7 +1555,7 @@ class TestWorkState:
         assert "露出検査に反映されていない" in result.stderr
 
     def test_audit_rejects_exposed_correct_answer(self, run_script, complete_state):
-        """対応知識なしに形成できる正答名を監査で見逃さない。"""
+        """解答側の知識なしに形成できる正答名を監査で見逃さない。"""
         complete_state["exposure_review"]["candidates"] = [
             {
                 "name": "ミュラー・リヤー錯視",
@@ -1567,13 +1567,13 @@ class TestWorkState:
                         "knowledge": "surface",
                     }
                 ],
-                "formation_requires_target_association": False,
-                "standard_name_confirmation_requires_target_association": False,
+                "formation_requires_answer_side_knowledge": False,
+                "standard_name_confirmation_requires_answer_side_knowledge": False,
             }
         ]
         result = check_state(run_script, "audit", complete_state)
         assert result.returncode == 1
-        assert "対象との対応知識なしに形成できる" in result.stderr
+        assert "解答側の知識なしに形成できる" in result.stderr
 
     def test_audit_accepts_reflected_exposure_candidate(
         self, run_script, complete_state
@@ -2268,10 +2268,10 @@ class TestWorkState:
         assert result.returncode == 1
         assert "必須検査がない" in result.stderr
 
-    def test_blind_candidate_matching_answer_without_target_association_fails(
+    def test_blind_candidate_matching_answer_without_answer_side_knowledge_fails(
         self, run_script, complete_state
     ):
-        """対象との対応知識なしに正答名を形成できる状態を拒否する。"""
+        """解答側の知識なしに正答名を形成できる状態を拒否する。"""
         exposure = next(
             check
             for check in complete_state["checks"]
@@ -2289,16 +2289,16 @@ class TestWorkState:
                         "knowledge": "surface",
                     },
                 ],
-                "formation_requires_target_association": False,
-                "standard_name_confirmation_requires_target_association": True,
+                "formation_requires_answer_side_knowledge": False,
+                "standard_name_confirmation_requires_answer_side_knowledge": True,
             }
         ]
         assert check_state(run_script, "audit", complete_state).returncode == 1
 
-    def test_blind_candidate_can_require_explicit_target_association(
+    def test_blind_candidate_can_require_answer_side_knowledge(
         self, run_script, complete_state
     ):
-        """名称形成自体に対象との対応知識が要る候補は受け付ける。"""
+        """名称形成自体に解答側の知識が要る候補は受け付ける。"""
         exposure = next(
             check
             for check in complete_state["checks"]
@@ -2312,12 +2312,12 @@ class TestWorkState:
                     {
                         "form": "ミュラー・リヤー錯視",
                         "source": "対象と名称の既知の対応",
-                        "knowledge": "target_association",
+                        "knowledge": "answer_side",
+                        "answer_side_reason": "名称そのものを知っている必要がある",
                     }
                 ],
-                "formation_requires_target_association": True,
-                "formation_target_association_step": "名称要素を選ぶ段階",
-                "standard_name_confirmation_requires_target_association": True,
+                "formation_requires_answer_side_knowledge": True,
+                "standard_name_confirmation_requires_answer_side_knowledge": True,
             }
         ]
         complete_state["answer_review"]["candidate_reviews"].append(
@@ -2335,6 +2335,18 @@ class TestWorkState:
         )
         assert check_state(run_script, "audit", complete_state).returncode == 0
 
+    def test_answer_side_component_requires_reason(self, run_script, complete_state):
+        """解答側の知識とした名称要素には理由を要求する。"""
+        exposure = next(
+            check
+            for check in complete_state["checks"]
+            if check["id"] == "answer_exposure"
+        )
+        del exposure["semantic_candidates"][0]["components"][0]["answer_side_reason"]
+        result = check_state(run_script, "audit", complete_state)
+        assert result.returncode == 1
+        assert "answer_side_reasonがない" in result.stderr
+
     def test_semantic_candidate_requires_formation_details(
         self, run_script, complete_state
     ):
@@ -2347,7 +2359,7 @@ class TestWorkState:
         exposure["semantic_candidates"] = ["ミュラー・リヤー錯視"]
         assert check_state(run_script, "audit", complete_state).returncode == 1
 
-    def test_semantic_candidate_matching_answer_without_target_association_fails(
+    def test_semantic_candidate_matching_answer_without_answer_side_knowledge_fails(
         self, run_script, complete_state
     ):
         """意味から正答名を形成できる状態を拒否する。"""
@@ -2367,7 +2379,7 @@ class TestWorkState:
                     "knowledge": "surface",
                 }
             ],
-            formation_requires_target_association=False,
+            formation_requires_answer_side_knowledge=False,
         )
         assert check_state(run_script, "audit", complete_state).returncode == 1
 
