@@ -31,6 +31,17 @@ class TestTopicPickFunctions:
             payload, selection_state, ["K1"]
         )
 
+    def test_precheck_exclusion_is_not_pickable(self, load_script, selection_state):
+        """予備検査で除外した候補は抽選の対象にしない。"""
+        module = load_script("generate-quiz", "topic_pick.py")
+        selection_state["exposure_prechecks"][1]["result"] = "exclude"
+        payload = {"candidates": [{"key": "K1", "label": "候補1"}]}
+        assert module.validate_payload(payload, selection_state, []) is None
+        payload["candidates"].append({"key": "K2", "label": "候補2"})
+        assert "選択対象と一致しない" in module.validate_payload(
+            payload, selection_state, []
+        )
+
 
 class TestTopicPick:
     """探索台帳と候補抽選の接続を検査する。"""
