@@ -38,6 +38,8 @@
     "proposition_certainty": "命題ごとの確実性の判定",
     "corroboration_reviews": "命題の裏取りの検査結果",
     "certainty_reviews": "命題の確実性の検査結果",
+    "extracted_propositions": "問題文から独立に取り出した命題",
+    "proposition_matching_reviews": "取り出した命題と裏取り済みの命題の照合結果",
     "clues": "手掛かりの問題文中の文字列と命題ID",
     "clue_centrality": "手掛かりごとの中核性の評価",
     "centrality_reviews": "手掛かりの中核性の検査結果",
@@ -433,6 +435,24 @@
           "specs": ["verification_and_judging_spec.md", "work_state_spec.md"],
           "inputs": [["propositions", "sources", "source_assessments", "proposition_support", "proposition_certainty"]],
           "outputs": ["certainty_reviews"]
+        },
+        {
+          "id": "proposition_extraction",
+          "name": "実現命題の抽出担当",
+          "side": "check",
+          "section": "命題の裏取りと確実性",
+          "specs": ["quiz_generation_spec.md", "verification_and_judging_spec.md", "work_state_spec.md"],
+          "inputs": [["draft"]],
+          "outputs": ["extracted_propositions"]
+        },
+        {
+          "id": "proposition_matching",
+          "name": "実現命題の照合担当",
+          "side": "check",
+          "section": "命題の裏取りと確実性",
+          "specs": ["quiz_generation_spec.md", "verification_and_judging_spec.md", "work_state_spec.md"],
+          "inputs": [["draft", "extracted_propositions", "propositions", "proposition_certainty"]],
+          "outputs": ["proposition_matching_reviews"]
         },
         {
           "id": "evidence_challenge",

@@ -177,6 +177,8 @@ STAGE_ROLES = {
         "corroboration_review",
         "certainty",
         "certainty_review",
+        "proposition_extraction",
+        "proposition_matching",
         "difficulty_review",
         "terminology_review",
         "exposure",
@@ -193,6 +195,8 @@ STAGE_ROLES = {
         "corroboration_review",
         "certainty",
         "certainty_review",
+        "proposition_extraction",
+        "proposition_matching",
         "difficulty_review",
         "terminology_review",
         "exposure",
@@ -1240,7 +1244,6 @@ def validate_sources_propositions_and_clues(state, version, stage):
         require_condition(
             item.get("draft_version") == version, f"{name}の問題文の版が一致しない"
         )
-        require_stage_completion(item, name, stage)
     require_condition(active_props, "activeな命題がない")
     clues, _ = records_with_ids(state.get("clues"), "clues", nonempty=True)
     active_clues = []
@@ -1337,7 +1340,47 @@ def validate_proposition_support(state, active_props, quote_ids, stage):
     if stage in {"audit", "final"}:
         validate_reviews(state, "corroboration_reviews", prop_ids, "proposition_id")
         validate_reviews(state, "certainty_reviews", prop_ids, "proposition_id")
+        validate_proposition_matching(state, prop_ids)
     return [supports[prop_id] for prop_id in prop_ids]
+
+
+def validate_proposition_matching(state, prop_ids):
+    """問題文から独立に取り出した命題が、裏取り済みの命題と過不足なく対応することを検査する。"""
+    draft = state["draft"]
+    extracted, extracted_ids = records_with_ids(
+        state.get("extracted_propositions"), "extracted_propositions", nonempty=True
+    )
+    for item in extracted:
+        name = f"extracted_propositions.{item['id']}"
+        require_condition(
+            item.get("draft_version") == draft["version"],
+            f"{name}の問題文の版が一致しない",
+        )
+        required_text(item, "claim", name)
+        passage = required_text(item, "passage", name)
+        require_condition(passage in draft["text"], f"{name}.passageが問題文にない")
+    validate_reviews(
+        state, "proposition_matching_reviews", sorted(extracted_ids), "extracted_id"
+    )
+    matched = set()
+    latest = {}
+    for item in state["proposition_matching_reviews"]:
+        latest[item["extracted_id"]] = item
+    for extracted_id, item in latest.items():
+        name = f"proposition_matching_reviews.{extracted_id}"
+        require_condition(
+            item.get("proposition_id") in prop_ids,
+            f"{name}.proposition_idが採用中の命題を参照していない",
+        )
+        require_condition(
+            item.get("strength_matches") is True,
+            f"{name}の断定の強さが確実性と一致していない",
+        )
+        matched.add(item["proposition_id"])
+    missing = sorted(set(prop_ids) - matched)
+    require_condition(
+        not missing, f"問題文から取り出した命題に対応しない命題がある: {missing}"
+    )
 
 
 def validate_source_assessments(state, supports, stage):

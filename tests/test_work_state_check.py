@@ -162,6 +162,8 @@ def complete_state():
             "corroboration_review",
             "certainty",
             "certainty_review",
+            "proposition_extraction",
+            "proposition_matching",
         )
     )
     state = {
@@ -283,8 +285,23 @@ def complete_state():
                 "draft_version": 2,
                 "claim": "ミュラー・リヤー錯視では同じ長さの線分が矢羽の向きで異なる長さに見える",
                 "passage": "同じ長さの線分が矢羽の向きで異なる長さに見える錯視",
-                "generation": "complete",
-                "audit": "passed",
+            }
+        ],
+        "extracted_propositions": [
+            {
+                "id": "E1",
+                "draft_version": 2,
+                "claim": "この錯視では同じ長さの線分が矢羽の向きで異なる長さに見える",
+                "passage": "同じ長さの線分が矢羽の向きで異なる長さに見える錯視",
+            }
+        ],
+        "proposition_matching_reviews": [
+            {
+                "extracted_id": "E1",
+                "proposition_id": "P1",
+                "strength_matches": True,
+                "status": "passed",
+                "reason": "断定の強さが確実性の判定と一致する",
             }
         ],
         "clues": [
@@ -613,7 +630,7 @@ def generation_state(complete_state):
     drop_assignment(state, "evidence_challenge")
     state["difficulty_review"]["audit"] = "pending"
     state["terminology_review"]["audit"] = "pending"
-    for group in ("propositions", "terms", "answers", "checks"):
+    for group in ("terms", "answers", "checks"):
         for item in state[group]:
             item["audit"] = "pending"
     for check in state["clues"][0]["checks"].values():
@@ -1446,6 +1463,45 @@ class TestWorkState:
         result = check_state(run_script, "audit", complete_state)
         assert result.returncode == 1
         assert f"{key}に不合格の項目がある: ['P1']" in result.stderr
+
+    @pytest.mark.parametrize(
+        ("field", "value", "message"),
+        [
+            ("proposition_id", None, "proposition_idが採用中の命題を参照していない"),
+            ("strength_matches", False, "断定の強さが確実性と一致していない"),
+        ],
+    )
+    def test_extracted_propositions_must_match(
+        self, run_script, complete_state, field, value, message
+    ):
+        """問題文から取り出した命題は、裏取り済みの命題と断定の強さまで一致させる。"""
+        complete_state["proposition_matching_reviews"][0][field] = value
+        result = check_state(run_script, "audit", complete_state)
+        assert result.returncode == 1
+        assert message in result.stderr
+
+    def test_every_proposition_needs_extracted_match(self, run_script, complete_state):
+        """問題文から取り出した命題に対応しない採用命題を残さない。"""
+        complete_state["propositions"].append(
+            {
+                "id": "P2",
+                "status": "active",
+                "draft_version": 2,
+                "claim": "矢羽は線分の端に付く",
+                "passage": "矢羽",
+            }
+        )
+        for key in ("proposition_support", "proposition_certainty"):
+            complete_state[key].append(
+                {**complete_state[key][0], "proposition_id": "P2"}
+            )
+        for key in ("corroboration_reviews", "certainty_reviews"):
+            complete_state[key].append(
+                {**complete_state[key][0], "proposition_id": "P2"}
+            )
+        result = check_state(run_script, "audit", complete_state)
+        assert result.returncode == 1
+        assert "対応しない命題がある: ['P2']" in result.stderr
 
     def test_active_clue_needs_centrality(self, run_script, generation_state):
         """採用中の手掛かりごとに中核性の評価を要する。"""
