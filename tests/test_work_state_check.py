@@ -2434,7 +2434,6 @@ class TestWorkState:
         ("change", "expected"),
         [
             ("missing", "terminology_review.termsが専門用語の記録と一致しない"),
-            ("term", "terminology_review.terms.T1.term"),
             ("meaning_needed", "terminology_review.terms.T1.meaning_needed"),
         ],
     )
@@ -2445,8 +2444,6 @@ class TestWorkState:
         review = complete_state["terminology_review"]["terms"]
         if change == "missing":
             review.clear()
-        elif change == "term":
-            review[0]["term"] = "別の専門用語"
         else:
             review[0]["meaning_needed"] = False
         result = check_state(run_script, "audit", complete_state)

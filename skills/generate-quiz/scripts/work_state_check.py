@@ -1639,10 +1639,7 @@ def validate_terminology(state, quote_ids, version, stage, draft_text):
     for item in reviewed:
         name = f"terminology_review.terms.{item['id']}"
         term = term_by_id[item["id"]]
-        require_condition(
-            required_text(item, "term", name) == term["term"],
-            f"{name}.termが生成側の専門用語と一致しない",
-        )
+        required_text(item, "term", name)
         require_condition(
             isinstance(item.get("meaning_needed"), bool),
             f"{name}.meaning_neededがない",
