@@ -9,8 +9,6 @@ from pathlib import Path
 import pytest
 
 REQUIRED_CHECK_IDS = {
-    "difficulty.beginner",
-    "difficulty.general",
     "terminology",
     "clue_order",
     "answer_exposure",
@@ -56,8 +54,10 @@ def complete_state():
         "answer_range",
         "answer_judging",
         "generation",
-        "difficulty_review",
-        "evidence_challenge",
+        "asked_knowledge",
+        "difficulty_assessment",
+        "beginner_difficulty_review",
+        "general_difficulty_review",
         "terminology_review",
         "exposure",
         "audit",
@@ -123,11 +123,6 @@ def complete_state():
             ),
             "generation": "complete",
             "audit": "passed",
-            **(
-                {"asked_knowledge": "図形条件からミュラー・リヤー錯視の名称を答える"}
-                if check_id in {"difficulty.beginner", "difficulty.general"}
-                else {}
-            ),
         }
         for check_id in sorted(REQUIRED_CHECK_IDS)
     ]
@@ -184,10 +179,9 @@ def complete_state():
         "execution": {"delegation_available": True, "assignments": assignments},
         "answer_target": "ミュラー・リヤー錯視",
         "asked_knowledge": "図形条件からミュラー・リヤー錯視の名称を答える",
-        "difficulty_review": {
+        "answer_granularity": "錯視の名称と図形条件の対応",
+        "difficulty_assessment": {
             "asked_knowledge": "図形条件からミュラー・リヤー錯視の名称を答える",
-            "answer_granularity": "錯視の名称と図形条件の対応",
-            "audit": "passed",
             "beginner": {
                 "status": "passed",
                 "reason": "日本語の初学者向け資料で学習対象として扱う",
@@ -415,23 +409,23 @@ def complete_state():
                 }
             ],
         },
-        "evidence_challenge": {
+        "beginner_difficulty_review": {
             "draft_version": 2,
             "asked_knowledge": "図形条件からミュラー・リヤー錯視の名称を答える",
-            "beginner": {
-                "source_urls_checked": ["https://example.org/beginner"],
-                "adverse_finding": "図中の注記だけでないか確認した",
-                "resolution_evidence_ids": evidence.copy(),
-                "resolution_reason": "名称と図形条件を学習内容として説明する",
-                "status": "passed",
-            },
-            "general": {
-                "source_urls_checked": ["https://example.org/general"],
-                "adverse_finding": "一般向け資料での紹介を確認した",
-                "resolution_evidence_ids": evidence.copy(),
-                "resolution_reason": "紹介の範囲を考慮して判断する",
-                "status": "passed",
-            },
+            "source_urls_checked": ["https://example.org/beginner"],
+            "adverse_finding": "図中の注記だけでないか確認した",
+            "resolution_evidence_ids": evidence.copy(),
+            "resolution_reason": "名称と図形条件を学習内容として説明する",
+            "status": "passed",
+        },
+        "general_difficulty_review": {
+            "draft_version": 2,
+            "asked_knowledge": "図形条件からミュラー・リヤー錯視の名称を答える",
+            "source_urls_checked": ["https://example.org/general"],
+            "adverse_finding": "一般向け資料での紹介を確認した",
+            "resolution_evidence_ids": evidence.copy(),
+            "resolution_reason": "紹介の範囲を考慮して判断する",
+            "status": "passed",
         },
         "answers": [
             {
@@ -664,9 +658,9 @@ def drop_from_weights(state, candidate_id):
 def generation_state(complete_state):
     """生成工程の監査前にある一問分の作業状態を作る。"""
     state = copy.deepcopy(complete_state)
-    del state["evidence_challenge"]
-    drop_assignment(state, "evidence_challenge")
-    state["difficulty_review"]["audit"] = "pending"
+    for group in ("beginner", "general"):
+        del state[f"{group}_difficulty_review"]
+        drop_assignment(state, f"{group}_difficulty_review")
     state["terminology_review"]["audit"] = "pending"
     for group in ("terms", "checks"):
         for item in state[group]:
@@ -1600,33 +1594,25 @@ class TestWorkState:
         assert result.returncode == 1
         assert "担当の記録がない: ['generation']" in result.stderr
 
-    def test_audit_requires_evidence_challenge(self, run_script, complete_state):
-        """難易度と手掛かりの独立した反証確認を省けない。"""
-        del complete_state["evidence_challenge"]
+    @pytest.mark.parametrize("group", ["beginner", "general"])
+    def test_audit_requires_difficulty_review(self, run_script, complete_state, group):
+        """初学者側と一般層側の難易度の検査を、それぞれ省けない。"""
+        del complete_state[f"{group}_difficulty_review"]
         result = check_state(run_script, "audit", complete_state)
         assert result.returncode == 1
-        assert "evidence_challengeがない" in result.stderr
+        assert f"{group}_difficulty_reviewがない" in result.stderr
 
-    def test_generation_does_not_require_evidence_challenge(
+    def test_generation_does_not_require_difficulty_review(
         self, run_script, generation_state
     ):
-        """生成工程の合格後に反証確認を追加できる。"""
+        """生成工程の合格後に難易度の検査を加えられる。"""
         assert check_state(run_script, "generation", generation_state).returncode == 0
-
-    def test_generation_rejects_premature_evidence_challenge(
-        self, run_script, generation_state, complete_state
-    ):
-        """生成工程の検査前に反証確認の結果を混ぜない。"""
-        generation_state["evidence_challenge"] = complete_state["evidence_challenge"]
-        result = check_state(run_script, "generation", generation_state)
-        assert result.returncode == 1
-        assert "監査前の反証確認が混入" in result.stderr
 
     def test_audit_rejects_challenge_for_other_knowledge(
         self, run_script, complete_state
     ):
-        """別の問う知識についての反証記録を現行問題へ使わない。"""
-        complete_state["evidence_challenge"]["asked_knowledge"] = "別の問う知識"
+        """別の問う知識についての難易度の検査を現行問題へ使わない。"""
+        complete_state["beginner_difficulty_review"]["asked_knowledge"] = "別の問う知識"
         result = check_state(run_script, "audit", complete_state)
         assert result.returncode == 1
         assert "asked_knowledgeが問う知識と一致しない" in result.stderr
@@ -1874,66 +1860,24 @@ class TestWorkState:
         assert result.returncode == 1
         assert "selection_modeが不正である" in result.stderr
 
-    def test_difficulty_review_requires_assigned_agent(
+    def test_difficulty_assessment_requires_assigned_agent(
         self, run_script, complete_state
     ):
-        """難易度の独立検査には起動の記録を要する。"""
-        drop_assignment(complete_state, "difficulty_review")
+        """難易度の判断には起動の記録を要する。"""
+        drop_assignment(complete_state, "difficulty_assessment")
         result = check_state(run_script, "audit", complete_state)
         assert result.returncode == 1
-        assert "担当の記録がない: ['difficulty_review']" in result.stderr
+        assert "担当の記録がない: ['difficulty_assessment']" in result.stderr
 
-    def test_difficulty_checkpoint_passes_without_draft(
-        self, run_script, complete_state
+    def test_difficulty_assessment_matches_asked_knowledge(
+        self, run_script, generation_state
     ):
-        """作文前に問題文なしで難易度を検査できる。"""
-        keys = {
-            "selection_mode",
-            "execution",
-            "answer_target",
-            "asked_knowledge",
-            "sources",
-            "difficulty_review",
-        }
-        state = {key: copy.deepcopy(complete_state[key]) for key in keys}
-        roles = {"generation", "difficulty_review"}
-        state["execution"]["assignments"] = [
-            item for item in state["execution"]["assignments"] if item["role"] in roles
-        ]
-        state["difficulty_review"]["audit"] = "pending"
-        assert check_state(run_script, "difficulty", state).returncode == 0
-
-    def test_difficulty_review_matches_asked_knowledge(
-        self, run_script, complete_state
-    ):
-        """問う知識を変更したら以前の難易度判定を通さない。"""
-        complete_state["asked_knowledge"] = "考案年から錯視の名称を答える"
-        complete_state["difficulty_review"]["audit"] = "pending"
-        result = check_state(run_script, "difficulty", complete_state)
+        """問う知識を変更したら以前の難易度の判断を通さない。"""
+        generation_state["asked_knowledge"] = "考案年から錯視の名称を答える"
+        result = check_state(run_script, "generation", generation_state)
         assert result.returncode == 1
         assert (
-            "difficulty_review.asked_knowledgeが問う知識と一致しない" in result.stderr
-        )
-
-    def test_difficulty_review_requires_audit(self, run_script, complete_state):
-        """難易度担当の判定も監査担当の確認を要する。"""
-        complete_state["difficulty_review"]["audit"] = "pending"
-        result = check_state(run_script, "audit", complete_state)
-        assert result.returncode == 1
-        assert "difficulty_reviewが監査に合格していない" in result.stderr
-
-    def test_difficulty_checks_match_asked_knowledge(self, run_script, complete_state):
-        """完成稿の難易度検査は作文前に確認した問う知識と対応する。"""
-        check = next(
-            item
-            for item in complete_state["checks"]
-            if item["id"] == "difficulty.beginner"
-        )
-        check["asked_knowledge"] = "考案年から錯視の名称を答える"
-        result = check_state(run_script, "audit", complete_state)
-        assert result.returncode == 1
-        assert (
-            "checks.difficulty.beginner.asked_knowledgeが問う知識と一致しない"
+            "difficulty_assessment.asked_knowledgeが問う知識と一致しない"
             in result.stderr
         )
 
@@ -1942,10 +1886,13 @@ class TestWorkState:
         self, run_script, complete_state, group
     ):
         """難易度の独立検査は両参照集団の合格を要する。"""
-        complete_state["difficulty_review"][group]["status"] = "missing"
+        complete_state["difficulty_assessment"][group]["status"] = "missing"
         result = check_state(run_script, "audit", complete_state)
         assert result.returncode == 1
-        assert f"difficulty_review.{group}が独立検査に合格していない" in result.stderr
+        assert (
+            f"difficulty_assessment.{group}が難易度の帯に入ると判断されていない"
+            in result.stderr
+        )
 
     @pytest.mark.parametrize(
         "aspect", ["name_learning", "relation_learning", "learning_connection"]
@@ -1954,10 +1901,10 @@ class TestWorkState:
         self, run_script, complete_state, aspect
     ):
         """名称・関係の学習と両者の接続を別々に記録する。"""
-        del complete_state["difficulty_review"]["beginner"][aspect]
+        del complete_state["difficulty_assessment"]["beginner"][aspect]
         result = check_state(run_script, "audit", complete_state)
         assert result.returncode == 1
-        assert f"difficulty_review.beginner.{aspect}がない" in result.stderr
+        assert f"difficulty_assessment.beginner.{aspect}がない" in result.stderr
 
     @pytest.mark.parametrize(
         "aspect", ["name_learning", "relation_learning", "learning_connection"]
@@ -1966,10 +1913,10 @@ class TestWorkState:
         self, run_script, complete_state, aspect
     ):
         """初学者側の各判断に理由を要求する。"""
-        del complete_state["difficulty_review"]["beginner"][aspect]["reason"]
+        del complete_state["difficulty_assessment"]["beginner"][aspect]["reason"]
         result = check_state(run_script, "audit", complete_state)
         assert result.returncode == 1
-        assert f"difficulty_review.beginner.{aspect}.reason" in result.stderr
+        assert f"difficulty_assessment.beginner.{aspect}.reason" in result.stderr
 
     def test_beginner_review_accepts_distinct_learning_sources(
         self, run_script, complete_state
@@ -1994,7 +1941,7 @@ class TestWorkState:
                 ],
             },
         )
-        beginner = complete_state["difficulty_review"]["beginner"]
+        beginner = complete_state["difficulty_assessment"]["beginner"]
         beginner["evidence_ids"] = ["Q1", "Q2"]
         beginner["relation_learning"]["evidence_ids"] = ["Q2"]
         beginner["learning_connection"]["evidence_ids"] = ["Q1", "Q2"]
@@ -2012,7 +1959,9 @@ class TestWorkState:
         complete_state["sources"][0]["quotes"].append(
             {"id": "Q2", "text": "名称を扱う教材", "location": "第二節"}
         )
-        complete_state["difficulty_review"]["beginner"][aspect]["evidence_ids"] = ["Q2"]
+        complete_state["difficulty_assessment"]["beginner"][aspect]["evidence_ids"] = [
+            "Q2"
+        ]
         result = check_state(run_script, "audit", complete_state)
         assert result.returncode == 1
         assert f"{aspect}.evidence_idsが初学者側の根拠に含まれない" in result.stderr
@@ -2021,21 +1970,23 @@ class TestWorkState:
         self, run_script, complete_state
     ):
         """一般層に名称が共有される別経路の調査を省略しない。"""
-        del complete_state["difficulty_review"]["general"]["other_access_paths"]
+        del complete_state["difficulty_assessment"]["general"]["other_access_paths"]
         result = check_state(run_script, "audit", complete_state)
         assert result.returncode == 1
-        assert "difficulty_review.general.other_access_paths" in result.stderr
+        assert "difficulty_assessment.general.other_access_paths" in result.stderr
 
     def test_difficulty_review_requires_evidence_for_other_access_paths(
         self, run_script, complete_state
     ):
         """接触を確認した経路の調査結果を引用に対応させる。"""
-        path = complete_state["difficulty_review"]["general"]["other_access_paths"][0]
+        path = complete_state["difficulty_assessment"]["general"]["other_access_paths"][
+            0
+        ]
         del path["evidence_ids"]
         result = check_state(run_script, "audit", complete_state)
         assert result.returncode == 1
         assert (
-            "difficulty_review.general.other_access_paths[0].evidence_ids"
+            "difficulty_assessment.general.other_access_paths[0].evidence_ids"
             in result.stderr
         )
 
@@ -2043,7 +1994,9 @@ class TestWorkState:
         self, run_script, complete_state
     ):
         """接触を確認できない経路に存在しない逐語引用を要求しない。"""
-        path = complete_state["difficulty_review"]["general"]["other_access_paths"][0]
+        path = complete_state["difficulty_assessment"]["general"]["other_access_paths"][
+            0
+        ]
         path["search_record"] = "一般向けの紹介資料を調べた"
         path["outcome"] = "not_confirmed"
         path["result"] = "調べた範囲では名称への接触を確認できなかった"
@@ -2052,25 +2005,27 @@ class TestWorkState:
 
     def test_access_path_requires_search_record(self, run_script, complete_state):
         """接触を確認できない経路にも調べた内容を残す。"""
-        path = complete_state["difficulty_review"]["general"]["other_access_paths"][0]
+        path = complete_state["difficulty_assessment"]["general"]["other_access_paths"][
+            0
+        ]
         path["outcome"] = "not_confirmed"
         path["evidence_ids"] = []
         del path["search_record"]
         result = check_state(run_script, "audit", complete_state)
         assert result.returncode == 1
         assert (
-            "difficulty_review.general.other_access_paths[0].search_record"
+            "difficulty_assessment.general.other_access_paths[0].search_record"
             in result.stderr
         )
 
-    def test_final_input_includes_difficulty_review_evidence(
+    def test_final_input_includes_difficulty_assessment_evidence(
         self, run_script, complete_state
     ):
         """難易度の独立検査だけに使う引用も最終入力へ渡す。"""
         complete_state["sources"][0]["quotes"].append(
             {"id": "Q2", "text": "初学者向け資料の記述", "location": "第二節"}
         )
-        complete_state["difficulty_review"]["beginner"]["evidence_ids"] = [
+        complete_state["difficulty_assessment"]["beginner"]["evidence_ids"] = [
             "Q1",
             "Q2",
         ]
@@ -2088,7 +2043,7 @@ class TestWorkState:
         complete_state["sources"][0]["quotes"].append(
             {"id": "Q2", "text": "一般向け資料の記述", "location": "第二節"}
         )
-        paths = complete_state["difficulty_review"]["general"]["other_access_paths"]
+        paths = complete_state["difficulty_assessment"]["general"]["other_access_paths"]
         paths[0]["evidence_ids"] = ["Q2"]
         assert check_state(run_script, "audit", complete_state).returncode == 0
 

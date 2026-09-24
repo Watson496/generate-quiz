@@ -3,7 +3,7 @@
 
 入力はJSONファイルのパスまたは標準入力から受け取る。--stageには
 facet-selection、intersection-checkpoint、discovery、membership、selection、prejudgment、
-generation-start、difficulty、generation、audit、finalのいずれかを指定する。
+generation-start、generation、audit、finalのいずれかを指定する。
 
 終了コード:
     0  指定工程の条件を満たす
@@ -46,8 +46,6 @@ FINAL_HEADINGS = (
 
 
 REQUIRED_CHECK_IDS = {
-    "difficulty.beginner",
-    "difficulty.general",
     "terminology",
     "clue_order",
     "answer_exposure",
@@ -156,7 +154,6 @@ STAGE_ROLES = {
         *PREJUDGMENT_KEYS,
     ),
     "generation-start": ("generation",),
-    "difficulty": ("generation", "difficulty_review"),
     "generation": (
         "name_research",
         "answer_range",
@@ -167,7 +164,8 @@ STAGE_ROLES = {
         "certainty",
         "competitor_search",
         "competitor_comparison",
-        "difficulty_review",
+        "asked_knowledge",
+        "difficulty_assessment",
         "terminology_review",
     ),
     "audit": (
@@ -189,11 +187,13 @@ STAGE_ROLES = {
         "competitor_search_review",
         "competitor_comparison",
         "competitor_comparison_review",
-        "difficulty_review",
+        "asked_knowledge",
+        "difficulty_assessment",
         "terminology_review",
         "exposure",
         "exposure_analysis",
-        "evidence_challenge",
+        "beginner_difficulty_review",
+        "general_difficulty_review",
         "audit",
     ),
     "final": (
@@ -215,11 +215,13 @@ STAGE_ROLES = {
         "competitor_search_review",
         "competitor_comparison",
         "competitor_comparison_review",
-        "difficulty_review",
+        "asked_knowledge",
+        "difficulty_assessment",
         "terminology_review",
         "exposure",
         "exposure_analysis",
-        "evidence_challenge",
+        "beginner_difficulty_review",
+        "general_difficulty_review",
         "audit",
         "finalization",
         "final_review",
@@ -1617,33 +1619,22 @@ def validate_clue_centrality(state, active_clues, quote_ids, stage):
         )
 
 
-def validate_difficulty_review(state, quote_ids, stage):
-    review = state.get("difficulty_review")
-    require_condition(isinstance(review, dict), "difficulty_reviewがない")
+def validate_difficulty_assessment(state, quote_ids):
+    review = state.get("difficulty_assessment")
+    require_condition(isinstance(review, dict), "difficulty_assessmentがない")
     knowledge = required_text(state, "asked_knowledge", "state")
+    required_text(state, "answer_granularity", "state")
     require_condition(
         review.get("asked_knowledge") == knowledge,
-        "difficulty_review.asked_knowledgeが問う知識と一致しない",
+        "difficulty_assessment.asked_knowledgeが問う知識と一致しない",
     )
-    audit = review.get("audit")
-    require_condition(
-        audit in {"pending", "passed", "missing", "failed"},
-        "difficulty_review.auditが不正である",
-    )
-    if stage in {"difficulty", "generation"}:
-        require_condition(
-            audit == "pending",
-            "difficulty_reviewは生成工程の時点で監査済みになっている",
-        )
-    else:
-        require_condition(audit == "passed", "difficulty_reviewが監査に合格していない")
-    required_text(review, "answer_granularity", "difficulty_review")
     for group in ("beginner", "general"):
         item = review.get(group)
-        name = f"difficulty_review.{group}"
+        name = f"difficulty_assessment.{group}"
         require_condition(isinstance(item, dict), f"{name}がない")
         require_condition(
-            item.get("status") == "passed", f"{name}が独立検査に合格していない"
+            item.get("status") == "passed",
+            f"{name}が難易度の帯に入ると判断されていない",
         )
         required_text(item, "reason", name)
         evidence_ids = referenced_ids(item, "evidence_ids", quote_ids, name)
@@ -1706,23 +1697,21 @@ def validate_challenge_item(item, name, quote_ids):
     require_condition(item.get("status") == "passed", f"{name}.statusが合格していない")
 
 
-def validate_evidence_challenge(state, quote_ids, version):
-    challenge = state.get("evidence_challenge")
-    require_condition(isinstance(challenge, dict), "evidence_challengeがない")
-    require_condition(
-        challenge.get("draft_version") == version,
-        "evidence_challenge.draft_versionが問題文と一致しない",
-    )
-    require_condition(
-        challenge.get("asked_knowledge")
-        == required_text(state, "asked_knowledge", "state"),
-        "evidence_challenge.asked_knowledgeが問う知識と一致しない",
-    )
-
+def validate_difficulty_reviews(state, quote_ids, version):
+    """初学者側と一般層側の難易度を、それぞれの検査担当が現行版について検査したことを確認する。"""
     for group in ("beginner", "general"):
-        validate_challenge_item(
-            challenge.get(group), f"evidence_challenge.{group}", quote_ids
+        key = f"{group}_difficulty_review"
+        review = state.get(key)
+        require_condition(isinstance(review, dict), f"{key}がない")
+        require_condition(
+            review.get("draft_version") == version,
+            f"{key}.draft_versionが問題文と一致しない",
         )
+        require_condition(
+            review.get("asked_knowledge") == state["asked_knowledge"],
+            f"{key}.asked_knowledgeが問う知識と一致しない",
+        )
+        validate_challenge_item(review, key, quote_ids)
 
 
 def validate_structure_check(item, name, draft_text, active_clues):
@@ -1808,11 +1797,11 @@ def clue_quote_ids(state, active_clues):
     return cited
 
 
-def adopted_quote_ids(state, active_props, active_clues, difficulty_review):
+def adopted_quote_ids(state, active_props, active_clues, difficulty_assessment):
     """採用中の判断が根拠として使う引用IDを集める。"""
     cited = clue_quote_ids(state, active_clues)
     for group in ("beginner", "general"):
-        cited.update(difficulty_review[group]["evidence_ids"])
+        cited.update(difficulty_assessment[group]["evidence_ids"])
     active_ids = {item["id"] for item in active_props}
     for item in state["proposition_support"]:
         if item["proposition_id"] not in active_ids:
@@ -1830,13 +1819,14 @@ def adopted_quote_ids(state, active_props, active_clues, difficulty_review):
         if item["meaning_needed"]:
             cited.update(item["meaning_evidence_ids"])
             cited.update(item["audience_evidence_ids"])
-    challenge = state["evidence_challenge"]
-    for item in (challenge["beginner"], challenge["general"]):
-        cited.update(item["resolution_evidence_ids"])
+    for group in ("beginner", "general"):
+        cited.update(state[f"{group}_difficulty_review"]["resolution_evidence_ids"])
     return cited
 
 
-def validate_final_input(state, version, active_props, active_clues, difficulty_review):
+def validate_final_input(
+    state, version, active_props, active_clues, difficulty_assessment
+):
     final = state.get("final_input")
     require_condition(isinstance(final, dict), "final_inputがない")
     require_condition(
@@ -1884,7 +1874,7 @@ def validate_final_input(state, version, active_props, active_clues, difficulty_
             len(refs) == len(set(refs)) and set(refs) == ids,
             f"final_input.{key}が検査済みの現行項目と一致しない",
         )
-    cited = adopted_quote_ids(state, active_props, active_clues, difficulty_review)
+    cited = adopted_quote_ids(state, active_props, active_clues, difficulty_assessment)
     quote_refs = required_id_list(final.get("quote_ids"), "final_input.quote_ids")
     require_condition(
         len(quote_refs) == len(set(quote_refs)) and set(quote_refs) == cited,
@@ -2362,11 +2352,6 @@ def validate_answer_review(state, answers, checks, quote_ids, version):
 
 def validate_work_state(state, stage):
     require_no_selection_ledger(state)
-    if stage == "generation":
-        require_condition(
-            "evidence_challenge" not in state,
-            "生成工程の状態に監査前の反証確認が混入している",
-        )
     validate_selection_mode(state)
     validate_execution_assignments(state, stage)
     required_text(state, "answer_target", "state")
@@ -2384,9 +2369,9 @@ def validate_work_state(state, stage):
     validate_source_assessments(state, supports, stage)
     validate_clue_centrality(state, active_clues, quote_ids, stage)
     validate_competitors(state, active_clues, quote_ids, stage)
-    difficulty_review = validate_difficulty_review(state, quote_ids, stage)
+    difficulty_assessment = validate_difficulty_assessment(state, quote_ids)
     if stage in {"audit", "final"}:
-        validate_evidence_challenge(state, quote_ids, version)
+        validate_difficulty_reviews(state, quote_ids, version)
     validate_terminology(state, quote_ids, version, stage, draft["text"])
     answers = validate_answers(state, quote_ids)
     checks, check_ids = records_with_ids(state.get("checks"), "checks", nonempty=True)
@@ -2401,11 +2386,6 @@ def validate_work_state(state, stage):
         )
         required_text(item, "claim", name)
         required_text(item, "reason", name)
-        if item["id"] in {"difficulty.beginner", "difficulty.general"}:
-            require_condition(
-                item.get("asked_knowledge") == state["asked_knowledge"],
-                f"{name}.asked_knowledgeが問う知識と一致しない",
-            )
         if item["id"] == "expression.naturalness":
             required_list(
                 item.get("alternatives"), f"{name}.alternatives", nonempty=True
@@ -2443,16 +2423,8 @@ def validate_work_state(state, stage):
         validate_exposure_analysis(state, checks, version)
         validate_answer_review(state, answers, checks, quote_ids, version)
         validate_final_input(
-            state, version, active_props, active_clues, difficulty_review
+            state, version, active_props, active_clues, difficulty_assessment
         )
-
-
-def validate_difficulty_checkpoint(state):
-    validate_selection_mode(state)
-    validate_execution_assignments(state, "difficulty")
-    required_text(state, "answer_target", "state")
-    quote_ids = validate_source_quotes(state)
-    validate_difficulty_review(state, quote_ids, "difficulty")
 
 
 def require_no_selection_ledger(state):
@@ -2492,7 +2464,6 @@ def main():
             "selection",
             "prejudgment",
             "generation-start",
-            "difficulty",
             "generation",
             "audit",
             "final",
@@ -2528,8 +2499,6 @@ def main():
             validate_selection_execution(state, args.stage)
         elif args.stage == "generation-start":
             validate_generation_start(state)
-        elif args.stage == "difficulty":
-            validate_difficulty_checkpoint(state)
         elif args.stage == "final":
             require_condition(args.output, "final段階には--outputが必要である")
             output_bytes = Path(args.output).read_bytes()

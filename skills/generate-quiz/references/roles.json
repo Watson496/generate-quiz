@@ -47,7 +47,9 @@
     "competitor_comparisons": "対抗候補ごとの、手掛かりに書かれた条件との照合",
     "competitor_search_reviews": "対抗候補の逆引き探索の検査結果",
     "competitor_comparison_reviews": "対抗候補との条件照合の検査結果",
-    "asked_knowledge": "問う知識と、要求する解答知識の粒度",
+    "asked_knowledge": "問う知識",
+    "answer_granularity": "要求する解答知識の粒度",
+    "difficulty_assessment": "両参照集団の難易度の判断と、判断に使った資料",
     "draft": "現行版の問題文",
     "terms": "生成側の専門用語の一覧と語ID",
     "names": "解答対象の正式な名称と別名、それぞれが使われている箇所",
@@ -55,13 +57,13 @@
     "answer_judgments": "解答・別解の候補ごとの正誤判定の案",
     "generation_checks": "生成側の検査単位の判断と理由",
     "final_input": "最終出力用の限定入力",
-    "difficulty_review": "難易度の独立検査の記録",
     "terminology_review": "専門用語の独立検査の記録",
     "blind_candidates": "解答を伏せて挙げた名称候補",
     "exposure_candidates": "生成担当が問題文の意味から挙げた名称候補",
     "exposure_analysis": "名称候補ごとの露出の分析",
     "answer_review": "回答と露出候補の正誤判定",
-    "evidence_challenge": "監査前の反証確認の記録",
+    "beginner_difficulty_review": "初学者側の難易度の検査結果",
+    "general_difficulty_review": "一般層側の難易度の検査結果",
     "audit_results": "監査結果",
     "final_output": "完成稿",
     "final_review": "最終照合の記録"
@@ -353,7 +355,7 @@
           "section": "生成",
           "specs": ["quiz_generation_spec.md", "verification_and_judging_spec.md", "selection_and_history_spec.md", "work_state_spec.md"],
           "inputs": [["user_conditions", "history", "answer_target", "names", "answers", "answer_judgments"]],
-          "outputs": ["sources", "propositions", "clues", "asked_knowledge", "draft", "terms", "exposure_candidates", "generation_checks", "final_input"]
+          "outputs": ["sources", "propositions", "clues", "draft", "terms", "exposure_candidates", "generation_checks", "final_input"]
         },
         {
           "id": "source_reliability",
@@ -411,13 +413,22 @@
           "outputs": ["competitor_comparisons"]
         },
         {
-          "id": "difficulty_review",
-          "name": "難易度検査担当",
-          "side": "check",
-          "section": "難易度の独立検査",
+          "id": "asked_knowledge",
+          "name": "問う知識の担当",
+          "side": "make",
+          "section": "難易度",
+          "specs": ["quiz_generation_spec.md", "verification_and_judging_spec.md", "work_state_spec.md"],
+          "inputs": [["answer_target", "draft", "clues", "propositions"]],
+          "outputs": ["asked_knowledge", "answer_granularity"]
+        },
+        {
+          "id": "difficulty_assessment",
+          "name": "難易度の資料の担当",
+          "side": "make",
+          "section": "難易度",
           "specs": ["verification_and_judging_spec.md", "quiz_generation_spec.md", "work_state_spec.md"],
-          "inputs": [["answer_target", "asked_knowledge", "sources"]],
-          "outputs": ["difficulty_review"]
+          "inputs": [["answer_target", "asked_knowledge", "answer_granularity", "sources", "source_assessments"]],
+          "outputs": ["sources", "difficulty_assessment"]
         },
         {
           "id": "terminology_review",
@@ -433,6 +444,24 @@
     {
       "name": "検査",
       "roles": [
+        {
+          "id": "beginner_difficulty_review",
+          "name": "初学者側の難易度の検査担当",
+          "side": "check",
+          "section": "難易度",
+          "specs": ["verification_and_judging_spec.md", "quiz_generation_spec.md", "work_state_spec.md"],
+          "inputs": [["answer_target", "draft", "asked_knowledge", "answer_granularity", "sources", "difficulty_assessment"]],
+          "outputs": ["beginner_difficulty_review"]
+        },
+        {
+          "id": "general_difficulty_review",
+          "name": "一般層側の難易度の検査担当",
+          "side": "check",
+          "section": "難易度",
+          "specs": ["verification_and_judging_spec.md", "quiz_generation_spec.md", "work_state_spec.md"],
+          "inputs": [["answer_target", "draft", "asked_knowledge", "answer_granularity", "sources", "difficulty_assessment"]],
+          "outputs": ["general_difficulty_review"]
+        },
         {
           "id": "exposure",
           "name": "解答を伏せた名称候補の担当",
@@ -534,15 +563,6 @@
           "outputs": ["competitor_comparison_reviews"]
         },
         {
-          "id": "evidence_challenge",
-          "name": "反証確認担当",
-          "side": "check",
-          "section": "監査前の反証確認",
-          "specs": ["quiz_generation_spec.md", "verification_and_judging_spec.md", "work_state_spec.md"],
-          "inputs": [["answer_target", "sources", "asked_knowledge", "draft"]],
-          "outputs": ["evidence_challenge"]
-        },
-        {
           "id": "audit",
           "name": "監査担当",
           "side": "check",
@@ -550,7 +570,7 @@
           "specs": ["quiz_generation_spec.md", "verification_and_judging_spec.md", "selection_and_history_spec.md", "output_structure_spec.md", "work_state_spec.md"],
           "inputs": [
             ["draft", "answer_target"],
-            ["user_conditions", "sources", "propositions", "clues", "competitors", "competitor_comparisons", "asked_knowledge", "terms", "answers", "generation_checks", "final_input", "difficulty_review", "terminology_review", "blind_candidates", "exposure_analysis", "answer_review", "evidence_challenge"]
+            ["user_conditions", "sources", "propositions", "clues", "competitors", "competitor_comparisons", "asked_knowledge", "terms", "answers", "generation_checks", "final_input", "difficulty_assessment", "terminology_review", "blind_candidates", "exposure_analysis", "answer_review", "beginner_difficulty_review", "general_difficulty_review"]
           ],
           "outputs": ["audit_results"]
         }
