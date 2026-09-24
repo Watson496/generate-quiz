@@ -42,7 +42,7 @@ argument-hint: <作問条件（主題・問題数・文字数・履歴など。�
 - 同梱スクリプトにはPython 3.14以上を使用する。
 - 毎問Web検索を使う。検索手段が一切使えない場合は、内部知識で代替せず作問を中止する。
 - 担当の割り当て、重み付き乱択、履歴補正、文字数判定、作業状態の構造検査は、必ず同梱スクリプトを実行する。
-  - 担当の割り当てと依頼文：`scripts/assignment_plan.py`
+  - 担当の割り当てと再実行の範囲：`scripts/assignment_plan.py`
   - ファセットの抽選：`scripts/weighted_pick.py`
   - 題材候補の抽選：`scripts/topic_pick.py`
   - 文字数と採否：`scripts/length_check.py`
@@ -54,12 +54,13 @@ argument-hint: <作問条件（主題・問題数・文字数・履歴など。�
 
 # スクリプトの呼出し
 
-ステップの構成、担当の割り当て、統括役と担当への依頼文は、担当表から決める。
+ステップの構成、統括役と担当への依頼文、修正時に再実行する担当は、担当表から決める。
 
 ```bash
 python3 "$SKILL_DIR/scripts/assignment_plan.py" steps
 python3 "$SKILL_DIR/scripts/assignment_plan.py" coordinate 3
 python3 "$SKILL_DIR/scripts/assignment_plan.py" assign exploration
+python3 "$SKILL_DIR/scripts/assignment_plan.py" rerun generation
 ```
 
 ファセットカタログは全文を読まず、必要なブロックだけを取得する。

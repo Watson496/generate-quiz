@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""担当表から、ステップの構成、担当の割り当て、統括役・担当への依頼文を決める。
+"""担当表から、ステップの構成、担当の割り当てと依頼文、再実行する担当を決める。
 
 担当表は references/roles.json に置く。各担当の入力は段階ごとのデータの一覧で、
 表の順で前にある担当の成果物か、親が渡すデータだけを参照できる。
@@ -9,6 +9,8 @@
     coordinate STEP    統括役への依頼文を出力する
     assign ROLE        担当の割り当てと依頼文を出力する。分割する担当には
                        --itemsで項目IDを渡す
+    rerun ROLE         ROLEの成果物が変わったときに再実行する担当を、
+                       表の順にステップごとに出力する
 
 終了コード:
     0  結果を出力した
@@ -18,6 +20,7 @@
     python3 assignment_plan.py steps
     python3 assignment_plan.py coordinate 3
     python3 assignment_plan.py assign exposure
+    python3 assignment_plan.py rerun generation
 """
 
 import argparse
@@ -225,10 +228,26 @@ def assignments(table, role_id, items=None):
     ]
 
 
+def rerun_plan(table, role_id):
+    """ROLEの成果物が変わったときに再実行する担当を、表の順にステップごとに返す。"""
+    role = find_role(table, role_id)
+    changed = set(role["outputs"])
+    after = False
+    plan = []
+    for number, item in ordered_roles(table):
+        if not after:
+            after = item["id"] == role_id
+            continue
+        if any(data in changed for phase in item["inputs"] for data in phase):
+            changed.update(item["outputs"])
+            if not plan or plan[-1]["step"] != number:
+                plan.append({"step": number, "roles": []})
+            plan[-1]["roles"].append(item["id"])
+    return plan
+
+
 def main():
-    parser = argparse.ArgumentParser(
-        description="担当表からステップの構成と依頼文を決める"
-    )
+    parser = argparse.ArgumentParser(description="担当表から割り当てと再実行を決める")
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("steps")
     coordinate = commands.add_parser("coordinate")
@@ -236,6 +255,8 @@ def main():
     assign = commands.add_parser("assign")
     assign.add_argument("role")
     assign.add_argument("--items", nargs="+")
+    rerun = commands.add_parser("rerun")
+    rerun.add_argument("role")
     args = parser.parse_args()
     try:
         table = load_table()
@@ -243,8 +264,10 @@ def main():
             result = step_plan(table)
         elif args.command == "coordinate":
             result = coordinator_request(table, args.step)
-        else:
+        elif args.command == "assign":
             result = assignments(table, args.role, args.items)
+        else:
+            result = rerun_plan(table, args.role)
     except (OSError, json.JSONDecodeError, TableError) as error:
         print(f"入力エラー: {error}", file=sys.stderr)
         return EXIT_USAGE
