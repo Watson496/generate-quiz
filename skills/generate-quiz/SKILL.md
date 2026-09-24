@@ -29,7 +29,7 @@ argument-hint: <作問条件（主題・問題数・文字数・履歴など。�
 1. [`references/workflow_spec.md`](references/workflow_spec.md)
 2. [`references/work_state_spec.md`](references/work_state_spec.md)
 
-複数問でも一問でも、`workflow_spec.md`の工程を一問ずつ完了させる。作業状態は`work_state_spec.md`の単位で保持し、解答対象を変更したときは旧対象の状態を引き継がない。
+複数問でも一問でも、`workflow_spec.md`のステップを一問ずつ完了させる。作業状態は`work_state_spec.md`の単位で保持し、解答対象を変更したときは旧対象の状態を引き継がない。
 
 # 工程ごとに読む仕様
 
