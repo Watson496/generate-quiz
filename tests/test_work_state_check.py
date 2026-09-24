@@ -100,6 +100,8 @@ def complete_state():
                     "blind_candidates": [],
                     "semantic_candidates": [
                         {
+                            "id": "X1",
+                            "answer_id": None,
                             "name": "一般名称",
                             "formation_rule": "対象との既知の対応から名称を選ぶ",
                             "components": [
@@ -250,6 +252,7 @@ def complete_state():
                         "comparison_scope": "同じ上位分類",
                         "competitors": [
                             {
+                                "id": "R1",
                                 "name": "近接候補",
                                 "evidence_ids": evidence,
                                 "conditions": [
@@ -331,6 +334,7 @@ def complete_state():
                     "status": "passed",
                     "competitor_comparisons": [
                         {
+                            "id": "R1",
                             "name": "近接候補",
                             "source_url": "https://example.org/competitor",
                             "evidence_ids": evidence.copy(),
@@ -389,7 +393,7 @@ def complete_state():
             ],
             "candidate_reviews": [
                 {
-                    "name": "一般名称",
+                    "candidate_id": "X1",
                     "judgment": "incorrect",
                     "status": "passed",
                     "same_target": False,
@@ -1315,7 +1319,7 @@ class TestWorkState:
             "competitor_comparisons"
         ]
         additional = copy.deepcopy(comparisons[0])
-        additional["name"] = "追加の対抗候補"
+        additional.update(id="R2", name="追加の対抗候補")
         comparisons.append(additional)
         assert check_state(run_script, "audit", complete_state).returncode == 0
 
@@ -1327,7 +1331,7 @@ class TestWorkState:
             "competitors"
         ]
         additional = copy.deepcopy(competitors[0])
-        additional["name"] = "別の対抗候補"
+        additional.update(id="R2", name="別の対抗候補")
         competitors.append(additional)
         result = check_state(run_script, "audit", complete_state)
         assert result.returncode == 1
@@ -1444,7 +1448,8 @@ class TestWorkState:
                 if check["id"] == "answer_exposure"
             )["semantic_candidates"][0]
         )
-        candidate["name"] = "別の名称候補"
+        del candidate["id"]
+        candidate.update(exposure_candidate_id="X9", name="別の名称候補")
         candidate["components"][0]["form"] = "別の名称候補"
         complete_state["exposure_review"]["candidates"] = [candidate]
         result = check_state(run_script, "audit", complete_state)
@@ -1455,6 +1460,8 @@ class TestWorkState:
         """解答側の知識なしに形成できる正答名を監査で見逃さない。"""
         complete_state["exposure_review"]["candidates"] = [
             {
+                "exposure_candidate_id": "X1",
+                "answer_id": "A1",
                 "name": "ミュラー・リヤー錯視",
                 "formation_rule": "問題文中の語を連結する",
                 "components": [
@@ -1481,9 +1488,10 @@ class TestWorkState:
             for check in complete_state["checks"]
             if check["id"] == "answer_exposure"
         )
-        complete_state["exposure_review"]["candidates"] = copy.deepcopy(
-            exposure["semantic_candidates"]
-        )
+        candidate = copy.deepcopy(exposure["semantic_candidates"][0])
+        del candidate["id"]
+        candidate.update(exposure_candidate_id="X1")
+        complete_state["exposure_review"]["candidates"] = [candidate]
         assert check_state(run_script, "audit", complete_state).returncode == 0
 
     def test_generation_requires_independent_answer_review(
@@ -1568,7 +1576,7 @@ class TestWorkState:
         )
         result = check_state(run_script, "generation", generation_state)
         assert result.returncode == 1
-        assert "正答名が解答範囲にない" in result.stderr
+        assert "正答が解答範囲に対応付けられていない" in result.stderr
 
     def test_audit_requires_all_facet_paths_in_topic_selection(
         self, run_script, complete_state
@@ -2147,9 +2155,9 @@ class TestWorkState:
             for check in complete_state["checks"]
             if check["id"] == "answer_exposure"
         )
-        complete_state["answers"][0]["answer"] = "錯視"
         exposure["blind_candidates"] = [
             {
+                "id": "X2",
                 "name": "錯視",
                 "formation_rule": "問題文中の語をそのまま候補とする",
                 "components": [
@@ -2163,7 +2171,13 @@ class TestWorkState:
                 "standard_name_confirmation_requires_answer_side_knowledge": True,
             }
         ]
-        assert check_state(run_script, "audit", complete_state).returncode == 1
+        review = copy.deepcopy(complete_state["answer_review"]["answers"][0])
+        del review["id"]
+        review.update(candidate_id="X2", answer_id="A1")
+        complete_state["answer_review"]["candidate_reviews"].append(review)
+        result = check_state(run_script, "audit", complete_state)
+        assert result.returncode == 1
+        assert "解答側の知識なしに名称候補を形成できる" in result.stderr
 
     def test_blind_candidate_can_require_answer_side_knowledge(
         self, run_script, complete_state
@@ -2176,6 +2190,7 @@ class TestWorkState:
         )
         exposure["blind_candidates"] = [
             {
+                "id": "X2",
                 "name": "ミュラー・リヤー錯視",
                 "formation_rule": "既知の名称を想起する",
                 "components": [
@@ -2192,7 +2207,8 @@ class TestWorkState:
         ]
         complete_state["answer_review"]["candidate_reviews"].append(
             {
-                "name": "ミュラー・リヤー錯視",
+                "candidate_id": "X2",
+                "answer_id": "A1",
                 "judgment": "correct",
                 "status": "passed",
                 "same_target": True,
@@ -2204,6 +2220,56 @@ class TestWorkState:
             }
         )
         assert check_state(run_script, "audit", complete_state).returncode == 0
+
+    def test_blind_candidate_rejects_mapping_before_disclosure(
+        self, run_script, complete_state
+    ):
+        """解答を伏せて挙げた候補に、開示前の解答との対応付けを置かない。"""
+        exposure = next(
+            check
+            for check in complete_state["checks"]
+            if check["id"] == "answer_exposure"
+        )
+        candidate = copy.deepcopy(exposure["semantic_candidates"][0])
+        candidate.update(id="X2", answer_id=None)
+        exposure["blind_candidates"] = [candidate]
+        result = check_state(run_script, "audit", complete_state)
+        assert result.returncode == 1
+        assert "解答開示前の対応付けがある" in result.stderr
+
+    def test_semantic_candidate_requires_answer_mapping(
+        self, run_script, complete_state
+    ):
+        """意味から挙げた候補には、挙げた担当による解答との対応付けを要求する。"""
+        exposure = next(
+            check
+            for check in complete_state["checks"]
+            if check["id"] == "answer_exposure"
+        )
+        del exposure["semantic_candidates"][0]["answer_id"]
+        result = check_state(run_script, "audit", complete_state)
+        assert result.returncode == 1
+        assert "answer_idが解答候補を参照していない" in result.stderr
+
+    def test_blind_candidate_review_requires_answer_mapping(
+        self, run_script, complete_state
+    ):
+        """解答を伏せて挙げた候補は、開示後の判定で解答との対応付けを要求する。"""
+        exposure = next(
+            check
+            for check in complete_state["checks"]
+            if check["id"] == "answer_exposure"
+        )
+        candidate = copy.deepcopy(exposure["semantic_candidates"][0])
+        del candidate["answer_id"]
+        candidate["id"] = "X2"
+        exposure["blind_candidates"] = [candidate]
+        review = copy.deepcopy(complete_state["answer_review"]["candidate_reviews"][0])
+        review["candidate_id"] = "X2"
+        complete_state["answer_review"]["candidate_reviews"].append(review)
+        result = check_state(run_script, "audit", complete_state)
+        assert result.returncode == 1
+        assert "answer_idがない" in result.stderr
 
     def test_answer_side_component_requires_reason(self, run_script, complete_state):
         """解答側の知識とした名称要素には理由を要求する。"""
@@ -2238,8 +2304,8 @@ class TestWorkState:
             for check in complete_state["checks"]
             if check["id"] == "answer_exposure"
         )
-        complete_state["answers"][0]["answer"] = "錯視"
         exposure["semantic_candidates"][0].update(
+            answer_id="A1",
             name="錯視",
             formation_rule="問題文の語をそのまま候補とする",
             components=[
@@ -2251,7 +2317,15 @@ class TestWorkState:
             ],
             formation_requires_answer_side_knowledge=False,
         )
-        assert check_state(run_script, "audit", complete_state).returncode == 1
+        complete_state["answer_review"]["candidate_reviews"][0].update(
+            judgment="correct",
+            same_target=True,
+            scope_matches=True,
+            reason="対象の名称である",
+        )
+        result = check_state(run_script, "audit", complete_state)
+        assert result.returncode == 1
+        assert "解答側の知識なしに名称候補を形成できる" in result.stderr
 
     def test_audit_rejects_old_draft_version(self, run_script, complete_state):
         """現行稿より古い版の検査結果を監査で拒否する。"""

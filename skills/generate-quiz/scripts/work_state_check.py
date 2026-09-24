@@ -884,14 +884,11 @@ def validate_source_quotes(state):
 
 
 def validate_competitor_comparisons(check, clue_text, quote_ids, name):
-    competitors = required_list(
+    competitors, _ = records_with_ids(
         check.get("competitors"), f"{name}.competitors", nonempty=True
     )
     for index, competitor in enumerate(competitors):
         cname = f"{name}.competitors[{index}]"
-        require_condition(
-            isinstance(competitor, dict), f"{cname}はオブジェクトでなければならない"
-        )
         required_text(competitor, "name", cname)
         evidence = referenced_ids(competitor, "evidence_ids", quote_ids, cname)
         require_condition(
@@ -1165,23 +1162,17 @@ def validate_evidence_challenge(state, quote_ids, active_clues, version):
         validate_challenge_item(item, name, quote_ids)
         clue = active_by_id[item["id"]]
         generated = {
-            candidate["name"]: candidate["disposition"]
+            candidate["id"]: candidate["disposition"]
             for candidate in clue["checks"]["quasi_uniqueness"]["competitors"]
         }
-        comparisons = required_list(
+        comparisons, compared_ids = records_with_ids(
             item.get("competitor_comparisons"),
             f"{name}.competitor_comparisons",
             nonempty=bool(generated),
         )
-        names = set()
         for index, comparison in enumerate(comparisons):
             cname = f"{name}.competitor_comparisons[{index}]"
-            require_condition(isinstance(comparison, dict), f"{cname}がない")
-            candidate_name = required_text(comparison, "name", cname)
-            require_condition(
-                candidate_name not in names, f"{cname}.nameが重複している"
-            )
-            names.add(candidate_name)
+            required_text(comparison, "name", cname)
             url = required_text(comparison, "source_url", cname)
             require_condition(
                 url in item["source_urls_checked"],
@@ -1215,9 +1206,9 @@ def validate_evidence_challenge(state, quote_ids, active_clues, version):
                 comparison.get("disposition") in {"excluded", "same_target"},
                 f"{cname}.dispositionが不正である",
             )
-            if candidate_name in generated:
+            if comparison["id"] in generated:
                 require_condition(
-                    comparison["disposition"] == generated[candidate_name],
+                    comparison["disposition"] == generated[comparison["id"]],
                     f"{cname}.dispositionが生成側の判断と一致しない",
                 )
             else:
@@ -1240,7 +1231,7 @@ def validate_evidence_challenge(state, quote_ids, active_clues, version):
                 comparison.get("remaining") is False, f"{cname}が未解決である"
             )
         require_condition(
-            set(generated) <= names,
+            set(generated) <= compared_ids,
             f"{name}.competitor_comparisonsに生成側の対抗候補が不足している",
         )
 
@@ -1774,27 +1765,28 @@ def validate_exposure_review(state, checks, answers, version):
     )
     if not candidates:
         required_text(exposure_review, "no_candidate_reason", "exposure_review")
-    correct_names = {
-        normalize_candidate_name(item["answer"])
-        for item in answers
-        if item["judgment"] == "correct"
-    }
+    judgments = {item["id"]: item["judgment"] for item in answers}
     exposure_check = next(item for item in checks if item["id"] == "answer_exposure")
-    recorded_names = {
-        normalize_candidate_name(candidate["name"])
+    recorded_ids = {
+        candidate["id"]
         for key in ("blind_candidates", "semantic_candidates")
         for candidate in exposure_check[key]
     }
     for index, candidate in enumerate(candidates):
         cname = f"exposure_review.candidates[{index}]"
-        name, requires_answer_side = validate_name_formation(candidate, cname)
-        normalized = normalize_candidate_name(name)
+        _, requires_answer_side = validate_name_formation(candidate, cname)
         require_condition(
-            normalized not in correct_names or requires_answer_side,
-            f"{cname}は正答名と一致し、解答側の知識なしに形成できる",
+            candidate.get("exposure_candidate_id") in recorded_ids,
+            f"{cname}が露出検査に反映されていない",
         )
         require_condition(
-            normalized in recorded_names, f"{cname}が露出検査に反映されていない"
+            "answer_id" in candidate
+            and candidate["answer_id"] in set(judgments) | {None},
+            f"{cname}.answer_idが解答候補を参照していない",
+        )
+        require_condition(
+            judgments.get(candidate["answer_id"]) != "correct" or requires_answer_side,
+            f"{cname}は正答名と一致し、解答側の知識なしに形成できる",
         )
 
 
@@ -1883,35 +1875,61 @@ def validate_answer_review(state, answers, checks, quote_ids, version):
             f"{name}.judgmentが採用判定と一致しない",
         )
     exposure = next(item for item in checks if item["id"] == "answer_exposure")
-    names = {
-        normalize_candidate_name(item["name"])
+    exposure_candidates = {
+        item["id"]: item
         for key in ("blind_candidates", "semantic_candidates")
         for item in exposure[key]
     }
+    semantic_ids = {item["id"] for item in exposure["semantic_candidates"]}
     candidates = required_list(
         review.get("candidate_reviews"), "answer_review.candidate_reviews"
     )
     seen = set()
-    adopted = {
-        normalize_candidate_name(item["answer"]): item["judgment"] for item in answers
-    }
     for index, candidate in enumerate(candidates):
         name = f"answer_review.candidate_reviews[{index}]"
         require_condition(isinstance(candidate, dict), f"{name}がない")
-        value = normalize_candidate_name(required_text(candidate, "name", name))
-        require_condition(value not in seen, f"{name}.nameが重複している")
-        seen.add(value)
-        judgment = validate_reviewed_answer(candidate, name, quote_ids)
+        candidate_id = required_text(candidate, "candidate_id", name)
         require_condition(
-            value in adopted or judgment != "correct",
-            f"{name}の正答名が解答範囲にない",
+            candidate_id in exposure_candidates,
+            f"{name}.candidate_idが露出候補を参照していない",
         )
         require_condition(
-            value not in adopted or judgment == adopted[value],
+            candidate_id not in seen, f"{name}.candidate_idが重複している"
+        )
+        seen.add(candidate_id)
+        if candidate_id in semantic_ids:
+            require_condition(
+                "answer_id" not in candidate,
+                f"{name}に候補を挙げた担当が対応付けた露出候補の対応付けがある",
+            )
+            answer_id = exposure_candidates[candidate_id]["answer_id"]
+        else:
+            require_condition("answer_id" in candidate, f"{name}.answer_idがない")
+            answer_id = candidate["answer_id"]
+        require_condition(
+            answer_id is None or answer_id in by_id,
+            f"{name}.answer_idが解答候補を参照していない",
+        )
+        judgment = validate_reviewed_answer(candidate, name, quote_ids)
+        if answer_id is None:
+            require_condition(
+                judgment != "correct", f"{name}の正答が解答範囲に対応付けられていない"
+            )
+            continue
+        require_condition(
+            judgment == by_id[answer_id]["judgment"],
             f"{name}.judgmentが採用判定と一致しない",
         )
+        require_condition(
+            judgment != "correct"
+            or exposure_candidates[candidate_id][
+                "formation_requires_answer_side_knowledge"
+            ],
+            f"{name}は正解と一致し、解答側の知識なしに名称候補を形成できる",
+        )
     require_condition(
-        seen == names, "answer_review.candidate_reviewsが露出候補と一致しない"
+        seen == set(exposure_candidates),
+        "answer_review.candidate_reviewsが露出候補と一致しない",
     )
 
 
@@ -1981,25 +1999,31 @@ def validate_work_state(state, stage):
                 item.get("semantic_candidates"), f"{name}.semantic_candidates"
             )
             required_text(item, "answer_side_knowledge_required", name)
-            correct = {
-                normalize_candidate_name(answer["answer"])
-                for answer in answers
-                if answer.get("judgment") == "correct"
-            }
+            answer_ids = {answer["id"] for answer in answers}
+            candidate_ids = []
             for key, candidates in (
                 ("blind_candidates", blind),
                 ("semantic_candidates", semantic),
             ):
                 for index, candidate in enumerate(candidates):
                     cname = f"{name}.{key}[{index}]"
-                    candidate_name, requires_answer_side = validate_name_formation(
-                        candidate, cname
-                    )
-                    require_condition(
-                        normalize_candidate_name(candidate_name) not in correct
-                        or requires_answer_side,
-                        f"{cname}は正解と一致し、解答側の知識なしに名称候補を形成できる",
-                    )
+                    validate_name_formation(candidate, cname)
+                    candidate_ids.append(required_text(candidate, "id", cname))
+                    if key == "semantic_candidates":
+                        require_condition(
+                            "answer_id" in candidate
+                            and candidate["answer_id"] in answer_ids | {None},
+                            f"{cname}.answer_idが解答候補を参照していない",
+                        )
+                    else:
+                        require_condition(
+                            "answer_id" not in candidate,
+                            f"{cname}に解答開示前の対応付けがある",
+                        )
+            require_condition(
+                len(candidate_ids) == len(set(candidate_ids)),
+                f"{name}の露出候補のidが重複している",
+            )
         if item["id"] != "expression.naturalness":
             referenced_ids(item, "evidence_ids", quote_ids, name)
         require_stage_completion(item, name, stage)
