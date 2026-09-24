@@ -2,7 +2,7 @@
 """担当表から、ステップの構成、担当の割り当てと依頼文、再実行する担当を決める。
 
 担当表は references/roles.json に置く。各担当の入力は段階ごとのデータの一覧で、
-表の順で前にある担当の成果物か、親が渡すデータだけを参照できる。
+表の順で前にある担当の成果物か、親や統括役が渡すデータだけを参照できる。
 
 サブコマンド:
     steps              ステップごとの担当と、統括役を置くかを出力する
@@ -75,7 +75,7 @@ def validate_role(role, data, available, seen):
         unavailable = [item for item in phase if item not in available]
         require(
             not unavailable,
-            f"担当{role_id}の入力に、前の担当の成果物でも親が渡すデータでもないものがある: {unavailable}",
+            f"担当{role_id}の入力に、前の担当の成果物でも親や統括役が渡すデータでもないものがある: {unavailable}",
         )
     outputs = role.get("outputs")
     require(
@@ -93,7 +93,7 @@ def validate_role(role, data, available, seen):
 
 
 def validate_table(table):
-    """担当表の形と、入力が前の担当の成果物か親が渡すデータであることを検査する。"""
+    """担当表の形と、入力が前の担当の成果物か親や統括役が渡すデータであることを検査する。"""
     require(isinstance(table, dict), "担当表はオブジェクトでなければならない")
     data = table.get("data")
     require(
@@ -102,14 +102,14 @@ def validate_table(table):
         and all(is_text(text) for text in data.values()),
         "dataは説明を持つデータの一覧でなければならない",
     )
-    parent_data = table.get("parent_data")
+    given_data = table.get("given_data")
     require(
-        isinstance(parent_data, list) and set(parent_data) <= set(data),
-        "parent_dataは定義済みのデータの一覧でなければならない",
+        isinstance(given_data, list) and set(given_data) <= set(data),
+        "given_dataは定義済みのデータの一覧でなければならない",
     )
     steps = table.get("steps")
     require(isinstance(steps, list) and steps, "stepsがない")
-    available = set(parent_data)
+    available = set(given_data)
     produced = set()
     seen = set()
     for step in steps:
@@ -127,10 +127,10 @@ def validate_table(table):
             produced.update(role["outputs"])
             available.update(role["outputs"])
     require(
-        not produced & set(parent_data),
-        "親が渡すデータを担当の成果物にしている",
+        not produced & set(given_data),
+        "親や統括役が渡すデータを担当の成果物にしている",
     )
-    unused = set(data) - produced - set(parent_data)
+    unused = set(data) - produced - set(given_data)
     require(not unused, f"どこからも渡されないデータがある: {sorted(unused)}")
     return table
 

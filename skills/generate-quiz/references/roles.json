@@ -29,7 +29,7 @@
     "final_output": "完成稿",
     "final_review": "最終照合の記録"
   },
-  "parent_data": ["user_conditions", "history", "answer_target"],
+  "given_data": ["user_conditions", "history", "answer_target"],
   "steps": [
     {
       "name": "ファセット選択",

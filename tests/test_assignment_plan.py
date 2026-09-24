@@ -22,7 +22,7 @@ def small_table():
             "draft": "問題文",
             "draft_review": "問題文の検査記録",
         },
-        "parent_data": ["conditions"],
+        "given_data": ["conditions"],
         "steps": [
             {
                 "name": "候補",
@@ -136,7 +136,7 @@ class TestTableValidation:
     """担当表の不備を検出する。"""
 
     def test_small_table_is_valid(self, load_script):
-        """前の担当の成果物と親のデータだけを入力にする表は合格する。"""
+        """前の担当の成果物と、親や統括役が渡すデータだけを入力にする表は合格する。"""
         module = load_script("generate-quiz", "assignment_plan.py")
         assert module.validate_table(small_table())
 
@@ -147,7 +147,7 @@ class TestTableValidation:
                 lambda table: table["steps"][0]["roles"][0]["inputs"][0].append(
                     "draft"
                 ),
-                "前の担当の成果物でも親が渡すデータでもない",
+                "前の担当の成果物でも親や統括役が渡すデータでもない",
             ),
             (
                 lambda table: table["steps"][0]["roles"][0]["inputs"][0].append(
@@ -163,7 +163,7 @@ class TestTableValidation:
                 lambda table: table["steps"][0]["roles"][0]["outputs"].append(
                     "conditions"
                 ),
-                "親が渡すデータを担当の成果物にしている",
+                "親や統括役が渡すデータを担当の成果物にしている",
             ),
             (
                 lambda table: table["data"].update(orphan="どこにもない記録"),
