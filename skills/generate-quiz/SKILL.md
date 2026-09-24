@@ -99,6 +99,7 @@ python3 "$SKILL_DIR/scripts/work_state_check.py" --stage discovery-progress stat
 python3 "$SKILL_DIR/scripts/work_state_check.py" --stage discovery state.json
 python3 "$SKILL_DIR/scripts/work_state_check.py" --stage membership state.json
 python3 "$SKILL_DIR/scripts/work_state_check.py" --stage selection state.json
+python3 "$SKILL_DIR/scripts/work_state_check.py" --stage prejudgment state.json
 python3 "$SKILL_DIR/scripts/work_state_check.py" --stage generation-start state.json
 python3 "$SKILL_DIR/scripts/work_state_check.py" --stage difficulty state.json
 python3 "$SKILL_DIR/scripts/work_state_check.py" --stage generation state.json
