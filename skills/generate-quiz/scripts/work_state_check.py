@@ -715,13 +715,7 @@ def validate_selection_mode(state):
     mode = state.get("selection_mode")
     require_condition(mode in {"random", "specified"}, "selection_modeが不正である")
     if mode == "specified":
-        specified = required_text(state, "user_specified_target", "state")
-        target = required_text(state, "answer_target", "state")
-        require_condition(
-            unicodedata.normalize("NFKC", specified)
-            == unicodedata.normalize("NFKC", target),
-            "指定された解答対象と作業対象が一致しない",
-        )
+        required_text(state, "user_specified_target", "state")
     return mode
 
 

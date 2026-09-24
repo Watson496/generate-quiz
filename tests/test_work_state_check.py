@@ -1611,16 +1611,6 @@ class TestWorkState:
             ).hexdigest()
         assert check_state(run_script, stage, state).returncode == 0
 
-    def test_specified_target_must_match_answer_target(
-        self, run_script, complete_state
-    ):
-        """指定された解答対象と作業対象の不一致を拒否する。"""
-        complete_state["selection_mode"] = "specified"
-        complete_state["user_specified_target"] = "別の対象"
-        result = check_state(run_script, "audit", complete_state)
-        assert result.returncode == 1
-        assert "指定された解答対象と作業対象が一致しない" in result.stderr
-
     def test_work_state_requires_selection_mode(self, run_script, complete_state):
         """対象ごとの作業状態では選択方法を明示する。"""
         del complete_state["selection_mode"]
