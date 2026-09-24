@@ -1129,10 +1129,33 @@ class TestSelectionState:
         del selection_state["candidates"][0]["name_use_note"]
         assert check_state(run_script, "selection", selection_state).returncode == 1
 
-    def test_selection_requires_facet_membership(self, run_script, selection_state):
-        """四軸への所属理由を欠く候補を拒否する。"""
-        del selection_state["candidates"][0]["facet_membership_reason"]
-        assert check_state(run_script, "selection", selection_state).returncode == 1
+    def test_membership_requires_every_candidate(self, run_script, selection_state):
+        """所属判定のない選択対象を残さない。"""
+        selection_state["memberships"].pop()
+        result = check_state(run_script, "membership", selection_state)
+        assert result.returncode == 1
+        assert "所属判定のない候補がある: ['K2']" in result.stderr
+
+    @pytest.mark.parametrize("field", ["belongs", "reason"])
+    def test_membership_requires_each_axis(self, run_script, selection_state, field):
+        """4軸それぞれについて所属と理由を記録する。"""
+        del selection_state["memberships"][0]["axes"]["time"][field]
+        result = check_state(run_script, "membership", selection_state)
+        assert result.returncode == 1
+        assert f"memberships[0].axes.time.{field}" in result.stderr
+
+    def test_membership_requires_passed_review(self, run_script, selection_state):
+        """所属判定は検査担当の合格を要する。"""
+        selection_state["membership_reviews"][1]["status"] = "failed"
+        result = check_state(run_script, "membership", selection_state)
+        assert result.returncode == 1
+        assert "membership_reviewsに不合格の項目がある: ['K2']" in result.stderr
+
+    def test_membership_is_not_required_at_discovery(self, run_script, selection_state):
+        """探索の段階では所属判定を要求しない。"""
+        del selection_state["memberships"]
+        del selection_state["membership_reviews"]
+        assert check_state(run_script, "discovery", selection_state).returncode == 0
 
     def test_selection_requires_independent_review(self, run_script, selection_state):
         """別経路の探索が欠けた下位領域を拒否する。"""

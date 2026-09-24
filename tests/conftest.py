@@ -287,7 +287,6 @@ def selection_state(intersection_state):
                 "coverage_area_ids": ["D1"],
                 "discovery_entry_point_ids": ["E1"],
                 "name_use_note": "本文で対象の名称として使われる",
-                "facet_membership_reason": "選択した四軸の内側にある",
                 "disposition": "eligible",
                 "expanded": True,
                 "expansion_searches": [
@@ -319,7 +318,6 @@ def selection_state(intersection_state):
                 "coverage_area_ids": ["D2"],
                 "discovery_entry_point_ids": ["E2"],
                 "name_use_note": "本文で対象の名称として使われる",
-                "facet_membership_reason": "選択した四軸の内側にある",
                 "disposition": "eligible",
                 "expanded": True,
                 "expansion_searches": [
@@ -339,6 +337,27 @@ def selection_state(intersection_state):
         ],
         "frontier_ids": [],
         "saturated": True,
+        "memberships": [
+            {
+                "candidate_id": candidate_id,
+                "axes": {
+                    axis: {
+                        "belongs": True,
+                        "reason": f"{label}は{axis}のノードに属する",
+                    }
+                    for axis in ("subject", "place", "time", "type")
+                },
+            }
+            for candidate_id, label in (("K1", "候補1"), ("K2", "候補2"))
+        ],
+        "membership_reviews": [
+            {
+                "candidate_id": candidate_id,
+                "status": "passed",
+                "reason": "名称が第一義に指す対象で所属を確かめた",
+            }
+            for candidate_id in ("K1", "K2")
+        ],
         "independent_review": [
             {
                 "id": "D1",
@@ -378,6 +397,8 @@ def selection_state(intersection_state):
         ("exploration", ["D1"]),
         ("exploration", ["D2"]),
         ("nearby_exploration", ["K1", "K2"]),
+        ("membership", ["K1", "K2"]),
+        ("membership_review", ["K1", "K2"]),
         ("alternate_exploration", None),
         ("saturation_review", None),
         ("exposure_precheck", None),

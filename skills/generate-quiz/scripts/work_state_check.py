@@ -2,7 +2,7 @@
 """題材探索と作問状態の内容、参照関係、工程境界を検査する。
 
 入力はJSONファイルのパスまたは標準入力から受け取る。--stageには
-facet-selection、intersection-checkpoint、discovery、selection、
+facet-selection、intersection-checkpoint、discovery、membership、selection、
 generation-start、difficulty、generation、audit、finalのいずれかを指定する。
 
 終了コード:
@@ -123,9 +123,12 @@ STAGE_ROLES = {
     "intersection-checkpoint": ("intersection",),
     "discovery-progress": ("intersection", "exploration"),
     "discovery": ("intersection", *SELECTION_ROLES),
+    "membership": ("intersection", *SELECTION_ROLES, "membership", "membership_review"),
     "selection": (
         "intersection",
         *SELECTION_ROLES,
+        "membership",
+        "membership_review",
         "exposure_precheck",
         "topic_weighting",
     ),
@@ -679,9 +682,7 @@ def candidate_discovery_index(areas, candidate_ids):
     return discovered
 
 
-def validate_selection_candidates(
-    state, entry_ids, areas, area_ids, *, discovery_only=False
-):
+def validate_selection_candidates(state, entry_ids, areas, area_ids, stage):
     candidates, candidate_ids = records_with_ids(
         state.get("candidates"), "candidates", nonempty=True
     )
@@ -690,7 +691,6 @@ def validate_selection_candidates(
         name = f"candidates.{item['id']}"
         required_text(item, "label", name)
         require_candidate_discovery_links(item, area_ids, entry_ids, discovered)
-        required_text(item, "facet_membership_reason", name)
         disposition = item.get("disposition")
         require_condition(
             disposition in {"eligible", "excluded"}, f"{name}.dispositionが不正である"
@@ -728,26 +728,6 @@ def validate_selection_candidates(
                     search_name,
                     nonempty=False,
                 )
-            if not discovery_only:
-                risk = validate_exposure_screen(item, entry_ids, name)
-                require_condition(
-                    risk != "suspected" or item.get("exposure_precheck") is not None,
-                    f"{name}は露出の疑いを詳細調査していない",
-                )
-                if item.get("exposure_precheck") is not None:
-                    rejected = validate_exposure_precheck(item, name)
-                    if risk == "suspected":
-                        require_condition(
-                            len(
-                                item["exposure_precheck"]["representative_descriptions"]
-                            )
-                            >= MIN_EXPOSURE_DESCRIPTIONS,
-                            f"{name}は異なる代表説明を十分に調べていない",
-                        )
-                    require_condition(
-                        not rejected,
-                        f"{name}は露出の予備検査で除外と判定しているため選択対象にできない",
-                    )
         else:
             code = item.get("exclusion_code")
             require_condition(
@@ -770,7 +750,7 @@ def validate_selection_candidates(
                 )
             if code == "unavoidable_exposure":
                 require_condition(
-                    not discovery_only, f"{name}は露出予備検査前に除外できない"
+                    stage == "selection", f"{name}は露出予備検査前に除外できない"
                 )
                 require_condition(
                     validate_exposure_screen(item, entry_ids, name) == "suspected",
@@ -781,6 +761,87 @@ def validate_selection_candidates(
                     f"{name}.exposure_precheckが解答露出による除外を示していない",
                 )
     return candidates, candidate_ids
+
+
+def validate_candidate_prechecks(candidates, entry_ids, members):
+    """所属する選択対象ごとに、解答露出の予備検査の記録を検査する。"""
+    for item in candidates:
+        if item["id"] not in members:
+            continue
+        name = f"candidates.{item['id']}"
+        risk = validate_exposure_screen(item, entry_ids, name)
+        require_condition(
+            risk != "suspected" or item.get("exposure_precheck") is not None,
+            f"{name}は露出の疑いを詳細調査していない",
+        )
+        if item.get("exposure_precheck") is not None:
+            rejected = validate_exposure_precheck(item, name)
+            if risk == "suspected":
+                require_condition(
+                    len(item["exposure_precheck"]["representative_descriptions"])
+                    >= MIN_EXPOSURE_DESCRIPTIONS,
+                    f"{name}は異なる代表説明を十分に調べていない",
+                )
+            require_condition(
+                not rejected,
+                f"{name}は露出の予備検査で除外と判定しているため選択対象にできない",
+            )
+
+
+def validate_memberships(state, candidate_ids, known_ids):
+    """所属判定が選択対象ごとに4軸の判断を持つことを検査し、所属する候補を返す。"""
+    memberships = required_list(
+        state.get("memberships"), "memberships", nonempty=bool(candidate_ids)
+    )
+    belongs = {}
+    for index, item in enumerate(memberships):
+        name = f"memberships[{index}]"
+        require_condition(
+            isinstance(item, dict), f"{name}はオブジェクトでなければならない"
+        )
+        candidate_id = required_text(item, "candidate_id", name)
+        require_condition(candidate_id in known_ids, f"{name}.candidate_idが候補にない")
+        require_condition(
+            candidate_id not in belongs, f"{name}.candidate_idが重複している"
+        )
+        axes = item.get("axes")
+        require_condition(isinstance(axes, dict), f"{name}.axesがない")
+        results = []
+        for axis in FACET_AXES:
+            judgment = axes.get(axis)
+            aname = f"{name}.axes.{axis}"
+            require_condition(isinstance(judgment, dict), f"{aname}がない")
+            require_condition(
+                isinstance(judgment.get("belongs"), bool), f"{aname}.belongsがない"
+            )
+            required_text(judgment, "reason", aname)
+            results.append(judgment["belongs"])
+        belongs[candidate_id] = all(results)
+    missing = sorted(set(candidate_ids) - set(belongs))
+    require_condition(not missing, f"所属判定のない候補がある: {missing}")
+    validate_reviews(state, "membership_reviews", sorted(belongs), "candidate_id")
+    return {
+        candidate_id
+        for candidate_id, value in belongs.items()
+        if value and candidate_id in candidate_ids
+    }
+
+
+def eligible_candidate_ids(state):
+    return {
+        item["id"] for item in state["candidates"] if item["disposition"] == "eligible"
+    }
+
+
+def pickable_candidate_ids(state):
+    """探索段階の選択対象のうち、4軸すべてに所属する候補のIDを返す。"""
+    eligible = eligible_candidate_ids(state)
+    return {
+        item["candidate_id"]
+        for item in state["memberships"]
+        if item["candidate_id"] in eligible
+        and all(item["axes"][axis]["belongs"] for axis in FACET_AXES)
+    }
 
 
 def validate_selection_review(state, areas, candidates, entry_ids):
@@ -853,11 +914,11 @@ def validate_discovery_progress(state):
         )
 
 
-def validate_selection_state(state, *, discovery_only=False):
+def validate_selection_state(state, stage):
     validate_intersection_state(state)
     _, entry_ids, areas, area_ids = validate_selection_entries_areas(state)
     candidates, candidate_ids = validate_selection_candidates(
-        state, entry_ids, areas, area_ids, discovery_only=discovery_only
+        state, entry_ids, areas, area_ids, stage
     )
     validate_selection_review(state, areas, candidates, entry_ids)
     frontier = required_id_list(state.get("frontier_ids"), "frontier_ids")
@@ -866,6 +927,12 @@ def validate_selection_state(state, *, discovery_only=False):
     )
     require_condition(not frontier, "未展開の有力候補が残っている")
     require_condition(state.get("saturated") is True, "探索が飽和していない")
+    if stage == "discovery":
+        return
+    members = validate_memberships(state, eligible_candidate_ids(state), candidate_ids)
+    if stage == "membership":
+        return
+    validate_candidate_prechecks(candidates, entry_ids, members)
 
 
 def validate_selection_mode(state):
@@ -969,15 +1036,11 @@ def validate_selection_execution(state, stage):
     require_items_assigned(
         state, "exploration", [area["id"] for area in state["coverage_areas"]]
     )
-    require_items_assigned(
-        state,
-        "nearby_exploration",
-        [
-            item["id"]
-            for item in state["candidates"]
-            if item["disposition"] == "eligible"
-        ],
-    )
+    eligible = sorted(eligible_candidate_ids(state))
+    require_items_assigned(state, "nearby_exploration", eligible)
+    if stage != "discovery":
+        require_items_assigned(state, "membership", eligible)
+        require_items_assigned(state, "membership_review", eligible)
 
 
 def validate_source_quotes(state):
@@ -2086,6 +2149,7 @@ def main():
             "intersection-checkpoint",
             "discovery-progress",
             "discovery",
+            "membership",
             "selection",
             "generation-start",
             "difficulty",
@@ -2119,8 +2183,8 @@ def main():
         elif args.stage == "discovery-progress":
             validate_discovery_progress(state)
             validate_execution_assignments(state, args.stage)
-        elif args.stage in {"discovery", "selection"}:
-            validate_selection_state(state, discovery_only=args.stage == "discovery")
+        elif args.stage in {"discovery", "membership", "selection"}:
+            validate_selection_state(state, args.stage)
             validate_selection_execution(state, args.stage)
         elif args.stage == "generation-start":
             validate_generation_start(state)

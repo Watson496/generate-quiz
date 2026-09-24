@@ -14,6 +14,8 @@
     "ledger": "題材候補の探索台帳（入口、候補、近接探索の記録）",
     "independent_review": "別経路の探索記録",
     "saturation_challenge": "探索完了の反証調査の記録",
+    "memberships": "候補ごとの、選択した4軸の各ノードへの所属判定",
+    "membership_reviews": "所属判定の検査結果",
     "exposure_screen": "各選択対象の解答露出の予備検査の記録",
     "topic_weights": "題材候補の抽選用JSON",
     "answer_target": "解答対象と、抽選した場合の四軸の日本語の分類経路と履歴補正の適用結果",
@@ -146,6 +148,31 @@
       ]
     },
     {
+      "name": "所属判定",
+      "roles": [
+        {
+          "id": "membership",
+          "name": "所属判定担当",
+          "side": "make",
+          "section": "所属判定",
+          "specs": ["selection_and_history_spec.md", "facet_index.md", "work_state_spec.md"],
+          "inputs": [["facet_nodes", "ledger"]],
+          "outputs": ["memberships"],
+          "split_size": 20
+        },
+        {
+          "id": "membership_review",
+          "name": "所属判定の検査担当",
+          "side": "check",
+          "section": "所属判定",
+          "specs": ["selection_and_history_spec.md", "facet_index.md", "work_state_spec.md"],
+          "inputs": [["facet_nodes", "ledger", "memberships"]],
+          "outputs": ["membership_reviews"],
+          "split_size": 20
+        }
+      ]
+    },
+    {
       "name": "露出の予備検査",
       "roles": [
         {
@@ -154,7 +181,7 @@
           "side": "make",
           "section": "露出の予備検査",
           "specs": ["selection_and_history_spec.md", "quiz_generation_spec.md", "work_state_spec.md"],
-          "inputs": [["ledger"]],
+          "inputs": [["ledger", "memberships"]],
           "outputs": ["exposure_screen"]
         }
       ]
@@ -168,7 +195,7 @@
           "side": "make",
           "section": "題材候補のweightと抽選",
           "specs": ["selection_and_history_spec.md"],
-          "inputs": [["history", "ledger", "exposure_screen"]],
+          "inputs": [["history", "ledger", "memberships", "exposure_screen"]],
           "outputs": ["topic_weights"]
         }
       ]

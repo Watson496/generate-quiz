@@ -129,7 +129,7 @@ class TestBundledTable:
         """探索台帳が変わっても、解答対象ごとの担当は再実行しない。"""
         module = load_script("generate-quiz", "assignment_plan.py")
         plan = module.rerun_plan(module.load_table(), "exploration")
-        assert [step["step"] for step in plan] == [3, 4, 5]
+        assert [step["step"] for step in plan] == [3, 4, 5, 6]
 
 
 class TestTableValidation:
