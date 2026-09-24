@@ -10,7 +10,7 @@
 
 委譲機能の有無を`execution.delegation_available`に記録する。利用できない場合は、その理由を`execution.unavailable_reason`に記録する。
 
-利用できる場合は、担当を起動するたびに`execution.assignments`へ一件を加える。担当表の役割を`role`、起動toolが返した正規IDを`agent_id`、回収した成果物の場所を`artifact_refs`に置く。解答を伏せた名称候補の担当の記録には、対象とした問題文の版を`draft_version`に置く。担当表で件数を定めて分割する担当の記録には、受け持つ項目のIDを`items`に置く。一つのagentを複数の役割に使わない。解答を伏せた名称候補の担当は版ごとに別のagentとし、同じ版を新しい担当が再検査した場合も一件を加える。解答対象を替えた後も、既存の記録を消したり、別の担当の記録へ書き換えたりしない。
+利用できる場合は、担当を起動するたびに`execution.assignments`へ一件を加える。担当表の役割を`role`、起動toolが返した正規IDを`agent_id`、回収した成果物の場所を`artifact_refs`に置く。解答を伏せた名称候補の担当の記録には、対象とした問題文の版を`draft_version`に置く。完成稿への反映の照合担当と作業用記録の混入の検査担当の記録には、照合した完成稿のファイル内容のSHA-256を`output_sha256`に置く。担当表で件数を定めて分割する担当の記録には、受け持つ項目のIDを`items`に置く。一つのagentを複数の役割に使わない。解答を伏せた名称候補の担当は版ごとに、完成稿の照合担当は完成稿ごとに別のagentとし、同じ版を新しい担当が再検査した場合も一件を加える。解答対象を替えた後も、既存の記録を消したり、別の担当の記録へ書き換えたりしない。
 
 ## ファセットの選択
 
@@ -204,9 +204,9 @@ JSON manifestは、検査対象を具体的な内容へ結び付け、確定的�
 
 `final_input`は、本文の執筆担当が検査の合格後に作り、`--stage material`で検査する。`final_input.quote_ids`には採用中の判断に用いた引用IDを過不足なく置く。`other_access_paths`の調査だけに用いた引用は含めない。
 
-検査の合格後は、組立て担当と最終照合担当の起動の記録を加える以外に、採用項目と`final_input`を変更しない。最終段階では、完成したMarkdownと検査に使った状態ファイルそのものを`work_state_check.py --stage final --output 完成稿.md 状態.json`へ渡す。`work_state_check.py`は逐語引用の本文が出力に実在することを確認し、引用と結論の意味上の対応は最終照合担当が資料本文に戻って判定する。
+検査の合格後は、組立て担当と完成稿の照合担当の起動の記録を加える以外に、採用項目と`final_input`を変更しない。最終段階では、完成したMarkdownと検査に使った状態ファイルそのものを`work_state_check.py --stage final --output 完成稿.md 状態.json`へ渡す。`work_state_check.py`は逐語引用の本文が出力に実在することを確認し、引用と結論の意味上の対応は完成稿への反映の照合担当が資料本文に戻って判定する。
 
-最終照合担当が完成稿を確認したら、`final_review`に`status: passed`、照合した引用・回答・手掛かりのIDを`quote_ids`・`answer_ids`・`clue_ids`、各検査の結果を`checks`（`current_draft`・`evidence_and_inference`・`difficulty`・`competitors`・`answer_judging`・`exposure`）、照合した完成稿のファイル内容のSHA-256を`output_sha256`として記録する。完成稿を直した場合は再照合し、ハッシュも更新する。この記録は照合の対象と結果を検査するもので、判断の妥当性を機械的に証明するものではない。
+完成稿への反映の照合結果は`final_reflection_review`に、`status: passed`、理由を`reason`、照合した引用・回答・手掛かりのIDを`quote_ids`・`answer_ids`・`clue_ids`、照合した完成稿のファイル内容のSHA-256を`output_sha256`として置く。作業用記録の混入の検査結果は`final_contamination_review`に、`status`、`reason`、`output_sha256`として置く。`work_state_check.py`は、両方のハッシュが現行の完成稿と一致し、現行の完成稿について起動した担当の記録があることを確認する。この記録は照合の対象と結果を検査するもので、判断の妥当性を機械的に証明するものではない。
 
 具体的なJSONの形は `scripts/work_state_check.py` が検査するフィールドに従う。次は架空のURLを使った題材探索状態の形式例である。
 
