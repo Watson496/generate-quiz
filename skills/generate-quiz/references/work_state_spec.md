@@ -103,7 +103,6 @@
 
 生成側と監査側は、次を同じ単位で検査する。
 
-- 難易度の二つの参照集団
 - 問題文にある各専門用語と、その意味内容が命題理解に必要かの判断
 - 前フリ・落としを構成する各手掛かりの準一意性、知名度
 - 複数の手掛かり順序案
@@ -150,9 +149,9 @@
 
 生成側の必要な検査単位がすべて完了するまで、監査へ渡さない。
 
-## 監査前の反証確認
+## 難易度の検査
 
-生成工程の状態検査に合格した後、監査前に難易度を独立に反証する。`evidence_challenge`には現行問題文の版と問う知識を記録する。問う知識は作業状態の`asked_knowledge`と一致させる。`beginner`と`general`には開いた資料のURL、反証で見つけた事情、採用する引用IDと解決理由を置く。
+初学者側と一般層側の難易度の検査結果は、`beginner_difficulty_review`と`general_difficulty_review`に、現行問題文の版を`draft_version`、問う知識を`asked_knowledge`、開いた資料のURLを`source_urls_checked`、反例として見つけた事情を`adverse_finding`、採用する引用IDを`resolution_evidence_ids`、解決理由を`resolution_reason`、判定を`status`として置く。問う知識は作業状態の`asked_knowledge`と一致させる。
 
 ## 監査結果
 
@@ -207,11 +206,11 @@ JSON manifestは、検査対象を具体的な内容へ結び付け、確定的�
 
 逆引き探索の検査結果は`competitor_search_reviews`に、手掛かりの`clue_id`ごとに、見つけた候補を`found`（候補の`id`、`name`、候補を扱う資料の`source_url`、`evidence_ids`）、判定を`status`、理由を`reason`として置く。条件照合の検査結果は`competitor_comparison_reviews`に、`clue_id`と`competitor_id`の組ごとに、条件ごとの`passage`、`match`（`一致`・`近接`・`不一致`）、`reason`を`conditions`に置き、`disposition`、`status`、`reason`を置く。`work_state_check.py`は、作る側の照合と逆引きで見つけた候補のすべてに照合の検査があること、作る側と採否が一致すること、新しく見つけた候補を除外していること、除外には不一致の条件があることを確認する。
 
-問う知識の内容を`asked_knowledge`に記録し、難易度の独立検査は`difficulty_review`に記録する。後者の`asked_knowledge`には検査対象とした問う知識、`answer_granularity`には要求する解答知識の細かさ、`beginner`と`general`には各集団の`status`、`reason`、`evidence_ids`を置く。一般層側の`other_access_paths`には、定義的な資料とは別に名称と代表情報の対応が共有され得る経路を`path`、実際に調べた内容を`search_record`、その対応への接触を確認できたかを`outcome`、調査結果を`result`、確認した資料の引用IDを`evidence_ids`として置く。`outcome`は`confirmed`または`not_confirmed`とし、前者では引用IDを必須とする。後者では引用IDを空にできるが、調べた範囲を超える不在の根拠とは扱わない。
+問う知識の内容を`asked_knowledge`、要求する解答知識の細かさを`answer_granularity`に記録し、難易度の判断は`difficulty_assessment`に記録する。後者の`asked_knowledge`には判断の対象とした問う知識、`beginner`と`general`には各集団の`status`、`reason`、`evidence_ids`を置く。一般層側の`other_access_paths`には、定義的な資料とは別に名称と代表情報の対応が共有され得る経路を`path`、実際に調べた内容を`search_record`、その対応への接触を確認できたかを`outcome`、調査結果を`result`、確認した資料の引用IDを`evidence_ids`として置く。`outcome`は`confirmed`または`not_confirmed`とし、前者では引用IDを必須とする。後者では引用IDを空にできるが、調べた範囲を超える不在の根拠とは扱わない。
 
 初学者側の`name_learning`には解答対象の名称を学ぶ位置を、`relation_learning`には問う関係を対象の特徴として学ぶ位置を記録する。`learning_connection`には両者を結び付け、要求する粒度の知識を1〜2年以内に学びうると判断する推論を記録する。それぞれに`reason`と`evidence_ids`を置き、引用IDを初学者側の`evidence_ids`にも含める。同じ引用を複数の判断に使えるが、その引用が各判断をどう支えるかは別々に示す。
 
-作文前に`--stage difficulty`で解答対象、問う知識、資料中の逐語引用、難易度の独立検査、担当記録を検査する。問う知識を変更したら難易度を再検査し、`difficulty_review.asked_knowledge`を更新する。完成稿については、`checks`の両参照集団の検査単位に問う知識を記録し、問題文の版、監査結果と対応させる。難易度担当の判定に対する監査結果は`difficulty_review.audit`に記録し、作文前と生成工程では`pending`、監査後は`passed`とする。構造検査は、問う知識と問題文の意味上の一致、資料からの推論の妥当性、工程の実行時刻を保証しない。
+問う知識を変更したら難易度を判断し直し、`difficulty_assessment.asked_knowledge`を更新する。構造検査は、問う知識と問題文の意味上の一致や、資料からの推論の妥当性を保証しない。
 
 専門用語の`term`には、現行問題文にある表記を記録する。命題理解に意味内容が必要かを`meaning_needed`に記録する。必要な場合は、語の意味を確認した引用と理由を`meaning_evidence_ids`・`meaning_reason`、想定プレイヤー層がその意味を明白に知っていると判断する引用と理由を`audience_evidence_ids`・`audience_reason`に分ける。必要ない場合は、意味内容を知らなくても問題文を理解できる理由を`understanding_without_meaning`に記録する。同じ引用を両方に使うときも、語義の確認と既習性の判断をそれぞれ説明する。
 
