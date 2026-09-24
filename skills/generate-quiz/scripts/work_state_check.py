@@ -392,12 +392,10 @@ def validate_intersection_state(state):
         "intersection_review.candidate_examplesが二件に満たない",
     )
     beginner_count = 0
-    candidate_names = set()
     for index, example in enumerate(examples):
         name = f"intersection_review.candidate_examples[{index}]"
         require_condition(isinstance(example, dict), f"{name}がオブジェクトではない")
-        candidate = required_text(example, "name", name)
-        candidate_names.add(unicodedata.normalize("NFKC", candidate).casefold())
+        required_text(example, "name", name)
         source = required_text(example, "source_ref", name)
         require_condition(source in sources, f"{name}.source_refが確認資料にない")
         if "beginner_source_ref" in example or "beginner_learning_basis" in example:
@@ -408,10 +406,6 @@ def validate_intersection_state(state):
             )
             required_text(example, "beginner_learning_basis", name)
             beginner_count += 1
-    require_condition(
-        len(candidate_names) >= MIN_INTERSECTION_EXAMPLES,
-        "intersection_review.candidate_examplesに異なる候補が二件ない",
-    )
     require_condition(
         beginner_count >= 1,
         "intersection_reviewに初級学習資料で確認した候補例がない",

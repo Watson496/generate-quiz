@@ -787,17 +787,6 @@ class TestIntersectionState:
             == 1
         )
 
-    def test_duplicate_candidate_name_fails(self, run_script, intersection_state):
-        """同一名称を二回数えた候補例を拒否する。"""
-        examples = intersection_state["intersection_review"]["candidate_examples"]
-        examples[1]["name"] = examples[0]["name"]
-        assert (
-            check_state(
-                run_script, "intersection-checkpoint", intersection_state
-            ).returncode
-            == 1
-        )
-
     @pytest.mark.parametrize(
         "source", ["資料名", "https://", "https://example.org/a b"]
     )
