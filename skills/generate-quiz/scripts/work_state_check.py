@@ -2,7 +2,7 @@
 """題材探索と作問状態の内容、参照関係、工程境界を検査する。
 
 入力はJSONファイルのパスまたは標準入力から受け取る。--stageには
-facet-selection、intersection-checkpoint、discovery、membership、selection、
+facet-selection、intersection-checkpoint、discovery、membership、selection、prejudgment、
 generation-start、difficulty、generation、audit、finalのいずれかを指定する。
 
 終了コード:
@@ -106,6 +106,12 @@ OUTPUT_HEADINGS = {
 }
 FACET_AXES = ("subject", "place", "time", "type")
 FACET_VIEWPOINTS = ("sharing", "communication", "background")
+PREJUDGMENT_KEYS = (
+    "prejudgment_scope",
+    "prejudgment_membership",
+    "prejudgment_difficulty",
+    "prejudgment_otoshi",
+)
 SELECTION_ROLES = (
     "exploration",
     "nearby_exploration",
@@ -135,6 +141,19 @@ STAGE_ROLES = {
         "topic_weighting",
         "topic_weight_review",
         "topic_distribution_review",
+    ),
+    "prejudgment": (
+        "intersection",
+        *SELECTION_ROLES,
+        "membership",
+        "membership_review",
+        "exposure_precheck",
+        "topic_grouping",
+        "topic_group_review",
+        "topic_weighting",
+        "topic_weight_review",
+        "topic_distribution_review",
+        *PREJUDGMENT_KEYS,
     ),
     "generation-start": ("generation",),
     "difficulty": ("generation", "difficulty_review"),
@@ -771,6 +790,43 @@ def validate_topic_weights(state, pickable):
     return sorted(group_ids)
 
 
+def validate_prejudgments(state, pickable):
+    """抽選した候補ごとに四つの予備判定があり、作問へ進む候補が一つであることを検査する。"""
+    latest = {}
+    for key in PREJUDGMENT_KEYS:
+        latest[key] = {}
+        for index, item in enumerate(required_list(state.get(key), key, nonempty=True)):
+            name = f"{key}[{index}]"
+            require_condition(
+                isinstance(item, dict), f"{name}はオブジェクトでなければならない"
+            )
+            candidate_id = required_text(item, "candidate_id", name)
+            require_condition(
+                candidate_id in pickable, f"{name}.candidate_idが抽選の対象にない"
+            )
+            require_condition(
+                item.get("result") in {"pass", "exclude"}, f"{name}.resultが不正である"
+            )
+            required_text(item, "reason", name)
+            latest[key][candidate_id] = item["result"]
+    candidates = {item["id"]: item for item in state["candidates"]}
+    accepted = []
+    for candidate_id in sorted(set().union(*latest.values())):
+        missing = [key for key in PREJUDGMENT_KEYS if candidate_id not in latest[key]]
+        require_condition(not missing, f"{candidate_id}の予備判定がない: {missing}")
+        rejected = "quality_rejection_reason" in candidates[candidate_id]
+        if any(latest[key][candidate_id] == "exclude" for key in PREJUDGMENT_KEYS):
+            require_condition(
+                rejected, f"candidates.{candidate_id}に予備判定の除外を記録していない"
+            )
+        elif not rejected:
+            accepted.append(candidate_id)
+    require_condition(
+        len(accepted) == 1,
+        f"予備判定に合格して作問へ進む候補が一つではない: {accepted}",
+    )
+
+
 def validate_memberships(state, candidate_ids, known_ids):
     """所属判定が選択対象ごとに4軸の判断を持つことを検査し、所属する候補を返す。"""
     memberships = required_list(
@@ -927,6 +983,8 @@ def validate_selection_state(state, stage):
         return
     pickable = validate_exposure_prechecks(state, members, candidate_ids)
     validate_topic_weights(state, pickable)
+    if stage == "prejudgment":
+        validate_prejudgments(state, pickable)
 
 
 def validate_selection_mode(state):
@@ -1035,7 +1093,7 @@ def validate_selection_execution(state, stage):
     if stage != "discovery":
         require_items_assigned(state, "membership", eligible)
         require_items_assigned(state, "membership_review", eligible)
-    if stage == "selection":
+    if stage in {"selection", "prejudgment"}:
         groups = [group["id"] for group in state["topic_groups"]]
         require_items_assigned(state, "topic_weighting", groups)
         if len(groups) > 1 and state["execution"]["delegation_available"]:
@@ -2167,6 +2225,7 @@ def main():
             "discovery",
             "membership",
             "selection",
+            "prejudgment",
             "generation-start",
             "difficulty",
             "generation",
@@ -2199,7 +2258,7 @@ def main():
         elif args.stage == "discovery-progress":
             validate_discovery_progress(state)
             validate_execution_assignments(state, args.stage)
-        elif args.stage in {"discovery", "membership", "selection"}:
+        elif args.stage in {"discovery", "membership", "selection", "prejudgment"}:
             validate_selection_state(state, args.stage)
             validate_selection_execution(state, args.stage)
         elif args.stage == "generation-start":

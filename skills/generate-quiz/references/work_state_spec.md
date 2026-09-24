@@ -49,6 +49,8 @@
 
 所属判定は`memberships`に、候補IDを`candidate_id`、4軸ごとの判定を`axes`の`subject`・`place`・`time`・`type`として置き、それぞれに所属するかを`belongs`、理由を`reason`として記録する。検査結果は`membership_reviews`に、候補IDを`candidate_id`、判定を`status`（`passed`・`failed`）、理由を`reason`として置く。所属判定は`--stage membership`で検査する。
 
+抽選後の予備判定は、観点ごとに`prejudgment_scope`・`prejudgment_membership`・`prejudgment_difficulty`・`prejudgment_otoshi`に、候補IDを`candidate_id`、合格か除外かを`result`（`pass`・`exclude`）、理由を`reason`として置く。再抽選した候補の判定は後ろへ加える。`--stage prejudgment`は、判定した各候補に四つの判定があること、除外した候補に`quality_rejection_reason`があること、四つとも合格して作問へ進む候補が一つであることを確認する。
+
 `disposition`は探索段階で選択対象となるかを表す。抽選後に題材品質ゲートで棄却した候補は`eligible`のまま、満たせなかった条件を`quality_rejection_reason`へ記録する。再抽選では、この記録がある全候補のIDを`topic_pick.py --exclude`へ渡す。
 
 解答露出の予備検査は`exposure_prechecks`に、候補IDを`candidate_id`、残すか除外するかを`result`（`keep`・`exclude`）、判断理由を`reason`として置く。除外した候補の検査結果は`exposure_precheck_reviews`に、候補IDを`candidate_id`、判定を`status`（`passed`・`failed`）、理由を`reason`として置く。所属する選択対象のうち、`keep`とした候補だけを抽選の対象にする。

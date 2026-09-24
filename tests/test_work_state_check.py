@@ -1274,6 +1274,66 @@ class TestSelectionState:
         assert check_state(run_script, "selection", selection_state).returncode == 0
 
 
+PREJUDGMENT_KEYS = (
+    "prejudgment_scope",
+    "prejudgment_membership",
+    "prejudgment_difficulty",
+    "prejudgment_otoshi",
+)
+
+
+def add_prejudgments(state, candidate_id, excluded=()):
+    """抽選した候補について、四つの予備判定と担当の起動の記録を加える。"""
+    for key in PREJUDGMENT_KEYS:
+        state.setdefault(key, []).append(
+            {
+                "candidate_id": candidate_id,
+                "result": "exclude" if key in excluded else "pass",
+                "reason": f"{candidate_id}について{key}の観点から判定した",
+            }
+        )
+        if not any(item["role"] == key for item in state["execution"]["assignments"]):
+            state["execution"]["assignments"].append(
+                {
+                    "role": key,
+                    "agent_id": f"agent-{key}",
+                    "artifact_refs": [f"{key}.json"],
+                }
+            )
+
+
+class TestPrejudgmentState:
+    """抽選後の四つの予備判定を検査する。"""
+
+    def test_all_passed_candidate_proceeds(self, run_script, selection_state):
+        """四つの予備判定に合格した候補が一つあれば作問へ進める。"""
+        add_prejudgments(selection_state, "K1")
+        assert check_state(run_script, "prejudgment", selection_state).returncode == 0
+
+    def test_each_aspect_is_required(self, run_script, selection_state):
+        """四つの観点それぞれの予備判定を要求する。"""
+        add_prejudgments(selection_state, "K1")
+        selection_state["prejudgment_otoshi"] = [
+            {"candidate_id": "K2", "result": "pass", "reason": "落としを作れる"}
+        ]
+        result = check_state(run_script, "prejudgment", selection_state)
+        assert result.returncode == 1
+        assert "K1の予備判定がない: ['prejudgment_otoshi']" in result.stderr
+
+    def test_exclusion_is_recorded_before_repick(self, run_script, selection_state):
+        """除外した候補は品質棄却を記録し、再抽選した候補の判定へ進む。"""
+        add_prejudgments(selection_state, "K1", excluded={"prejudgment_membership"})
+        result = check_state(run_script, "prejudgment", selection_state)
+        assert result.returncode == 1
+        assert "candidates.K1に予備判定の除外を記録していない" in result.stderr
+        selection_state["candidates"][0]["quality_rejection_reason"] = "記号である"
+        result = check_state(run_script, "prejudgment", selection_state)
+        assert result.returncode == 1
+        assert "作問へ進む候補が一つではない: []" in result.stderr
+        add_prejudgments(selection_state, "K2")
+        assert check_state(run_script, "prejudgment", selection_state).returncode == 0
+
+
 class TestWorkState:
     """生成・監査・最終出力の作業状態を検査する。"""
 
