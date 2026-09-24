@@ -1423,7 +1423,6 @@ def validate_final_input(state, version, active_props, active_clues, difficulty_
         "clue_ids": {item["id"] for item in active_clues},
         "term_ids": {item["id"] for item in state["terms"]},
         "answer_ids": {item["id"] for item in state["answers"]},
-        "output_element_ids": {item["id"] for item in state["output_elements"]},
     }
     for key, ids in expected.items():
         refs = required_id_list(final.get(key), f"final_input.{key}")
@@ -2020,25 +2019,6 @@ def validate_answer_review(state, answers, checks, quote_ids, version):
     )
 
 
-def validate_output_elements(state, stage):
-    outputs, output_ids = records_with_ids(
-        state.get("output_elements"), "output_elements", nonempty=True
-    )
-    require_condition(
-        output_ids == REQUIRED_OUTPUT_IDS,
-        f"出力要素が必須項目と一致しない: {sorted(REQUIRED_OUTPUT_IDS - output_ids)}",
-    )
-    for item in outputs:
-        name = f"output_elements.{item['id']}"
-        content_ref = required_text(item, "content_ref", name)
-        if stage in {"audit", "final"}:
-            require_condition(
-                content_ref == f"final_input.material.{item['id']}",
-                f"{name}.content_refが最終入力を指していない",
-            )
-        require_stage_completion(item, name, stage)
-
-
 def validate_work_state(state, stage):
     require_no_selection_ledger(state)
     if stage == "generation":
@@ -2125,7 +2105,6 @@ def validate_work_state(state, stage):
     validate_answer_review(state, answers, checks, quote_ids, version)
     if stage in {"audit", "final"}:
         validate_exposure_review(state, checks, answers, version)
-    validate_output_elements(state, stage)
     if stage in {"audit", "final"}:
         validate_final_input(
             state, version, active_props, active_clues, difficulty_review

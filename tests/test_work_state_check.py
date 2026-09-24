@@ -21,29 +21,6 @@ REQUIRED_CHECK_IDS = {
     "expression.incremental_comprehension",
     "length",
 }
-REQUIRED_OUTPUT_IDS = {
-    "problem",
-    "answer",
-    "supplement",
-    "alternatives",
-    "judging",
-    "topic_selection",
-    "difficulty.beginner",
-    "difficulty.general",
-    "verification",
-    "clues",
-    "answer_limitation",
-    "answer_exposure",
-    "structure",
-    "clue_order",
-    "expression.naturalness",
-    "expression.comprehensibility",
-    "expression.accuracy",
-    "expression.incremental_comprehension",
-    "length",
-    "answer_judging",
-    "references",
-}
 OUTPUT_HEADINGS = {
     "problem": "問題",
     "answer": "解答",
@@ -151,15 +128,6 @@ def complete_state():
             ),
         }
         for check_id in sorted(REQUIRED_CHECK_IDS)
-    ]
-    outputs = [
-        {
-            "id": output_id,
-            "content_ref": f"output.{output_id}",
-            "generation": "complete",
-            "audit": "passed",
-        }
-        for output_id in sorted(REQUIRED_OUTPUT_IDS)
     ]
     clue_check = {
         "claim": "対象を絞れる",
@@ -434,7 +402,6 @@ def complete_state():
             ],
         },
         "checks": checks,
-        "output_elements": outputs,
         "final_input": {
             "draft_version": 2,
             "topic_selection": {
@@ -465,7 +432,6 @@ def complete_state():
             "clue_ids": ["C1"],
             "term_ids": ["T1"],
             "answer_ids": ["A1"],
-            "output_element_ids": sorted(REQUIRED_OUTPUT_IDS),
             "quote_ids": ["Q1"],
         },
     }
@@ -477,10 +443,6 @@ def complete_state():
     state["final_input"]["material"] = {
         output_id: sections[heading] for output_id, heading in OUTPUT_HEADINGS.items()
     }
-    state["output_elements"] = [
-        {**item, "content_ref": f"final_input.material.{item['id']}"}
-        for item in state["output_elements"]
-    ]
     return state
 
 
@@ -539,7 +501,7 @@ def generation_state(complete_state):
     del state["execution"]["assignment_log"]["evidence_challenge"]
     state["difficulty_review"]["audit"] = "pending"
     state["terminology_review"]["audit"] = "pending"
-    for group in ("propositions", "terms", "answers", "checks", "output_elements"):
+    for group in ("propositions", "terms", "answers", "checks"):
         for item in state[group]:
             item["audit"] = "pending"
     for check in state["clues"][0]["checks"].values():
@@ -2725,7 +2687,6 @@ class TestWorkState:
             "clue_ids",
             "term_ids",
             "answer_ids",
-            "output_element_ids",
         ],
     )
     def test_audit_rejects_duplicate_final_input_id(
