@@ -134,6 +134,7 @@ STAGE_ROLES = {
         "topic_group_review",
         "topic_weighting",
         "topic_weight_review",
+        "topic_distribution_review",
     ),
     "generation-start": ("generation",),
     "difficulty": ("generation", "difficulty_review"),
@@ -766,6 +767,7 @@ def validate_topic_weights(state, pickable):
     validate_reviews(state, "topic_group_reviews", sorted(group_ids), "group_id")
     weight_targets = sorted(group_ids) + (["groups"] if len(groups) > 1 else [])
     validate_reviews(state, "topic_weight_reviews", weight_targets, "target")
+    validate_reviews(state, "topic_distribution_reviews", ["all"], "target")
     return sorted(group_ids)
 
 

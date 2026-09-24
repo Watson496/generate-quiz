@@ -53,7 +53,7 @@
 
 解答露出の予備検査は`exposure_prechecks`に、候補IDを`candidate_id`、残すか除外するかを`result`（`keep`・`exclude`）、判断理由を`reason`として置く。除外した候補の検査結果は`exposure_precheck_reviews`に、候補IDを`candidate_id`、判定を`status`（`passed`・`failed`）、理由を`reason`として置く。所属する選択対象のうち、`keep`とした候補だけを抽選の対象にする。
 
-抽選の対象の候補のまとまりは`topic_groups`に、`id`、名前を`label`、含む候補IDを`candidate_ids`、切り方の理由を`reason`として置く。まとまりが複数あれば、まとまり同士のweightを`group_weights`に、まとまりの`group_id`と、ファセットのweightと同じ`weight`・`viewpoints`・`reason`として置く。まとまりの中の各候補のweightは`candidate_weights`に、`candidate_id`と`weight`・`viewpoints`・`reason`、対象再出現の履歴距離を`history_distances`として置く。まとまりの切り方の検査結果は`topic_group_reviews`に、まとまりの`group_id`、判定を`status`（`passed`・`failed`）、理由を`reason`として置く。weightの検査結果は`topic_weight_reviews`に、検査したまとまりのIDまたはまとまり同士のweightを表す`groups`を`target`として、`status`と`reason`を置く。`topic_pick.py`は二つのweightの積を基礎weightとして抽選する。
+抽選の対象の候補のまとまりは`topic_groups`に、`id`、名前を`label`、含む候補IDを`candidate_ids`、切り方の理由を`reason`として置く。まとまりが複数あれば、まとまり同士のweightを`group_weights`に、まとまりの`group_id`と、ファセットのweightと同じ`weight`・`viewpoints`・`reason`として置く。まとまりの中の各候補のweightは`candidate_weights`に、`candidate_id`と`weight`・`viewpoints`・`reason`、対象再出現の履歴距離を`history_distances`として置く。まとまりの切り方の検査結果は`topic_group_reviews`に、まとまりの`group_id`、判定を`status`（`passed`・`failed`）、理由を`reason`として置く。weightの検査結果は`topic_weight_reviews`に、検査したまとまりのIDまたはまとまり同士のweightを表す`groups`を`target`として、`status`と`reason`を置く。weightの分布全体の検査結果は`topic_distribution_reviews`に、`target`を`all`として`status`と`reason`を置く。`topic_pick.py`は二つのweightの積を基礎weightとして抽選する。
 
 ## 解答対象ごとの作業状態
 
@@ -227,7 +227,7 @@ JSON manifestは、検査対象を具体的な内容へ結び付け、確定的�
 ```json
 {
   "facet_nodes": {"subject": "subject::66", "place": "place::ROOT", "time": "time::ROOT", "type": "type::ROOT"},
-  "execution": {"delegation_available": true, "assignments": [{"role": "intersection", "agent_id": "agent-1", "artifact_refs": ["intersection.md"]}, {"role": "exploration", "agent_id": "agent-2", "artifact_refs": ["exploration_D1.md"], "items": ["D1"]}, {"role": "exploration", "agent_id": "agent-3", "artifact_refs": ["exploration_D2.md"], "items": ["D2"]}, {"role": "nearby_exploration", "agent_id": "agent-4", "artifact_refs": ["nearby_exploration.md"], "items": ["K1", "K2"]}, {"role": "alternate_exploration", "agent_id": "agent-5", "artifact_refs": ["alternate_exploration.md"]}, {"role": "saturation_review", "agent_id": "agent-6", "artifact_refs": ["saturation_review.md"]}, {"role": "membership", "agent_id": "agent-7", "artifact_refs": ["membership.json"], "items": ["K1", "K2"]}, {"role": "membership_review", "agent_id": "agent-8", "artifact_refs": ["membership_review.json"], "items": ["K1", "K2"]}, {"role": "exposure_precheck", "agent_id": "agent-9", "artifact_refs": ["exposure_precheck.md"], "items": ["K1", "K2"]}, {"role": "topic_grouping", "agent_id": "agent-10", "artifact_refs": ["topic_grouping.json"]}, {"role": "topic_group_review", "agent_id": "agent-11", "artifact_refs": ["topic_group_review.json"]}, {"role": "topic_weighting", "agent_id": "agent-12", "artifact_refs": ["topic_weighting_G1.json"], "items": ["G1"]}, {"role": "topic_weight_review", "agent_id": "agent-13", "artifact_refs": ["topic_weight_review.json"]}]},
+  "execution": {"delegation_available": true, "assignments": [{"role": "intersection", "agent_id": "agent-1", "artifact_refs": ["intersection.md"]}, {"role": "exploration", "agent_id": "agent-2", "artifact_refs": ["exploration_D1.md"], "items": ["D1"]}, {"role": "exploration", "agent_id": "agent-3", "artifact_refs": ["exploration_D2.md"], "items": ["D2"]}, {"role": "nearby_exploration", "agent_id": "agent-4", "artifact_refs": ["nearby_exploration.md"], "items": ["K1", "K2"]}, {"role": "alternate_exploration", "agent_id": "agent-5", "artifact_refs": ["alternate_exploration.md"]}, {"role": "saturation_review", "agent_id": "agent-6", "artifact_refs": ["saturation_review.md"]}, {"role": "membership", "agent_id": "agent-7", "artifact_refs": ["membership.json"], "items": ["K1", "K2"]}, {"role": "membership_review", "agent_id": "agent-8", "artifact_refs": ["membership_review.json"], "items": ["K1", "K2"]}, {"role": "exposure_precheck", "agent_id": "agent-9", "artifact_refs": ["exposure_precheck.md"], "items": ["K1", "K2"]}, {"role": "topic_grouping", "agent_id": "agent-10", "artifact_refs": ["topic_grouping.json"]}, {"role": "topic_group_review", "agent_id": "agent-11", "artifact_refs": ["topic_group_review.json"]}, {"role": "topic_weighting", "agent_id": "agent-12", "artifact_refs": ["topic_weighting_G1.json"], "items": ["G1"]}, {"role": "topic_weight_review", "agent_id": "agent-13", "artifact_refs": ["topic_weight_review.json"]}, {"role": "topic_distribution_review", "agent_id": "agent-14", "artifact_refs": ["topic_distribution_review.json"]}]},
   "intersection_review": {
     "source_refs": ["https://example.org/outline", "https://example.org/lesson"],
     "candidate_examples": [
@@ -280,6 +280,9 @@ JSON manifestは、検査対象を具体的な内容へ結び付け、確定的�
   ],
   "topic_weight_reviews": [
     {"target": "G1", "status": "passed", "reason": "学校教育での扱いの差から、アンモニアソーダ法をクメン法より重く見ることに無理がない"}
+  ],
+  "topic_distribution_reviews": [
+    {"target": "all", "status": "passed", "reason": "3対1の比が、学校教育での扱いと一般の知名度の差に見合っている"}
   ],
   "frontier_ids": [],
   "saturated": true

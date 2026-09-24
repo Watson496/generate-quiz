@@ -378,6 +378,13 @@ def selection_state(intersection_state):
             }
             for target in ("G1", "G2", "groups")
         ],
+        "topic_distribution_reviews": [
+            {
+                "target": "all",
+                "status": "passed",
+                "reason": "二段階のweightの積の分布を候補間の重要度の差と照らした",
+            }
+        ],
         "frontier_ids": [],
         "saturated": True,
         "memberships": [
@@ -451,6 +458,7 @@ def selection_state(intersection_state):
         ("topic_weighting", ["G1"]),
         ("topic_weighting", ["G2"]),
         ("topic_weight_review", None),
+        ("topic_distribution_review", None),
     )
     state["execution"] = {
         **state["execution"],

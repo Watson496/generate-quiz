@@ -23,6 +23,7 @@
     "candidate_weights": "まとまりの中の各候補のweightと、三観点の評価と根拠",
     "topic_group_reviews": "まとまりの切り方の検査結果",
     "topic_weight_reviews": "題材候補のweightの検査結果",
+    "topic_distribution_reviews": "題材候補のweightの分布全体の検査結果",
     "answer_target": "解答対象と、抽選した場合の四軸の日本語の分類経路と履歴補正の適用結果",
     "sources": "資料の書誌情報、逐語引用、所在、周辺文脈、対象読者と日本語文化圏との関係",
     "propositions": "命題",
@@ -249,6 +250,15 @@
           "specs": ["selection_and_history_spec.md", "work_state_spec.md"],
           "inputs": [["history", "ledger", "topic_groups", "group_weights", "candidate_weights"]],
           "outputs": ["topic_weight_reviews"]
+        },
+        {
+          "id": "topic_distribution_review",
+          "name": "題材候補のweightの分布の検査担当",
+          "side": "check",
+          "section": "題材候補のweightと抽選",
+          "specs": ["selection_and_history_spec.md", "work_state_spec.md"],
+          "inputs": [["ledger", "topic_groups", "group_weights", "candidate_weights"]],
+          "outputs": ["topic_distribution_reviews"]
         }
       ]
     },
