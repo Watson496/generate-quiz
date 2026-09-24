@@ -200,7 +200,9 @@ JSON manifestは、検査対象を具体的な内容へ結び付け、確定的�
 
 専門用語の列挙担当は、`term_listing`に`draft_version`と、列挙した語を`terms`（語IDを`id`、表記を`term`）として置く。該当語がない場合も空の`terms`を置く。意味内容の要否の検査結果は`term_necessity_reviews`に、語IDを`term_id`、要否を`meaning_needed`、判定を`status`、理由を`reason`として置く。語義と既習性の検査結果は`term_sense_reviews`と`term_audience_reviews`に、意味内容が必要な語の`term_id`、`status`、`reason`、確認した引用IDを`evidence_ids`として置く。`work_state_check.py`は、列挙した語が作る側の語と一致すること、要否の判断が作る側と一致すること、各検査が合格していること、検査の引用が作る側の採用した引用と一致することを確認する。問題文からの語の抽出、必要性の判断、引用が判断を実際に支えるかまでは判定しない。
 
-`final_input`は検査の前に確定する。`final_input.relative_clauses`には、現行問題文の各連体修飾節を`passage`、内の関係か外の関係かを`relation`（`inner`・`outer`）として置き、判断理由を`reason`として記録する。外の関係では、修飾節が表す内容と解答対象を結ぶ命題IDを`relation_proposition_ids`に置く。連体修飾節がなければ空配列とする。`work_state_check.py`は各`passage`が問題文にあって重複しないことと、外の関係だけに命題IDがあることを確認し、節の漏れ、内外関係の判断、命題が関係を表すかは実現命題の照合担当が判定する。`final_input.quote_ids`には採用中の判断に用いた引用IDを過不足なく置く。`other_access_paths`の調査だけに用いた引用は含めない。
+作文担当は、`relative_clauses`に現行問題文の各連体修飾節を`passage`、内の関係か外の関係かを`relation`（`inner`・`outer`）として置き、判断理由を`reason`として記録する。外の関係では、修飾節が表す内容と解答対象を結ぶ命題IDを`relation_proposition_ids`に置く。連体修飾節がなければ空配列とする。`work_state_check.py`は各`passage`が問題文にあって重複しないことと、外の関係だけに命題IDがあることを確認し、節の漏れ、内外関係の判断、命題が関係を表すかは実現命題の照合担当が判定する。
+
+`final_input`は、本文の執筆担当が検査の合格後に作り、`--stage material`で検査する。`final_input.quote_ids`には採用中の判断に用いた引用IDを過不足なく置く。`other_access_paths`の調査だけに用いた引用は含めない。
 
 検査の合格後は、組立て担当と最終照合担当の起動の記録を加える以外に、採用項目と`final_input`を変更しない。最終段階では、完成したMarkdownと検査に使った状態ファイルそのものを`work_state_check.py --stage final --output 完成稿.md 状態.json`へ渡す。`work_state_check.py`は逐語引用の本文が出力に実在することを確認し、引用と結論の意味上の対応は最終照合担当が資料本文に戻って判定する。
 
