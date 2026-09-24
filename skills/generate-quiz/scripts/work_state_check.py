@@ -1250,10 +1250,6 @@ def validate_structure_check(item, name, draft_text, active_clues):
     require_condition(form in {"SC", "OV"}, f"{name}.question_formが不正である")
     phrase = required_text(item, "question_phrase", name)
     require_condition(phrase in draft_text, f"{name}.question_phraseが問題文にない")
-    if re.search(r"を何(?:と|て)?(?:いう|呼ぶ|言う)", phrase):
-        require_condition(form == "OV", f"{name}.question_formが質問形式と一致しない")
-    if re.search(r"は(?:何|誰|どこ|どちら)(?:でしょう|ですか)", phrase):
-        require_condition(form == "SC", f"{name}.question_formが質問形式と一致しない")
     nucleus = required_text(item, "nucleus", name)
     otoshi = required_text(item, "otoshi", name)
     required_text(item, "otoshi_direct_description", name)

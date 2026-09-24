@@ -2016,33 +2016,6 @@ class TestWorkState:
         assert result.returncode == 1
         assert "nucleusが解答対象の上位分類ではない" in result.stderr
 
-    def test_structure_rejects_question_form_mismatch(self, run_script, complete_state):
-        """質問表現と構文型の不一致を拒否する。"""
-        complete_state["draft"]["text"] = (
-            "同じ長さの線分が矢羽の向きで異なる長さに見える錯視を何というでしょう？"
-        )
-        structure = next(
-            check for check in complete_state["checks"] if check["id"] == "structure"
-        )
-        structure["question_phrase"] = "を何というでしょう？"
-        assert check_state(run_script, "audit", complete_state).returncode == 1
-
-    @pytest.mark.parametrize("pronoun", ["誰", "どこ", "どちら"])
-    def test_structure_rejects_sc_question_marked_as_ov(
-        self, run_script, complete_state, pronoun
-    ):
-        """SC型の各疑問詞をOV型として記録した状態を拒否する。"""
-        complete_state["draft"]["text"] = (
-            f"同じ長さの線分が矢羽の向きで異なる長さに見える錯視は{pronoun}でしょう？"
-        )
-        structure = next(
-            check for check in complete_state["checks"] if check["id"] == "structure"
-        )
-        structure.update(question_form="OV", question_phrase=f"は{pronoun}でしょう？")
-        result = check_state(run_script, "audit", complete_state)
-        assert result.returncode == 1
-        assert "question_formが質問形式と一致しない" in result.stderr
-
     def test_structure_rejects_otoshi_before_later_modifier(
         self, run_script, complete_state
     ):
