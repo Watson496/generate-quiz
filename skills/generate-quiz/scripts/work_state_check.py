@@ -160,6 +160,7 @@ STAGE_ROLES = {
     "generation": (
         "generation",
         "source_reliability",
+        "clue_centrality",
         "difficulty_review",
         "terminology_review",
         "exposure",
@@ -168,6 +169,8 @@ STAGE_ROLES = {
         "generation",
         "source_reliability",
         "source_reliability_review",
+        "clue_centrality",
+        "centrality_review",
         "difficulty_review",
         "terminology_review",
         "exposure",
@@ -178,6 +181,8 @@ STAGE_ROLES = {
         "generation",
         "source_reliability",
         "source_reliability_review",
+        "clue_centrality",
+        "centrality_review",
         "difficulty_review",
         "terminology_review",
         "exposure",
@@ -1263,7 +1268,7 @@ def validate_sources_propositions_and_clues(state, version, stage):
         referenced_ids(item, "proposition_ids", prop_ids, name)
         values = item.get("checks")
         require_condition(isinstance(values, dict), f"{name}.checksがない")
-        for key in ("centrality", "quasi_uniqueness", "familiarity"):
+        for key in ("quasi_uniqueness", "familiarity"):
             check = values.get(key)
             cname = f"{name}.{key}"
             require_condition(isinstance(check, dict), f"{cname}がない")
@@ -1341,6 +1346,37 @@ def validate_source_assessments(state, active_props, stage):
     if stage in {"audit", "final"}:
         validate_reviews(state, "source_reliability_reviews", source_ids, "source_id")
         require_items_assigned(state, "source_reliability_review", source_ids)
+
+
+def validate_clue_centrality(state, active_clues, quote_ids, stage):
+    """採用中の各手掛かりに中核性の評価があり、検査で合格していることを検査する。"""
+    clue_ids = {clue["id"] for clue in active_clues}
+    evaluated = set()
+    for index, item in enumerate(
+        required_list(state.get("clue_centrality"), "clue_centrality", nonempty=True)
+    ):
+        name = f"clue_centrality[{index}]"
+        require_condition(
+            isinstance(item, dict), f"{name}はオブジェクトでなければならない"
+        )
+        clue_id = required_text(item, "clue_id", name)
+        require_condition(
+            clue_id in {clue["id"] for clue in state["clues"]},
+            f"{name}.clue_idが手掛かりにない",
+        )
+        required_text(item, "claim", name)
+        required_text(item, "reason", name)
+        referenced_ids(item, "evidence_ids", quote_ids, name)
+        evaluated.add(clue_id)
+    missing = sorted(clue_ids - evaluated)
+    require_condition(not missing, f"中核性の評価のない手掛かりがある: {missing}")
+    if stage in {"audit", "final"}:
+        validate_reviews(
+            state,
+            "centrality_reviews",
+            sorted(clue_ids),
+            "clue_id",
+        )
 
 
 def validate_difficulty_review(state, quote_ids, stage):
@@ -1656,9 +1692,12 @@ def validate_final_input(state, version, active_props, active_clues, difficulty_
         for element in item.get("verification_elements", []):
             cited.update(element["evidence_ids"])
     for item in active_clues:
-        for key in ("centrality", "quasi_uniqueness", "familiarity"):
+        for key in ("quasi_uniqueness", "familiarity"):
             check = item["checks"][key]
             cited.update(check["evidence_ids"])
+    for item in state["clue_centrality"]:
+        if item["clue_id"] in {clue["id"] for clue in active_clues}:
+            cited.update(item["evidence_ids"])
     for key in ("answers", "checks"):
         for item in state[key]:
             cited.update(item.get("evidence_ids", []))
@@ -2170,6 +2209,7 @@ def validate_work_state(state, stage):
         state, version, stage
     )
     validate_source_assessments(state, active_props, stage)
+    validate_clue_centrality(state, active_clues, quote_ids, stage)
     difficulty_review = validate_difficulty_review(state, quote_ids, stage)
     if stage in {"audit", "final"}:
         validate_evidence_challenge(state, quote_ids, active_clues, version)

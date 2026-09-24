@@ -35,6 +35,8 @@
     "source_reliability_reviews": "資料の信頼性の評価の検査結果",
     "propositions": "命題",
     "clues": "手掛かりの問題文中の文字列と命題ID",
+    "clue_centrality": "手掛かりごとの中核性の評価",
+    "centrality_reviews": "手掛かりの中核性の検査結果",
     "competitors": "生成側が挙げた対抗候補のIDと名称",
     "asked_knowledge": "問う知識と、要求する解答知識の粒度",
     "draft": "現行版の問題文",
@@ -333,6 +335,15 @@
           "split_size": 5
         },
         {
+          "id": "clue_centrality",
+          "name": "手掛かりの中核性担当",
+          "side": "make",
+          "section": "手掛かりの中核性",
+          "specs": ["quiz_generation_spec.md", "verification_and_judging_spec.md", "work_state_spec.md"],
+          "inputs": [["answer_target", "clues", "sources", "source_assessments"]],
+          "outputs": ["clue_centrality"]
+        },
+        {
           "id": "difficulty_review",
           "name": "難易度検査担当",
           "side": "check",
@@ -373,6 +384,15 @@
           "inputs": [["answer_target", "sources", "source_assessments"]],
           "outputs": ["source_reliability_reviews"],
           "split_size": 5
+        },
+        {
+          "id": "centrality_review",
+          "name": "手掛かりの中核性の検査担当",
+          "side": "check",
+          "section": "手掛かりの中核性",
+          "specs": ["quiz_generation_spec.md", "verification_and_judging_spec.md", "work_state_spec.md"],
+          "inputs": [["answer_target", "clues", "sources", "source_assessments", "clue_centrality"]],
+          "outputs": ["centrality_reviews"]
         },
         {
           "id": "evidence_challenge",

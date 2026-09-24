@@ -153,6 +153,10 @@ def complete_state():
         }
         for role in ("source_reliability", "source_reliability_review")
     )
+    assignments.extend(
+        {"role": role, "agent_id": f"agent-{role}", "artifact_refs": [f"{role}.json"]}
+        for role in ("clue_centrality", "centrality_review")
+    )
     state = {
         "selection_mode": "random",
         "facet_nodes": {
@@ -233,6 +237,17 @@ def complete_state():
                 "reason": "編集体制と記述の出所を確かめた",
             }
         ],
+        "clue_centrality": [
+            {
+                "clue_id": "C1",
+                "claim": "錯視の図形条件は対象の定義に当たる",
+                "reason": "資料が図形条件で対象を説明する",
+                "evidence_ids": evidence.copy(),
+            }
+        ],
+        "centrality_reviews": [
+            {"clue_id": "C1", "status": "passed", "reason": "定義として扱われる"}
+        ],
         "propositions": [
             {
                 "id": "P1",
@@ -255,7 +270,6 @@ def complete_state():
                 "directly_describes_target": True,
                 "proposition_ids": ["P1"],
                 "checks": {
-                    "centrality": copy.deepcopy(clue_check),
                     "quasi_uniqueness": {
                         **clue_check,
                         "comparison_scope": "同じ上位分類",
@@ -1381,6 +1395,20 @@ class TestPrejudgmentState:
 
 class TestWorkState:
     """生成・監査・最終出力の作業状態を検査する。"""
+
+    def test_active_clue_needs_centrality(self, run_script, generation_state):
+        """採用中の手掛かりごとに中核性の評価を要する。"""
+        generation_state["clue_centrality"][0]["clue_id"] = "C9"
+        result = check_state(run_script, "generation", generation_state)
+        assert result.returncode == 1
+        assert "clue_centrality[0].clue_idが手掛かりにない" in result.stderr
+
+    def test_centrality_requires_passed_review(self, run_script, complete_state):
+        """中核性の評価は検査担当の合格を要する。"""
+        complete_state["centrality_reviews"][0]["status"] = "failed"
+        result = check_state(run_script, "audit", complete_state)
+        assert result.returncode == 1
+        assert "centrality_reviewsに不合格の項目がある: ['C1']" in result.stderr
 
     def test_every_source_needs_assessment(self, run_script, generation_state):
         """資料ごとに信頼性の評価を要する。"""
