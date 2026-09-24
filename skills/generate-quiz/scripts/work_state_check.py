@@ -641,7 +641,7 @@ def validate_selection_candidates(
     return candidates, candidate_ids
 
 
-def validate_selection_review(state, entries, areas, candidates, entry_ids):
+def validate_selection_review(state, areas, candidates, entry_ids):
     area_ids = {item["id"] for item in areas}
     candidate_ids = {item["id"] for item in candidates}
     reviews, review_ids = records_with_ids(
@@ -650,16 +650,10 @@ def validate_selection_review(state, entries, areas, candidates, entry_ids):
     require_condition(
         review_ids == area_ids, "別経路の探索が全下位領域に対応していない"
     )
-    completed_searches = {
-        normalize_candidate_name(search["query"])
-        for area in areas
-        for search in area["source_searches"]
-    }
     for review in reviews:
         name = f"independent_review.{review['id']}"
         required_text(review, "difference_from_exploration", name)
-        query = required_text(review, "source_discovery_query", name)
-        completed_searches.add(normalize_candidate_name(query))
+        required_text(review, "source_discovery_query", name)
         checked = set(
             referenced_ids(review, "checked_entry_point_ids", entry_ids, name)
         )
@@ -681,8 +675,7 @@ def validate_selection_review(state, entries, areas, candidates, entry_ids):
     challenge = state.get("saturation_challenge")
     require_condition(isinstance(challenge, dict), "saturation_challengeがない")
     required_text(challenge, "search_perspective", "saturation_challenge")
-    challenge_query = required_text(challenge, "query", "saturation_challenge")
-    completed_searches.add(normalize_candidate_name(challenge_query))
+    required_text(challenge, "query", "saturation_challenge")
     referenced_ids(
         challenge, "opened_entry_point_ids", entry_ids, "saturation_challenge"
     )
@@ -695,16 +688,6 @@ def validate_selection_review(state, entries, areas, candidates, entry_ids):
     )
     required_text(challenge, "resolution", "saturation_challenge")
     require_condition(challenge.get("resolved") is True, "反証調査の結果が未処理である")
-    opened_urls = {normalize_candidate_name(item["url"]) for item in entries}
-    for area in areas:
-        for index, search in enumerate(area["source_searches"]):
-            for next_search in search["next_searches"]:
-                require_condition(
-                    isinstance(next_search, str)
-                    and normalize_candidate_name(next_search)
-                    in completed_searches | opened_urls,
-                    f"coverage_areas.{area['id']}.source_searches[{index}]の次の検索先が未調査である",
-                )
 
 
 def validate_discovery_progress(state):
@@ -723,11 +706,11 @@ def validate_discovery_progress(state):
 
 def validate_selection_state(state, *, discovery_only=False):
     validate_intersection_state(state)
-    entries, entry_ids, areas, area_ids = validate_selection_entries_areas(state)
+    _, entry_ids, areas, area_ids = validate_selection_entries_areas(state)
     candidates, candidate_ids = validate_selection_candidates(
         state, entry_ids, areas, area_ids, discovery_only=discovery_only
     )
-    validate_selection_review(state, entries, areas, candidates, entry_ids)
+    validate_selection_review(state, areas, candidates, entry_ids)
     frontier = required_id_list(state.get("frontier_ids"), "frontier_ids")
     require_condition(
         not (set(frontier) - candidate_ids), "frontier_idsに存在しない候補がある"

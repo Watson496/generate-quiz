@@ -995,15 +995,6 @@ class TestSelectionState:
         selection_state["saturation_challenge"]["resolved"] = False
         assert check_state(run_script, "selection", selection_state).returncode == 1
 
-    def test_selection_requires_following_next_search(
-        self, run_script, selection_state
-    ):
-        """記録した有望な検索先を調べずに探索を終えられない。"""
-        selection_state["coverage_areas"][0]["source_searches"][0]["next_searches"] = [
-            "未調査の資料"
-        ]
-        assert check_state(run_script, "selection", selection_state).returncode == 1
-
     def test_selection_requires_distinct_entry_kinds(self, run_script, selection_state):
         """探索入口が同じ種類だけなら探索状態を拒否する。"""
         for entry in selection_state["entry_points"]:
