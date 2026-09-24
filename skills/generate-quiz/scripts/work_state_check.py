@@ -167,7 +167,6 @@ STAGE_ROLES = {
         "certainty",
         "difficulty_review",
         "terminology_review",
-        "exposure",
     ),
     "audit": (
         "name_research",
@@ -187,6 +186,7 @@ STAGE_ROLES = {
         "difficulty_review",
         "terminology_review",
         "exposure",
+        "exposure_analysis",
         "evidence_challenge",
         "audit",
     ),
@@ -208,6 +208,7 @@ STAGE_ROLES = {
         "difficulty_review",
         "terminology_review",
         "exposure",
+        "exposure_analysis",
         "evidence_challenge",
         "audit",
         "finalization",
@@ -1094,12 +1095,12 @@ def validate_execution_assignments(state, stage):
     require_condition(
         not missing, f"execution.assignmentsに担当の記録がない: {missing}"
     )
-    if stage in {"generation", "audit", "final"}:
+    if stage in {"audit", "final"}:
         draft = state.get("draft")
         version = draft.get("version") if isinstance(draft, dict) else None
         require_condition(
             version in exposure_versions.values(),
-            "現行版の露出検査担当の記録がない",
+            "現行版の解答を伏せた名称候補の担当の記録がない",
         )
 
 
@@ -2116,54 +2117,35 @@ def validate_terminology(state, quote_ids, version, stage, draft_text):
             )
 
 
-def validate_exposure_review(state, checks, answers, version):
-    exposure_review = state.get("exposure_review")
-    require_condition(isinstance(exposure_review, dict), "exposure_reviewがない")
-    require_condition(
-        exposure_review.get("draft_version") == version,
-        "exposure_review.draft_versionが問題文と一致しない",
+def validate_exposure_analysis(state, checks, version):
+    """解答を伏せて挙げた名称候補と、露出の分析が全候補に対応することを検査する。"""
+    blind, blind_ids = records_with_ids(
+        state.get("blind_candidates"), "blind_candidates"
     )
-    require_condition(
-        exposure_review.get("question_sha256")
-        == hashlib.sha256(state["draft"]["text"].encode()).hexdigest(),
-        "exposure_review.question_sha256が問題文と一致しない",
-    )
-    correct_answers = {item["id"] for item in answers if item["judgment"] == "correct"}
-    checked = required_id_list(
-        exposure_review.get("checked_answer_ids"),
-        "exposure_review.checked_answer_ids",
-    )
-    require_condition(
-        set(checked) == correct_answers,
-        "exposure_review.checked_answer_idsが正答範囲と一致しない",
-    )
-    require_condition(
-        exposure_review.get("status") == "passed", "exposure_reviewが合格していない"
-    )
-    candidates = required_list(
-        exposure_review.get("candidates"), "exposure_review.candidates"
-    )
-    if not candidates:
-        required_text(exposure_review, "no_candidate_reason", "exposure_review")
-    judgments = {item["id"]: item["judgment"] for item in answers}
-    exposure_check = next(item for item in checks if item["id"] == "answer_exposure")
-    recorded_ids = {
-        candidate["id"]
-        for key in ("blind_candidates", "semantic_candidates")
-        for candidate in exposure_check[key]
-    }
-    for index, candidate in enumerate(candidates):
-        cname = f"exposure_review.candidates[{index}]"
-        validate_name_formation(candidate, cname)
+    for item in blind:
+        name = f"blind_candidates.{item['id']}"
+        required_text(item, "name", name)
         require_condition(
-            candidate.get("exposure_candidate_id") in recorded_ids,
-            f"{cname}が露出検査に反映されていない",
+            "answer_id" not in item, f"{name}に解答開示前の対応付けがある"
         )
         require_condition(
-            "answer_id" in candidate
-            and candidate["answer_id"] in set(judgments) | {None},
-            f"{cname}.answer_idが解答候補を参照していない",
+            item.get("draft_version") == version, f"{name}の問題文の版が一致しない"
         )
+    exposure = next(item for item in checks if item["id"] == "answer_exposure")
+    semantic_ids = {item["id"] for item in exposure["semantic_candidates"]}
+    require_condition(not blind_ids & semantic_ids, "露出候補のidが重複している")
+    analyses = required_list(state.get("exposure_analysis"), "exposure_analysis")
+    for index, item in enumerate(analyses):
+        name = f"exposure_analysis[{index}]"
+        require_condition(
+            isinstance(item, dict), f"{name}はオブジェクトでなければならない"
+        )
+        required_text(item, "candidate_id", name)
+        validate_name_formation(item, name)
+    validate_reviews(
+        state, "exposure_analysis", sorted(blind_ids | semantic_ids), "candidate_id"
+    )
+    return blind_ids, semantic_ids
 
 
 def validate_answers(state, quote_ids):
@@ -2265,8 +2247,7 @@ def validate_answer_review(state, answers, checks, quote_ids, version):
     exposure = next(item for item in checks if item["id"] == "answer_exposure")
     exposure_candidates = {
         item["id"]: item
-        for key in ("blind_candidates", "semantic_candidates")
-        for item in exposure[key]
+        for item in [*state["blind_candidates"], *exposure["semantic_candidates"]]
     }
     semantic_ids = {item["id"] for item in exposure["semantic_candidates"]}
     candidates = required_list(
@@ -2370,34 +2351,21 @@ def validate_work_state(state, stage):
         if item["id"] == "structure":
             validate_structure_check(item, name, draft["text"], active_clues)
         if item["id"] == "answer_exposure":
-            blind = required_list(
-                item.get("blind_candidates"), f"{name}.blind_candidates"
-            )
             semantic = required_list(
                 item.get("semantic_candidates"), f"{name}.semantic_candidates"
             )
             required_text(item, "answer_side_knowledge_required", name)
             answer_ids = {answer["id"] for answer in answers}
             candidate_ids = []
-            for key, candidates in (
-                ("blind_candidates", blind),
-                ("semantic_candidates", semantic),
-            ):
-                for index, candidate in enumerate(candidates):
-                    cname = f"{name}.{key}[{index}]"
-                    validate_name_formation(candidate, cname)
-                    candidate_ids.append(required_text(candidate, "id", cname))
-                    if key == "semantic_candidates":
-                        require_condition(
-                            "answer_id" in candidate
-                            and candidate["answer_id"] in answer_ids | {None},
-                            f"{cname}.answer_idが解答候補を参照していない",
-                        )
-                    else:
-                        require_condition(
-                            "answer_id" not in candidate,
-                            f"{cname}に解答開示前の対応付けがある",
-                        )
+            for index, candidate in enumerate(semantic):
+                cname = f"{name}.semantic_candidates[{index}]"
+                validate_name_formation(candidate, cname)
+                candidate_ids.append(required_text(candidate, "id", cname))
+                require_condition(
+                    "answer_id" in candidate
+                    and candidate["answer_id"] in answer_ids | {None},
+                    f"{cname}.answer_idが解答候補を参照していない",
+                )
             require_condition(
                 len(candidate_ids) == len(set(candidate_ids)),
                 f"{name}の露出候補のidが重複している",
@@ -2406,10 +2374,8 @@ def validate_work_state(state, stage):
             referenced_ids(item, "evidence_ids", quote_ids, name)
         require_stage_completion(item, name, stage)
     if stage in {"audit", "final"}:
+        validate_exposure_analysis(state, checks, version)
         validate_answer_review(state, answers, checks, quote_ids, version)
-    if stage in {"audit", "final"}:
-        validate_exposure_review(state, checks, answers, version)
-    if stage in {"audit", "final"}:
         validate_final_input(
             state, version, active_props, active_clues, difficulty_review
         )

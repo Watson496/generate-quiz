@@ -51,6 +51,7 @@ def complete_state():
     """全工程を通過できる一問分の作業状態を作る。"""
     evidence = ["Q1"]
     roles = (
+        "exposure_analysis",
         "name_research",
         "answer_range",
         "answer_judging",
@@ -97,7 +98,6 @@ def complete_state():
             ),
             **(
                 {
-                    "blind_candidates": [],
                     "semantic_candidates": [
                         {
                             "id": "X1",
@@ -441,16 +441,26 @@ def complete_state():
                 "evidence_ids": evidence.copy(),
             }
         ],
-        "exposure_review": {
-            "draft_version": 2,
-            "question_sha256": hashlib.sha256(
-                "同じ長さの線分が矢羽の向きで異なる長さに見える錯視は何でしょう？".encode()
-            ).hexdigest(),
-            "checked_answer_ids": ["A1"],
-            "status": "passed",
-            "candidates": [],
-            "no_candidate_reason": "問題文から名称候補を形成できなかった",
-        },
+        "blind_candidates": [],
+        "exposure_analysis": [
+            {
+                "candidate_id": "X1",
+                "name": "一般名称",
+                "formation_rule": "対象との既知の対応から名称を選ぶ",
+                "components": [
+                    {
+                        "form": "一般名称",
+                        "source": "対象と名称の既知の対応",
+                        "knowledge": "answer_side",
+                        "answer_side_reason": "名称そのものを知っている必要がある",
+                    }
+                ],
+                "formation_requires_answer_side_knowledge": True,
+                "standard_name_confirmation_requires_answer_side_knowledge": True,
+                "status": "passed",
+                "reason": "名称を作るには解答側の知識が要る",
+            }
+        ],
         "answer_review": {
             "draft_version": 2,
             "answers": [
@@ -1684,113 +1694,39 @@ class TestWorkState:
         assert result.returncode == 1
         assert "生成側の判断と一致しない" in result.stderr
 
-    def test_generation_requires_current_exposure_assignment(
-        self, run_script, generation_state
+    def test_audit_requires_current_exposure_assignment(
+        self, run_script, complete_state
     ):
         """現行版に対応する露出検査担当の起動記録を要求する。"""
-        assignment_of(generation_state, "exposure")["draft_version"] = 1
-        result = check_state(run_script, "generation", generation_state)
+        assignment_of(complete_state, "exposure")["draft_version"] = 1
+        result = check_state(run_script, "audit", complete_state)
         assert result.returncode == 1
-        assert "現行版の露出検査担当" in result.stderr
+        assert "現行版の解答を伏せた名称候補の担当" in result.stderr
 
-    def test_generation_requires_exposure_draft_version(
-        self, run_script, generation_state
-    ):
+    def test_audit_requires_exposure_draft_version(self, run_script, complete_state):
         """露出検査担当の起動の記録に対象の版を要求する。"""
-        del assignment_of(generation_state, "exposure")["draft_version"]
-        result = check_state(run_script, "generation", generation_state)
+        del assignment_of(complete_state, "exposure")["draft_version"]
+        result = check_state(run_script, "audit", complete_state)
         assert result.returncode == 1
         assert "draft_versionが不正である" in result.stderr
 
-    def test_generation_accepts_new_exposure_agent_for_same_version(
-        self, run_script, generation_state
+    def test_audit_accepts_new_exposure_agent_for_same_version(
+        self, run_script, complete_state
     ):
         """同じ版を新しい露出検査担当が再検査した記録を認める。"""
-        assignment = copy.deepcopy(assignment_of(generation_state, "exposure"))
+        assignment = copy.deepcopy(assignment_of(complete_state, "exposure"))
         assignment["agent_id"] = "agent-new-exposure"
-        generation_state["execution"]["assignments"].append(assignment)
-        assert check_state(run_script, "generation", generation_state).returncode == 0
+        complete_state["execution"]["assignments"].append(assignment)
+        assert check_state(run_script, "audit", complete_state).returncode == 0
 
-    def test_generation_rejects_reused_exposure_agent(
-        self, run_script, generation_state
-    ):
+    def test_audit_rejects_reused_exposure_agent(self, run_script, complete_state):
         """問題文の版を変えた露出検査に同じ担当を再利用しない。"""
-        assignment = copy.deepcopy(assignment_of(generation_state, "exposure"))
+        assignment = copy.deepcopy(assignment_of(complete_state, "exposure"))
         assignment["draft_version"] = 1
-        generation_state["execution"]["assignments"].append(assignment)
-        result = check_state(run_script, "generation", generation_state)
+        complete_state["execution"]["assignments"].append(assignment)
+        result = check_state(run_script, "audit", complete_state)
         assert result.returncode == 1
         assert "別の版の露出検査に再利用" in result.stderr
-
-    def test_audit_requires_independent_exposure_record(
-        self, run_script, complete_state
-    ):
-        """監査担当が正答範囲と照合した露出検査結果を省けない。"""
-        del complete_state["exposure_review"]
-        result = check_state(run_script, "audit", complete_state)
-        assert result.returncode == 1
-        assert "exposure_reviewがない" in result.stderr
-
-    @pytest.mark.parametrize(
-        ("field", "value", "message"),
-        [
-            ("draft_version", 1, "問題文と一致しない"),
-            ("question_sha256", "0" * 64, "問題文と一致しない"),
-            ("checked_answer_ids", [], "正答範囲と一致しない"),
-            ("status", "pending", "合格していない"),
-        ],
-    )
-    def test_audit_rejects_invalid_exposure_record(
-        self, run_script, complete_state, field, value, message
-    ):
-        """露出検査記録を現行問題と正答範囲へ対応させる。"""
-        complete_state["exposure_review"][field] = value
-        result = check_state(run_script, "audit", complete_state)
-        assert result.returncode == 1
-        assert message in result.stderr
-
-    def test_audit_requires_reason_when_exposure_candidates_are_empty(
-        self, run_script, complete_state
-    ):
-        """露出候補がない場合も判断理由を記録する。"""
-        del complete_state["exposure_review"]["no_candidate_reason"]
-        result = check_state(run_script, "audit", complete_state)
-        assert result.returncode == 1
-        assert "no_candidate_reason" in result.stderr
-
-    def test_audit_rejects_unrecorded_exposure_candidate(
-        self, run_script, complete_state
-    ):
-        """監査で見つけた候補を生成側の露出検査へ反映する。"""
-        candidate = copy.deepcopy(
-            next(
-                check
-                for check in complete_state["checks"]
-                if check["id"] == "answer_exposure"
-            )["semantic_candidates"][0]
-        )
-        del candidate["id"]
-        candidate.update(exposure_candidate_id="X9", name="別の名称候補")
-        candidate["components"][0]["form"] = "別の名称候補"
-        complete_state["exposure_review"]["candidates"] = [candidate]
-        result = check_state(run_script, "audit", complete_state)
-        assert result.returncode == 1
-        assert "露出検査に反映されていない" in result.stderr
-
-    def test_audit_accepts_reflected_exposure_candidate(
-        self, run_script, complete_state
-    ):
-        """生成側にもある候補の独立した照合記録を受け付ける。"""
-        exposure = next(
-            check
-            for check in complete_state["checks"]
-            if check["id"] == "answer_exposure"
-        )
-        candidate = copy.deepcopy(exposure["semantic_candidates"][0])
-        del candidate["id"]
-        candidate.update(exposure_candidate_id="X1")
-        complete_state["exposure_review"]["candidates"] = [candidate]
-        assert check_state(run_script, "audit", complete_state).returncode == 0
 
     def test_audit_requires_independent_answer_review(self, run_script, complete_state):
         """解答候補ごとの独立した判定を省けない。"""
@@ -2281,9 +2217,6 @@ class TestWorkState:
             check for check in complete_state["checks"] if check["id"] == "structure"
         )
         structure.update(question_form="OV", question_phrase="何というでしょう？")
-        complete_state["exposure_review"]["question_sha256"] = hashlib.sha256(
-            complete_state["draft"]["text"].encode()
-        ).hexdigest()
         complete_state["final_input"]["material"]["problem"] = complete_state["draft"][
             "text"
         ]
@@ -2380,28 +2313,12 @@ class TestWorkState:
         self, run_script, complete_state
     ):
         """名称形成自体に解答側の知識が要る候補は受け付ける。"""
-        exposure = next(
-            check
-            for check in complete_state["checks"]
-            if check["id"] == "answer_exposure"
-        )
-        exposure["blind_candidates"] = [
-            {
-                "id": "X2",
-                "name": "ミュラー・リヤー錯視",
-                "formation_rule": "既知の名称を想起する",
-                "components": [
-                    {
-                        "form": "ミュラー・リヤー錯視",
-                        "source": "対象と名称の既知の対応",
-                        "knowledge": "answer_side",
-                        "answer_side_reason": "名称そのものを知っている必要がある",
-                    }
-                ],
-                "formation_requires_answer_side_knowledge": True,
-                "standard_name_confirmation_requires_answer_side_knowledge": True,
-            }
+        complete_state["blind_candidates"] = [
+            {"id": "X2", "name": "ミュラー・リヤー錯視", "draft_version": 2}
         ]
+        analysis = copy.deepcopy(complete_state["exposure_analysis"][0])
+        analysis.update(candidate_id="X2", name="ミュラー・リヤー錯視")
+        complete_state["exposure_analysis"].append(analysis)
         complete_state["answer_review"]["candidate_reviews"].append(
             {
                 "candidate_id": "X2",
@@ -2422,14 +2339,9 @@ class TestWorkState:
         self, run_script, complete_state
     ):
         """解答を伏せて挙げた候補に、開示前の解答との対応付けを置かない。"""
-        exposure = next(
-            check
-            for check in complete_state["checks"]
-            if check["id"] == "answer_exposure"
-        )
-        candidate = copy.deepcopy(exposure["semantic_candidates"][0])
-        candidate.update(id="X2", answer_id=None)
-        exposure["blind_candidates"] = [candidate]
+        complete_state["blind_candidates"] = [
+            {"id": "X2", "name": "錯視", "draft_version": 2, "answer_id": None}
+        ]
         result = check_state(run_script, "audit", complete_state)
         assert result.returncode == 1
         assert "解答開示前の対応付けがある" in result.stderr
@@ -2452,21 +2364,34 @@ class TestWorkState:
         self, run_script, complete_state
     ):
         """解答を伏せて挙げた候補は、開示後の判定で解答との対応付けを要求する。"""
-        exposure = next(
-            check
-            for check in complete_state["checks"]
-            if check["id"] == "answer_exposure"
-        )
-        candidate = copy.deepcopy(exposure["semantic_candidates"][0])
-        del candidate["answer_id"]
-        candidate["id"] = "X2"
-        exposure["blind_candidates"] = [candidate]
+        complete_state["blind_candidates"] = [
+            {"id": "X2", "name": "錯視", "draft_version": 2}
+        ]
+        analysis = copy.deepcopy(complete_state["exposure_analysis"][0])
+        analysis.update(candidate_id="X2", name="錯視")
+        complete_state["exposure_analysis"].append(analysis)
         review = copy.deepcopy(complete_state["answer_review"]["candidate_reviews"][0])
         review["candidate_id"] = "X2"
         complete_state["answer_review"]["candidate_reviews"].append(review)
         result = check_state(run_script, "audit", complete_state)
         assert result.returncode == 1
         assert "answer_idがない" in result.stderr
+
+    def test_every_exposure_candidate_needs_passed_analysis(
+        self, run_script, complete_state
+    ):
+        """解答を伏せた候補と意味から挙げた候補のすべてに、合格した露出の分析を要する。"""
+        complete_state["blind_candidates"] = [
+            {"id": "X2", "name": "錯視", "draft_version": 2}
+        ]
+        result = check_state(run_script, "audit", complete_state)
+        assert result.returncode == 1
+        assert "exposure_analysisに検査のない項目がある: ['X2']" in result.stderr
+        complete_state["blind_candidates"] = []
+        complete_state["exposure_analysis"][0]["status"] = "failed"
+        result = check_state(run_script, "audit", complete_state)
+        assert result.returncode == 1
+        assert "exposure_analysisに不合格の項目がある: ['X1']" in result.stderr
 
     def test_answer_side_component_requires_reason(self, run_script, complete_state):
         """解答側の知識とした名称要素には理由を要求する。"""
@@ -2597,9 +2522,6 @@ class TestWorkState:
             "「ブレンターノ型」という変形版も知られる、"
             + complete_state["draft"]["text"]
         )
-        complete_state["exposure_review"]["question_sha256"] = hashlib.sha256(
-            complete_state["draft"]["text"].encode()
-        ).hexdigest()
         complete_state["final_input"]["material"]["problem"] = complete_state["draft"][
             "text"
         ]

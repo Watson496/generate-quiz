@@ -107,7 +107,7 @@ class TestBundledTable:
         """解答を伏せる段階の入力は問題文だけである。"""
         module = load_script("generate-quiz", "assignment_plan.py")
         table = module.load_table()
-        for role_id in ("exposure", "audit"):
+        for role_id in ("exposure", "proposition_extraction"):
             assert find_role(table, role_id)["inputs"][0] == ["draft"]
 
     def test_generation_change_reruns_later_checks(self, load_script):
