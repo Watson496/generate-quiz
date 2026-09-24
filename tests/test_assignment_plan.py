@@ -110,6 +110,12 @@ class TestBundledTable:
         for role_id in ("exposure", "audit"):
             assert find_role(table, role_id)["inputs"][0] == ["draft"]
 
+    def test_extraction_sees_answer_but_not_propositions(self, load_script):
+        """実現命題の抽出担当は、問題文と解答対象だけを受け取り、裏取り済みの命題を見ない。"""
+        module = load_script("generate-quiz", "assignment_plan.py")
+        role = find_role(module.load_table(), "proposition_extraction")
+        assert role["inputs"] == [["answer_target", "draft"]]
+
     def test_generation_change_reruns_later_checks(self, load_script):
         """生成担当の成果物が変わると、後にある担当をすべて再実行する。"""
         module = load_script("generate-quiz", "assignment_plan.py")
