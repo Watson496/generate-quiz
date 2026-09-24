@@ -97,6 +97,7 @@ python3 "$SKILL_DIR/scripts/work_state_check.py" --stage facet-selection facet.j
 python3 "$SKILL_DIR/scripts/work_state_check.py" --stage intersection-checkpoint state.json
 python3 "$SKILL_DIR/scripts/work_state_check.py" --stage discovery-progress state.json
 python3 "$SKILL_DIR/scripts/work_state_check.py" --stage discovery state.json
+python3 "$SKILL_DIR/scripts/work_state_check.py" --stage membership state.json
 python3 "$SKILL_DIR/scripts/work_state_check.py" --stage selection state.json
 python3 "$SKILL_DIR/scripts/work_state_check.py" --stage generation-start state.json
 python3 "$SKILL_DIR/scripts/work_state_check.py" --stage difficulty state.json

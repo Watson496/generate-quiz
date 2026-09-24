@@ -37,9 +37,7 @@ def validate_payload(payload, state, exclusions):
     ):
         return "各候補に文字列のkeyが必要"
     keys = [item["key"] for item in candidates]
-    eligible = {
-        item["id"] for item in state["candidates"] if item["disposition"] == "eligible"
-    }
+    eligible = work_state_check.pickable_candidate_ids(state)
     if len(keys) != len(set(keys)) or set(keys) != eligible:
         return "抽選用の候補IDが探索状態の選択対象と一致しない"
     names = {item["id"]: item["label"] for item in state["candidates"]}
@@ -79,7 +77,7 @@ def main():
         work_state_check.require_condition(
             isinstance(state, dict), "最上位はオブジェクトでなければならない"
         )
-        work_state_check.validate_selection_state(state)
+        work_state_check.validate_selection_state(state, "selection")
         work_state_check.validate_selection_execution(state, "selection")
     except work_state_check.StateError as error:
         print(f"不合格: {error}", file=sys.stderr)
@@ -89,9 +87,7 @@ def main():
     if error:
         print(f"入力エラー: {error}", file=sys.stderr)
         return EXIT_USAGE
-    if len(args.exclude) == len(
-        [item for item in state["candidates"] if item["disposition"] == "eligible"]
-    ):
+    if len(args.exclude) == len(work_state_check.pickable_candidate_ids(state)):
         print("候補なし: 抽選可能な候補が残っていない", file=sys.stderr)
         return EXIT_SELECTION_BLOCKED
 
