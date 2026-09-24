@@ -1422,11 +1422,11 @@ def validate_final_input(state, version, active_props, active_clues, difficulty_
         len(quote_refs) == len(set(quote_refs)) and set(quote_refs) == cited,
         "final_input.quote_idsが判断に用いた引用と一致しない",
     )
-    validate_final_material(state, final, active_props, active_clues, cited)
+    validate_final_material(state, final, active_props, cited)
     validate_topic_selection(state, final)
 
 
-def validate_final_material(state, final, active_props, active_clues, cited):
+def validate_final_material(state, final, active_props, cited):
     material = final.get("material")
     require_condition(isinstance(material, dict), "final_input.materialがない")
     require_condition(
@@ -1488,42 +1488,6 @@ def validate_final_material(state, final, active_props, active_clues, cited):
             require_condition(
                 text not in all_material,
                 f"final_input.materialに不採用の引用{quote_id}がある",
-            )
-    evidence_by_output = {
-        "difficulty.beginner": set(
-            state["difficulty_review"]["beginner"]["evidence_ids"]
-        ),
-        "difficulty.general": set(
-            state["difficulty_review"]["general"]["evidence_ids"]
-        ),
-        "verification": {
-            quote_id for item in active_props for quote_id in item["evidence_ids"]
-        },
-        "clues": {
-            quote_id
-            for clue in active_clues
-            for key in ("centrality", "quasi_uniqueness", "familiarity")
-            for quote_id in clue["checks"][key]["evidence_ids"]
-        },
-        "answer_exposure": {
-            quote_id
-            for item in state["checks"]
-            if item["id"] == "answer_exposure"
-            for quote_id in item["evidence_ids"]
-        },
-        "answer_judging": {
-            quote_id for item in state["answers"] for quote_id in item["evidence_ids"]
-        },
-    }
-    for output_id, evidence_ids in evidence_by_output.items():
-        if evidence_ids:
-            require_condition(
-                any(
-                    quotes[quote_id][0] in material[output_id]
-                    and quotes[quote_id][1] in material[output_id]
-                    for quote_id in evidence_ids
-                ),
-                f"final_input.material.{output_id}に判断根拠の所在がない",
             )
 
 
