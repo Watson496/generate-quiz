@@ -33,7 +33,7 @@ argument-hint: <作問条件（主題・問題数・文字数・履歴など。�
 
 # 担当ごとに読む仕様
 
-判断は、工程のステップごとに起動する担当が行う。各担当が読む仕様は担当表[`references/roles.json`](references/roles.json)で定める。担当は、判断を始める前に担当表で定めた仕様を全文読む。
+判断は、工程のステップごとに起動する担当が行う。各担当が読む仕様は担当表[`references/roles.json`](references/roles.json)で定め、依頼文で指定する。担当は、判断を始める前に指定された仕様を全文読む。
 
 出力直前に全仕様を読み直して済ませず、各仕様を必要とする判断へ入る前に読む。作業状態の検査単位を使い、適用済みかを記録する。
 
@@ -41,8 +41,8 @@ argument-hint: <作問条件（主題・問題数・文字数・履歴など。�
 
 - 同梱スクリプトにはPython 3.14以上を使用する。
 - 毎問Web検索を使う。検索手段が一切使えない場合は、内部知識で代替せず作問を中止する。
-- ステップの構成、重み付き乱択、履歴補正、文字数判定、作業状態の構造検査は、必ず同梱スクリプトを実行する。
-  - ステップの構成：`scripts/assignment_plan.py`
+- ステップの構成と依頼文、重み付き乱択、履歴補正、文字数判定、作業状態の構造検査は、必ず同梱スクリプトを実行する。
+  - ステップの構成と依頼文：`scripts/assignment_plan.py`
   - ファセットの抽選：`scripts/weighted_pick.py`
   - 題材候補の抽選：`scripts/topic_pick.py`
   - 文字数と採否：`scripts/length_check.py`
@@ -54,10 +54,12 @@ argument-hint: <作問条件（主題・問題数・文字数・履歴など。�
 
 # スクリプトの呼出し
 
-ステップの構成は、担当表から決める。
+ステップの構成と、統括役と担当への依頼文は、担当表から決める。
 
 ```bash
 python3 "$SKILL_DIR/scripts/assignment_plan.py" steps
+python3 "$SKILL_DIR/scripts/assignment_plan.py" coordinate 3
+python3 "$SKILL_DIR/scripts/assignment_plan.py" assign exploration
 ```
 
 ファセットカタログは全文を読まず、必要なブロックだけを取得する。

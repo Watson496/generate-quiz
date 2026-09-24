@@ -1,4 +1,4 @@
-"""担当表の検査とステップの構成を確認する。"""
+"""担当表からのステップの構成と依頼文を確認する。"""
 
 import copy
 import json
@@ -177,9 +177,42 @@ class TestSteps:
             False,
         ]
 
+    def test_coordinator_request_lists_roles(self, load_script):
+        """統括役への依頼文はステップの担当を示し、担当が一つなら出さない。"""
+        module = load_script("generate-quiz", "assignment_plan.py")
+        table = small_table()
+        table["steps"][1]["roles"].pop()
+        assert (
+            "候補の検査担当（item_checker）"
+            in module.coordinator_request(table, 1)["request"]
+        )
+        with pytest.raises(module.TableError, match="統括役を置かない"):
+            module.coordinator_request(table, 2)
+
     def test_cli_outputs_steps(self, run_script):
         """ステップの構成をJSONで出力する。"""
         result = run_script("assignment_plan.py", "steps")
         assert result.returncode == 0
         steps = json.loads(result.stdout)
         assert steps[0]["roles"] == ["facet_selection"]
+
+
+class TestRequests:
+    """担当への依頼文を確認する。"""
+
+    def test_request_lists_phases_and_outputs(self, load_script):
+        """依頼文は段階ごとの入力と成果物を示す。"""
+        module = load_script("generate-quiz", "assignment_plan.py")
+        request = module.assignments(small_table(), "draft_checker")[0]["request"]
+        assert "入力は2段階で渡す" in request
+        assert "入力（第1段階）：\n- 問題文\n入力（第2段階）：\n- 候補の一覧" in request
+        assert "成果物（指定されたファイルに書く）：\n- 問題文の検査記録" in request
+
+    @pytest.mark.parametrize(
+        "args", [("assign", "unknown_role"), ("coordinate", "1"), ("coordinate", "99")]
+    )
+    def test_usage_errors(self, run_script, args):
+        """存在しない担当や統括役を置かないステップは呼出しの不備とする。"""
+        result = run_script("assignment_plan.py", *args)
+        assert result.returncode == 2
+        assert "入力エラー" in result.stderr
