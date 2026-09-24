@@ -43,6 +43,7 @@
     "clues": "手掛かりの問題文中の文字列と命題ID",
     "clue_centrality": "手掛かりごとの中核性の評価",
     "centrality_reviews": "手掛かりの中核性の検査結果",
+    "familiarity_reviews": "手掛かりの知名度の検査結果",
     "competitors": "手掛かりから逆引きで探した対抗候補のIDと名称、候補を扱う資料",
     "competitor_comparisons": "対抗候補ごとの、手掛かりに書かれた条件との照合",
     "competitor_search_reviews": "対抗候補の逆引き探索の検査結果",
@@ -507,6 +508,15 @@
           "specs": ["quiz_generation_spec.md", "verification_and_judging_spec.md", "work_state_spec.md"],
           "inputs": [["answer_target", "clues", "sources", "source_assessments", "clue_centrality"]],
           "outputs": ["centrality_reviews"]
+        },
+        {
+          "id": "familiarity_review",
+          "name": "手掛かりの知名度の検査担当",
+          "side": "check",
+          "section": "手掛かりの知名度",
+          "specs": ["quiz_generation_spec.md", "verification_and_judging_spec.md", "work_state_spec.md"],
+          "inputs": [["answer_target", "draft", "clues", "sources", "source_assessments"]],
+          "outputs": ["familiarity_reviews"]
         },
         {
           "id": "corroboration_review",

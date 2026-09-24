@@ -130,8 +130,6 @@ def complete_state():
         "claim": "対象を絞れる",
         "reason": "定義と比較した",
         "evidence_ids": evidence,
-        "generation": "complete",
-        "audit": "passed",
     }
     assignments = [
         {
@@ -156,6 +154,7 @@ def complete_state():
         for role in (
             "clue_centrality",
             "centrality_review",
+            "familiarity_review",
             "corroboration",
             "corroboration_review",
             "certainty",
@@ -323,6 +322,9 @@ def complete_state():
                 "status": "passed",
                 "reason": "図形条件で区別する",
             }
+        ],
+        "familiarity_reviews": [
+            {"clue_id": "C1", "status": "passed", "reason": "入門教材で扱われる"}
         ],
         "clue_centrality": [
             {
@@ -665,8 +667,6 @@ def generation_state(complete_state):
     for group in ("terms", "checks"):
         for item in state[group]:
             item["audit"] = "pending"
-    for check in state["clues"][0]["checks"].values():
-        check["audit"] = "pending"
     return state
 
 
@@ -1541,6 +1541,13 @@ class TestWorkState:
         result = check_state(run_script, "generation", generation_state)
         assert result.returncode == 1
         assert "clue_centrality[0].clue_idが手掛かりにない" in result.stderr
+
+    def test_familiarity_requires_passed_review(self, run_script, complete_state):
+        """各手掛かりの知名度は検査担当の合格を要する。"""
+        complete_state["familiarity_reviews"][0]["status"] = "failed"
+        result = check_state(run_script, "audit", complete_state)
+        assert result.returncode == 1
+        assert "familiarity_reviewsに不合格の項目がある: ['C1']" in result.stderr
 
     def test_centrality_requires_passed_review(self, run_script, complete_state):
         """中核性の評価は検査担当の合格を要する。"""

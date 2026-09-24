@@ -104,7 +104,6 @@
 生成側と監査側は、次を同じ単位で検査する。
 
 - 問題文にある各専門用語と、その意味内容が命題理解に必要かの判断
-- 前フリ・落としを構成する各手掛かりの準一意性、知名度
 - 複数の手掛かり順序案
 - 別解候補と各正誤判定
 - 解答露出
@@ -200,7 +199,7 @@
 
 JSON manifestは、検査対象を具体的な内容へ結び付け、確定的な参照整合性と工程境界を検査するために使う。IDだけのレコードや、複数の専門用語・解答候補・出力項目を一つのIDにまとめたレコードを置かない。
 
-資料には書誌情報と逐語引用を置く。命題には問題文の対応箇所と、真偽を判定する文を置く。命題の裏取りは`proposition_support`に、命題IDを`proposition_id`、引用IDを`evidence_ids`、引用から判断へ至る理由を`reason`、推論の種類を`inference_type`として置く。一つの命題内に複数の項・限定がある場合は、`verification_elements`に検証要素ごとの`text`、引用ID、理由、推論の種類を置く。命題の確実性は`proposition_certainty`に、`proposition_id`、確実性の水準を`level`、判定理由を`reason`として置く。それぞれの検査結果は`corroboration_reviews`と`certainty_reviews`に、`proposition_id`、`status`（`passed`・`failed`）、`reason`として置く。問題文から独立に取り出した命題は`extracted_propositions`に、`id`、問題文の版を`draft_version`、真偽を判定する文を`claim`、問題文の対応箇所を`passage`として置く。照合結果は`proposition_matching_reviews`に、取り出した命題の`extracted_id`、対応する採用命題の`proposition_id`、断定の強さが確実性と合うかを`strength_matches`、`status`、`reason`として置く。手掛かりには問題文中の文字列と命題IDを置き、準一意性、知名度の各判断へ結論、理由、引用IDを置く。手掛かりの中核性・代表性の評価は`clue_centrality`に、手掛かりIDを`clue_id`、結論を`claim`、理由を`reason`、引用IDを`evidence_ids`として置き、検査結果は`centrality_reviews`に`clue_id`、`status`（`passed`・`failed`）、`reason`として置く。準一意性には比較範囲、単独で十分に絞れること、依存する他の手掛かりがないことを置く。専門用語と解答候補は一語・一候補ごとにレコードを分ける。最終出力の必須項目も項目ごとに固定IDを使い、内容の保存先を示す。
+資料には書誌情報と逐語引用を置く。命題には問題文の対応箇所と、真偽を判定する文を置く。命題の裏取りは`proposition_support`に、命題IDを`proposition_id`、引用IDを`evidence_ids`、引用から判断へ至る理由を`reason`、推論の種類を`inference_type`として置く。一つの命題内に複数の項・限定がある場合は、`verification_elements`に検証要素ごとの`text`、引用ID、理由、推論の種類を置く。命題の確実性は`proposition_certainty`に、`proposition_id`、確実性の水準を`level`、判定理由を`reason`として置く。それぞれの検査結果は`corroboration_reviews`と`certainty_reviews`に、`proposition_id`、`status`（`passed`・`failed`）、`reason`として置く。問題文から独立に取り出した命題は`extracted_propositions`に、`id`、問題文の版を`draft_version`、真偽を判定する文を`claim`、問題文の対応箇所を`passage`として置く。照合結果は`proposition_matching_reviews`に、取り出した命題の`extracted_id`、対応する採用命題の`proposition_id`、断定の強さが確実性と合うかを`strength_matches`、`status`、`reason`として置く。手掛かりには問題文中の文字列と命題IDを置き、準一意性、知名度の各判断へ結論、理由、引用IDを置く。手掛かりの中核性・代表性の評価は`clue_centrality`に、手掛かりIDを`clue_id`、結論を`claim`、理由を`reason`、引用IDを`evidence_ids`として置き、検査結果は`centrality_reviews`に`clue_id`、`status`（`passed`・`failed`）、`reason`として置く。知名度の検査結果も`familiarity_reviews`に同じ形で置く。準一意性には比較範囲、単独で十分に絞れること、依存する他の手掛かりがないことを置く。専門用語と解答候補は一語・一候補ごとにレコードを分ける。最終出力の必須項目も項目ごとに固定IDを使い、内容の保存先を示す。
 
 対抗候補は`competitors`に、候補の`id`と`name`、逆引きの元にした手掛かりの`clue_ids`、その候補を扱う資料の`evidence_ids`を置く。条件の照合は`competitor_comparisons`に、手掛かりの`clue_id`と候補の`competitor_id`の組ごとに置き、手掛かりに書かれた条件ごとの`passage`、`matches`（真偽値）、`reason`、`evidence_ids`を`conditions`に置く。候補を別対象として退けるか同一対象の別名として扱うかを`disposition`（`excluded`・`same_target`）と`reason`で示す。別対象を退ける場合だけ、相違する条件の`passage`を`exclusion_passage`へ置く。条件の引用IDは候補の引用IDへ含める。
 
