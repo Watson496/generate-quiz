@@ -224,13 +224,16 @@ class TestRequests:
         with pytest.raises(module.TableError, match="項目IDが必要"):
             module.assignments(small_table(), "item_checker")
 
-    def test_request_lists_phases_and_outputs(self, load_script):
-        """依頼文は段階ごとの入力と成果物を示す。"""
+    def test_request_lists_phases_and_report(self, load_script):
+        """依頼文は段階ごとの入力、成果物、報告の範囲を示す。"""
         module = load_script("generate-quiz", "assignment_plan.py")
         request = module.assignments(small_table(), "draft_checker")[0]["request"]
         assert "入力は2段階で渡す" in request
         assert "入力（第1段階）：\n- 問題文\n入力（第2段階）：\n- 候補の一覧" in request
         assert "成果物（指定されたファイルに書く）：\n- 問題文の検査記録" in request
+        assert request.endswith(
+            "報告は、完了したことと成果物のファイルの場所だけとする。"
+        )
 
     @pytest.mark.parametrize(
         "args",

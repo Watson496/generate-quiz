@@ -179,6 +179,7 @@ def coordinator_request(table, number):
         f"`{workflow}`の「担当の構成」節と「{sections}」節を読み、その規定に従って担当を起動し、入力と成果物のファイルを受け渡す。",
         "担当：",
         *(f"- {role['name']}（{role['id']}）" for role in step["roles"]),
+        "報告は、完了したことと成果物のファイルの場所だけとする。",
     ]
     return {"step": number, "request": "\n".join(lines)}
 
@@ -203,6 +204,7 @@ def request_text(table, role, items):
         lines.append("担当する項目：" + "、".join(items))
     lines.append("成果物（指定されたファイルに書く）：")
     lines.extend(f"- {table['data'][item]}" for item in role["outputs"])
+    lines.append("報告は、完了したことと成果物のファイルの場所だけとする。")
     return "\n".join(lines)
 
 
