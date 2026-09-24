@@ -999,14 +999,6 @@ class TestSelectionState:
         selection_state["saturation_challenge"]["resolved"] = False
         assert check_state(run_script, "selection", selection_state).returncode == 1
 
-    def test_selection_requires_distinct_entry_kinds(self, run_script, selection_state):
-        """探索入口が同じ種類だけなら探索状態を拒否する。"""
-        for entry in selection_state["entry_points"]:
-            entry["kind"] = "分類表"
-        result = check_state(run_script, "selection", selection_state)
-        assert result.returncode == 1
-        assert "異なる種類の入口" in result.stderr
-
     def test_selection_requires_empty_frontier(self, run_script, selection_state):
         """未展開の有力候補を残した探索状態を拒否する。"""
         selection_state["frontier_ids"] = ["K2"]

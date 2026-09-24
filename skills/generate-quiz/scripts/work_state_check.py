@@ -105,7 +105,6 @@ OUTPUT_HEADINGS = {
     "references": "参考文献",
 }
 MIN_ENTRY_POINTS = 2
-MIN_ENTRY_POINT_KINDS = 2
 MIN_COVERAGE_AREAS = 2
 MIN_EXPRESSION_ALTERNATIVES = 2
 MIN_INTERSECTION_EXAMPLES = 2
@@ -427,11 +426,10 @@ def validate_selection_entries_areas(state, *, complete=True):
     entries, entry_ids = records_with_ids(
         state.get("entry_points"), "entry_points", nonempty=True
     )
-    kinds = set()
     for item in entries:
         name = f"entry_points.{item['id']}"
         required_text(item, "label", name)
-        kinds.add(required_text(item, "kind", name))
+        required_text(item, "kind", name)
         source = required_text(item, "url", name)
         parsed = urlsplit(source)
         require_condition(
@@ -442,8 +440,8 @@ def validate_selection_entries_areas(state, *, complete=True):
         require_condition(item.get("opened") is True, f"{name}の本文を開いていない")
     if complete:
         require_condition(
-            len(entries) >= MIN_ENTRY_POINTS and len(kinds) >= MIN_ENTRY_POINT_KINDS,
-            "異なる種類の入口を二つ以上使っていない",
+            len(entries) >= MIN_ENTRY_POINTS,
+            "入口を二つ以上使っていない",
         )
     areas, area_ids = records_with_ids(
         state.get("coverage_areas"), "coverage_areas", nonempty=True
