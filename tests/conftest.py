@@ -388,7 +388,7 @@ def selection_state(intersection_state):
         ("membership_review", ["K1", "K2"]),
         ("alternate_exploration", None),
         ("saturation_review", None),
-        ("exposure_precheck", None),
+        ("exposure_precheck", ["K1", "K2"]),
         ("topic_weighting", None),
     )
     state["execution"] = {

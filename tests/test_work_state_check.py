@@ -1037,6 +1037,29 @@ class TestSelectionState:
         assert result.returncode == 1
         assert "予備検査のない候補がある: ['K2']" in result.stderr
 
+    def test_excluded_candidate_requires_passed_review(
+        self, run_script, selection_state
+    ):
+        """予備検査で除外した候補は、別の担当の検査に合格して除外する。"""
+        selection_state["exposure_prechecks"][1]["result"] = "exclude"
+        result = check_state(run_script, "selection", selection_state)
+        assert result.returncode == 1
+        assert "exposure_precheck_reviewsは配列でなければならない" in result.stderr
+        selection_state["exposure_precheck_reviews"] = [
+            {"candidate_id": "K2", "status": "passed", "reason": "どの説明でも露出する"}
+        ]
+        result = check_state(run_script, "selection", selection_state)
+        assert result.returncode == 1
+        assert "担当の記録がない: ['exposure_precheck_review']" in result.stderr
+        selection_state["execution"]["assignments"].append(
+            {
+                "role": "exposure_precheck_review",
+                "agent_id": "agent-precheck-review",
+                "artifact_refs": ["exposure_precheck_review.json"],
+            }
+        )
+        assert check_state(run_script, "selection", selection_state).returncode == 0
+
     @pytest.mark.parametrize(
         ("field", "value", "message"),
         [("result", "unclear", "resultが不正である"), ("reason", "", "reasonがない")],

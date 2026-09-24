@@ -704,6 +704,13 @@ def validate_exposure_prechecks(state, members, known_ids):
         results[candidate_id] = item["result"]
     missing = sorted(set(members) - set(results))
     require_condition(not missing, f"予備検査のない候補がある: {missing}")
+    excluded = sorted(
+        candidate_id
+        for candidate_id, result in results.items()
+        if result == "exclude" and candidate_id in members
+    )
+    if excluded or state.get("exposure_precheck_reviews"):
+        validate_reviews(state, "exposure_precheck_reviews", excluded, "candidate_id")
     return {
         candidate_id
         for candidate_id, result in results.items()
@@ -756,15 +763,20 @@ def eligible_candidate_ids(state):
     }
 
 
-def pickable_candidate_ids(state):
-    """探索段階の選択対象のうち、4軸すべてに所属し、予備検査で残した候補のIDを返す。"""
+def member_candidate_ids(state):
+    """探索段階の選択対象のうち、4軸すべてに所属する候補のIDを返す。"""
     eligible = eligible_candidate_ids(state)
-    members = {
+    return {
         item["candidate_id"]
         for item in state["memberships"]
         if item["candidate_id"] in eligible
         and all(item["axes"][axis]["belongs"] for axis in FACET_AXES)
     }
+
+
+def pickable_candidate_ids(state):
+    """所属する候補のうち、露出の予備検査で残した候補のIDを返す。"""
+    members = member_candidate_ids(state)
     return {
         item["candidate_id"]
         for item in state["exposure_prechecks"]
@@ -969,6 +981,18 @@ def validate_selection_execution(state, stage):
     if stage != "discovery":
         require_items_assigned(state, "membership", eligible)
         require_items_assigned(state, "membership_review", eligible)
+    if stage == "selection":
+        members = member_candidate_ids(state)
+        require_items_assigned(state, "exposure_precheck", sorted(members))
+        excluded = members - pickable_candidate_ids(state)
+        if excluded and state["execution"]["delegation_available"]:
+            require_condition(
+                any(
+                    record["role"] == "exposure_precheck_review"
+                    for record in state["execution"]["assignments"]
+                ),
+                "execution.assignmentsに担当の記録がない: ['exposure_precheck_review']",
+            )
 
 
 def validate_source_quotes(state):

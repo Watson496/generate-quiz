@@ -51,7 +51,7 @@
 
 `disposition`は探索段階で選択対象となるかを表す。抽選後に題材品質ゲートで棄却した候補は`eligible`のまま、満たせなかった条件を`quality_rejection_reason`へ記録する。再抽選では、この記録がある全候補のIDを`topic_pick.py --exclude`へ渡す。
 
-解答露出の予備検査は`exposure_prechecks`に、候補IDを`candidate_id`、残すか除外するかを`result`（`keep`・`exclude`）、判断理由を`reason`として置く。所属する選択対象のうち、`keep`とした候補だけを抽選の対象にする。
+解答露出の予備検査は`exposure_prechecks`に、候補IDを`candidate_id`、残すか除外するかを`result`（`keep`・`exclude`）、判断理由を`reason`として置く。除外した候補の検査結果は`exposure_precheck_reviews`に、候補IDを`candidate_id`、判定を`status`（`passed`・`failed`）、理由を`reason`として置く。所属する選択対象のうち、`keep`とした候補だけを抽選の対象にする。
 
 ## 解答対象ごとの作業状態
 
@@ -225,7 +225,7 @@ JSON manifestは、検査対象を具体的な内容へ結び付け、確定的�
 ```json
 {
   "facet_nodes": {"subject": "subject::66", "place": "place::ROOT", "time": "time::ROOT", "type": "type::ROOT"},
-  "execution": {"delegation_available": true, "assignments": [{"role": "intersection", "agent_id": "agent-1", "artifact_refs": ["intersection.md"]}, {"role": "exploration", "agent_id": "agent-2", "artifact_refs": ["exploration_D1.md"], "items": ["D1"]}, {"role": "exploration", "agent_id": "agent-3", "artifact_refs": ["exploration_D2.md"], "items": ["D2"]}, {"role": "nearby_exploration", "agent_id": "agent-4", "artifact_refs": ["nearby_exploration.md"], "items": ["K1", "K2"]}, {"role": "alternate_exploration", "agent_id": "agent-5", "artifact_refs": ["alternate_exploration.md"]}, {"role": "saturation_review", "agent_id": "agent-6", "artifact_refs": ["saturation_review.md"]}, {"role": "membership", "agent_id": "agent-7", "artifact_refs": ["membership.json"], "items": ["K1", "K2"]}, {"role": "membership_review", "agent_id": "agent-8", "artifact_refs": ["membership_review.json"], "items": ["K1", "K2"]}, {"role": "exposure_precheck", "agent_id": "agent-9", "artifact_refs": ["exposure_precheck.md"]}, {"role": "topic_weighting", "agent_id": "agent-10", "artifact_refs": ["topic_weights.json"]}]},
+  "execution": {"delegation_available": true, "assignments": [{"role": "intersection", "agent_id": "agent-1", "artifact_refs": ["intersection.md"]}, {"role": "exploration", "agent_id": "agent-2", "artifact_refs": ["exploration_D1.md"], "items": ["D1"]}, {"role": "exploration", "agent_id": "agent-3", "artifact_refs": ["exploration_D2.md"], "items": ["D2"]}, {"role": "nearby_exploration", "agent_id": "agent-4", "artifact_refs": ["nearby_exploration.md"], "items": ["K1", "K2"]}, {"role": "alternate_exploration", "agent_id": "agent-5", "artifact_refs": ["alternate_exploration.md"]}, {"role": "saturation_review", "agent_id": "agent-6", "artifact_refs": ["saturation_review.md"]}, {"role": "membership", "agent_id": "agent-7", "artifact_refs": ["membership.json"], "items": ["K1", "K2"]}, {"role": "membership_review", "agent_id": "agent-8", "artifact_refs": ["membership_review.json"], "items": ["K1", "K2"]}, {"role": "exposure_precheck", "agent_id": "agent-9", "artifact_refs": ["exposure_precheck.md"], "items": ["K1", "K2"]}, {"role": "topic_weighting", "agent_id": "agent-10", "artifact_refs": ["topic_weights.json"]}]},
   "intersection_review": {
     "source_refs": ["https://example.org/outline", "https://example.org/lesson"],
     "candidate_examples": [
