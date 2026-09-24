@@ -830,6 +830,13 @@ def validate_selection_review(state, areas, candidates, entry_ids):
     )
     required_text(challenge, "resolution", "saturation_challenge")
     require_condition(challenge.get("resolved") is True, "反証調査の結果が未処理である")
+    core = challenge.get("core_check")
+    require_condition(isinstance(core, dict), "saturation_challenge.core_checkがない")
+    name = "saturation_challenge.core_check"
+    referenced_ids(core, "source_entry_point_ids", entry_ids, name)
+    referenced_ids(core, "core_candidate_ids", candidate_ids, name)
+    referenced_ids(core, "added_candidate_ids", candidate_ids, name, nonempty=False)
+    required_text(core, "reason", name)
 
 
 def validate_discovery_progress(state):

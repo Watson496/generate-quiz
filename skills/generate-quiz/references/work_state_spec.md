@@ -44,7 +44,7 @@
 
 探索状態は、題材を抽選する前に `topic_pick.py` へ渡す。入口には本文を開いたURL、`opened: true`、確認箇所を`access_note`として記録する。下位領域の`source_searches`には、候補名を含めない入口探しを`mode: open`、既知候補からの近接探索を`mode: nearby`として記録する。候補の`discovery_entry_point_ids`と`coverage_area_ids`は、同じ`source_searches`の`entry_point_ids`と`found_candidate_ids`に対応させる。最初の候補を記録した時点と入口・候補を追加した節目に`--stage discovery-progress`でこの対応を検査する。内部知識から挙げ、まだ資料で確認していない候補は、途中状態では`discovery_entry_point_ids`を空配列にできる。資料の探索記録にその候補を加えたら発見元も記録し、`--stage discovery`までに対応を確定する。途中検査では探索の完了や露出予備検査の記録を要求しない。資料で名称を確認できず除外する候補を除き、`name_use_note`には名称の使用箇所を記す。`facet_membership_reason`には四軸の範囲に属すると判断した理由を記す。選択対象の`expansion_searches`には近接探索の検索先・調べた関係・得た候補IDを残す。検査を通った後で候補を追加した場合は、その候補からも探索を展開し、再度検査する。
 
-`independent_review`には下位領域IDごとに、最初の探索と異なる観点、候補名を含めない検索語、別経路で開いた入口IDと候補ID、照合した元の入口IDと結果を記録する。`saturation_challenge`には別の立場・用途からの検索、開いた入口ID、得た候補ID、未探索経路の処理と完了状態を残す。形式検査の合格は資料の内容と記録が対応することや、探索の十分さを保証しない。
+`independent_review`には下位領域IDごとに、最初の探索と異なる観点、候補名を含めない検索語、別経路で開いた入口IDと候補ID、照合した元の入口IDと結果を記録する。`saturation_challenge`には別の立場・用途からの検索、開いた入口ID、得た候補ID、未探索経路の処理と完了状態を残す。選択範囲の概説・入門資料が中核的に扱う対象が台帳にあるかを確かめた結果は、`core_check`に、開いた資料の入口IDを`source_entry_point_ids`、確かめた候補IDを`core_candidate_ids`、台帳になく加えた候補IDを`added_candidate_ids`、判断理由を`reason`として置く。形式検査の合格は資料の内容と記録が対応することや、探索の十分さを保証しない。
 
 `disposition`は探索段階で選択対象となるかを表す。抽選後に題材品質ゲートで棄却した候補は`eligible`のまま、満たせなかった条件を`quality_rejection_reason`へ記録する。再抽選では、この記録がある全候補のIDを`topic_pick.py --exclude`へ渡す。
 
@@ -250,7 +250,7 @@ JSON manifestは、検査対象を具体的な内容へ結び付け、確定的�
     {"id": "D1", "difference_from_exploration": "工場の工程を実務者が説明する記事から探す", "source_discovery_query": "無機化学工業 実務者 利用", "checked_entry_point_ids": ["E3"], "found_candidate_ids": [], "spotchecked_entry_point_ids": ["E1"], "spotcheck_result": "分類表の無機化学工業の項目とアンモニアソーダ法の記載を照合した"},
     {"id": "D2", "difference_from_exploration": "産業誌が扱う製造プロセスから探す", "source_discovery_query": "有機化学工業 産業誌", "checked_entry_point_ids": ["E4"], "found_candidate_ids": [], "spotchecked_entry_point_ids": ["E2"], "spotcheck_result": "事典索引の有機工業化学の項目とクメン法の記載を照合した"}
   ],
-  "saturation_challenge": {"search_perspective": "工場見学や業界団体による一般向けの解説", "query": "化学工業 現場 使用", "opened_entry_point_ids": ["E3", "E4"], "found_candidate_ids": [], "resolution": "開いた資料に新しい製法名はなく、既存の候補と一致した", "resolved": true},
+  "saturation_challenge": {"search_perspective": "工場見学や業界団体による一般向けの解説", "query": "化学工業 現場 使用", "opened_entry_point_ids": ["E3", "E4"], "found_candidate_ids": [], "resolution": "開いた資料に新しい製法名はなく、既存の候補と一致した", "resolved": true, "core_check": {"source_entry_point_ids": ["E2"], "core_candidate_ids": ["K1", "K2"], "added_candidate_ids": [], "reason": "化学事典の工業化学の概説が代表的な製法として挙げるアンモニアソーダ法とクメン法が、どちらも台帳にある"}},
   "frontier_ids": [],
   "saturated": true
 }

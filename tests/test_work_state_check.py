@@ -985,6 +985,23 @@ class TestDiscoveryProgressState:
 class TestSelectionState:
     """題材探索の完了状態を検査する。"""
 
+    @pytest.mark.parametrize(
+        ("field", "value", "message"),
+        [
+            ("core_candidate_ids", [], "core_check.core_candidate_idsが空である"),
+            ("added_candidate_ids", ["K9"], "存在しないIDを参照している"),
+            ("reason", "", "core_check.reasonがない"),
+        ],
+    )
+    def test_saturation_requires_core_object_check(
+        self, run_script, selection_state, field, value, message
+    ):
+        """反証調査では中核級の対象が台帳にあるかを確かめた記録を要する。"""
+        selection_state["saturation_challenge"]["core_check"][field] = value
+        result = check_state(run_script, "discovery", selection_state)
+        assert result.returncode == 1
+        assert message in result.stderr
+
     def test_every_area_needs_exploration_assignment(self, run_script, selection_state):
         """下位領域ごとに題材探索担当を割り当てる。"""
         selection_state["execution"]["assignments"] = [

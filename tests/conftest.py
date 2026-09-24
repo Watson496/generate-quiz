@@ -366,6 +366,12 @@ def selection_state(intersection_state):
             "found_candidate_ids": [],
             "resolution": "新しい候補なし",
             "resolved": True,
+            "core_check": {
+                "source_entry_point_ids": ["E2"],
+                "core_candidate_ids": ["K1", "K2"],
+                "added_candidate_ids": [],
+                "reason": "事典の概説が主要な対象として挙げる候補が台帳にある",
+            },
         },
     }
     roles = (
