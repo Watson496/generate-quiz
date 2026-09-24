@@ -72,7 +72,6 @@
     "answer_review": "回答と露出候補の正誤判定",
     "beginner_difficulty_review": "初学者側の難易度の検査結果",
     "general_difficulty_review": "一般層側の難易度の検査結果",
-    "audit_results": "監査結果",
     "final_output": "完成稿",
     "final_review": "最終照合の記録"
   },
@@ -641,18 +640,6 @@
           "specs": ["quiz_generation_spec.md", "verification_and_judging_spec.md", "work_state_spec.md"],
           "inputs": [["answer_target", "draft", "clues", "sources", "competitors", "competitor_search_reviews"]],
           "outputs": ["competitor_comparison_reviews"]
-        },
-        {
-          "id": "audit",
-          "name": "監査担当",
-          "side": "check",
-          "section": "独立監査",
-          "specs": ["quiz_generation_spec.md", "verification_and_judging_spec.md", "selection_and_history_spec.md", "output_structure_spec.md", "work_state_spec.md"],
-          "inputs": [
-            ["draft", "answer_target"],
-            ["user_conditions", "sources", "propositions", "clues", "competitors", "competitor_comparisons", "asked_knowledge", "terms", "answers", "generation_checks", "final_input", "difficulty_assessment", "term_listing", "term_necessity_reviews", "term_sense_reviews", "term_audience_reviews", "structure_review", "clue_order_review", "naturalness_review", "incremental_comprehension_review", "blind_candidates", "exposure_analysis", "answer_review", "beginner_difficulty_review", "general_difficulty_review"]
-          ],
-          "outputs": ["audit_results"]
         }
       ]
     },

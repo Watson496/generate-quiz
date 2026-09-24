@@ -3,7 +3,7 @@
 
 入力はJSONファイルのパスまたは標準入力から受け取る。--stageには
 facet-selection、intersection-checkpoint、discovery、membership、selection、prejudgment、
-generation-start、generation、audit、finalのいずれかを指定する。
+generation-start、generation、review、finalのいずれかを指定する。
 
 終了コード:
     0  指定工程の条件を満たす
@@ -12,7 +12,7 @@ generation-start、generation、audit、finalのいずれかを指定する。
 
 使用例:
     python3 work_state_check.py --stage selection selection.json
-    python3 work_state_check.py --stage audit state.json
+    python3 work_state_check.py --stage review state.json
 """
 
 import argparse
@@ -167,7 +167,7 @@ STAGE_ROLES = {
         "asked_knowledge",
         "difficulty_assessment",
     ),
-    "audit": (
+    "review": (
         "name_research",
         "answer_range",
         "answer_judging",
@@ -201,7 +201,6 @@ STAGE_ROLES = {
         "exposure_analysis",
         "beginner_difficulty_review",
         "general_difficulty_review",
-        "audit",
     ),
     "final": (
         "name_research",
@@ -237,7 +236,6 @@ STAGE_ROLES = {
         "exposure_analysis",
         "beginner_difficulty_review",
         "general_difficulty_review",
-        "audit",
         "finalization",
         "final_review",
     ),
@@ -300,22 +298,6 @@ def referenced_ids(obj, key, allowed, name, *, nonempty=True):
     return values
 
 
-def require_stage_completion(obj, name, stage):
-    require_condition(
-        obj.get("generation") == "complete", f"{name}が生成側で完了していない"
-    )
-    audit = obj.get("audit")
-    require_condition(
-        audit in {"pending", "passed", "missing", "failed"}, f"{name}.auditが不正である"
-    )
-    if stage == "generation":
-        require_condition(
-            audit == "pending", f"{name}は生成工程の時点で監査済みになっている"
-        )
-    else:
-        require_condition(audit == "passed", f"{name}が監査に合格していない")
-
-
 def validate_name_formation(item, name):
     require_condition(isinstance(item, dict), f"{name}はオブジェクトでなければならない")
     candidate_name = required_text(item, "name", name)
@@ -373,6 +355,15 @@ def validate_reviews(state, key, expected_ids, id_field):
             item.get("status") in {"passed", "failed"}, f"{name}.statusが不正である"
         )
         required_text(item, "reason", name)
+        if item["status"] == "failed":
+            fix_data = required_id_list(
+                item.get("fix_data"), f"{name}.fix_data", nonempty=True
+            )
+            unknown = sorted(set(fix_data) - set(assignment_plan.load_table()["data"]))
+            require_condition(
+                not unknown,
+                f"{name}.fix_dataが担当表にないデータを参照している: {unknown}",
+            )
         latest[target] = item["status"]
     missing = sorted(set(expected_ids) - set(latest))
     require_condition(not missing, f"{key}に検査のない項目がある: {missing}")
@@ -1122,7 +1113,7 @@ def validate_execution_assignments(state, stage):
     require_condition(
         not missing, f"execution.assignmentsに担当の記録がない: {missing}"
     )
-    if stage in {"audit", "final"}:
+    if stage in {"review", "final"}:
         draft = state.get("draft")
         version = draft.get("version") if isinstance(draft, dict) else None
         require_condition(
@@ -1296,7 +1287,7 @@ def validate_competitors(state, active_clues, quote_ids, stage):
         compared[pair] = disposition
     missing = sorted(pairs - set(compared))
     require_condition(not missing, f"条件を照合していない対抗候補がある: {missing}")
-    if stage in {"audit", "final"}:
+    if stage in {"review", "final"}:
         validate_competitor_reviews(state, clue_text, compared, quote_ids)
 
 
@@ -1502,7 +1493,7 @@ def validate_proposition_support(state, active_props, quote_ids, stage):
         required_text(item, "reason", name)
     missing = [prop_id for prop_id in prop_ids if prop_id not in certain]
     require_condition(not missing, f"確実性の判定のない命題がある: {missing}")
-    if stage in {"audit", "final"}:
+    if stage in {"review", "final"}:
         validate_reviews(state, "corroboration_reviews", prop_ids, "proposition_id")
         validate_reviews(state, "certainty_reviews", prop_ids, "proposition_id")
         validate_proposition_matching(state, prop_ids)
@@ -1597,7 +1588,7 @@ def validate_source_assessments(state, supports, stage):
             f"命題{item['proposition_id']}が事実の根拠に使えない資料の引用を根拠にしている: {usage_only}",
         )
     require_items_assigned(state, "source_reliability", source_ids)
-    if stage in {"audit", "final"}:
+    if stage in {"review", "final"}:
         validate_reviews(state, "source_reliability_reviews", source_ids, "source_id")
         require_items_assigned(state, "source_reliability_review", source_ids)
 
@@ -1624,7 +1615,7 @@ def validate_clue_centrality(state, active_clues, quote_ids, stage):
         evaluated.add(clue_id)
     missing = sorted(clue_ids - evaluated)
     require_condition(not missing, f"中核性の評価のない手掛かりがある: {missing}")
-    if stage in {"audit", "final"}:
+    if stage in {"review", "final"}:
         validate_reviews(
             state,
             "centrality_reviews",
@@ -2164,7 +2155,7 @@ def validate_terminology(state, quote_ids, version, stage, draft_text):
             referenced_ids(item, "audience_evidence_ids", quote_ids, name)
         else:
             required_text(item, "understanding_without_meaning", name)
-    if stage in {"audit", "final"}:
+    if stage in {"review", "final"}:
         validate_term_reviews(state, terms, term_ids, quote_ids, version)
 
 
@@ -2401,7 +2392,7 @@ def validate_work_state(state, stage):
     validate_source_assessments(state, supports, stage)
     validate_clue_centrality(state, active_clues, quote_ids, stage)
     validate_competitors(state, active_clues, quote_ids, stage)
-    if stage in {"audit", "final"}:
+    if stage in {"review", "final"}:
         validate_reviews(
             state,
             "familiarity_reviews",
@@ -2409,7 +2400,7 @@ def validate_work_state(state, stage):
             "clue_id",
         )
     difficulty_assessment = validate_difficulty_assessment(state, quote_ids)
-    if stage in {"audit", "final"}:
+    if stage in {"review", "final"}:
         validate_difficulty_reviews(state, quote_ids, version)
     validate_terminology(state, quote_ids, version, stage, draft["text"])
     answers = validate_answers(state, quote_ids)
@@ -2457,8 +2448,7 @@ def validate_work_state(state, stage):
             )
         if item["id"] != "expression.naturalness":
             referenced_ids(item, "evidence_ids", quote_ids, name)
-        require_stage_completion(item, name, stage)
-    if stage in {"audit", "final"}:
+    if stage in {"review", "final"}:
         validate_expression_reviews(state, checks, active_clues, version)
         validate_exposure_analysis(state, checks, version)
         validate_answer_review(state, answers, checks, quote_ids, version)
@@ -2505,7 +2495,7 @@ def main():
             "prejudgment",
             "generation-start",
             "generation",
-            "audit",
+            "review",
             "final",
         ),
         required=True,
