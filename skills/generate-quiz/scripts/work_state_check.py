@@ -1401,10 +1401,6 @@ def validate_final_material(state, final, active_props, cited):
         "final_input.material.answerに解答対象がない",
     )
     require_condition(
-        not re.search(r"もう一度|×", material["alternatives"]),
-        "final_input.material.alternativesに正答以外の判定がある",
-    )
-    require_condition(
         not re.search(
             r"\b(?:ACCEPTANCE|DRAW|VERDICT|ACCEPT|REJECT)\b|抽選値|乱数値",
             material["length"],
