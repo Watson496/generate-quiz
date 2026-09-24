@@ -152,7 +152,7 @@
 
 ## 監査前の反証確認
 
-生成工程の状態検査に合格した後、監査前に難易度と各手掛かりの準一意性を独立に反証する。`evidence_challenge`には現行問題文の版と問う知識を記録する。問う知識は作業状態の`asked_knowledge`と一致させる。`beginner`と`general`には開いた資料のURL、反証で見つけた事情、採用する引用IDと解決理由を置く。各手掛かりの記録は採用中の手掛かりIDに対応させ、逆引きで確認した対抗候補の`id`と名称、候補自身を扱う資料のURL、問題文の条件との照合、候補の採否と未解決の有無を置く。生成側の対抗候補をすべて照合し、独立調査で新しく見つけた有力候補も記録する。条件の相違を確認できない候補や生成側と採否が食い違う候補は、監査前に解決する。
+生成工程の状態検査に合格した後、監査前に難易度を独立に反証する。`evidence_challenge`には現行問題文の版と問う知識を記録する。問う知識は作業状態の`asked_knowledge`と一致させる。`beginner`と`general`には開いた資料のURL、反証で見つけた事情、採用する引用IDと解決理由を置く。
 
 ## 監査結果
 
@@ -201,9 +201,11 @@
 
 JSON manifestは、検査対象を具体的な内容へ結び付け、確定的な参照整合性と工程境界を検査するために使う。IDだけのレコードや、複数の専門用語・解答候補・出力項目を一つのIDにまとめたレコードを置かない。
 
-資料には書誌情報と逐語引用を置く。命題には問題文の対応箇所と、真偽を判定する文を置く。命題の裏取りは`proposition_support`に、命題IDを`proposition_id`、引用IDを`evidence_ids`、引用から判断へ至る理由を`reason`、推論の種類を`inference_type`として置く。一つの命題内に複数の項・限定がある場合は、`verification_elements`に検証要素ごとの`text`、引用ID、理由、推論の種類を置く。命題の確実性は`proposition_certainty`に、`proposition_id`、確実性の水準を`level`、判定理由を`reason`として置く。それぞれの検査結果は`corroboration_reviews`と`certainty_reviews`に、`proposition_id`、`status`（`passed`・`failed`）、`reason`として置く。問題文から独立に取り出した命題は`extracted_propositions`に、`id`、問題文の版を`draft_version`、真偽を判定する文を`claim`、問題文の対応箇所を`passage`として置く。照合結果は`proposition_matching_reviews`に、取り出した命題の`extracted_id`、対応する採用命題の`proposition_id`、断定の強さが確実性と合うかを`strength_matches`、`status`、`reason`として置く。手掛かりには問題文中の文字列と命題IDを置き、準一意性、知名度の各判断へ結論、理由、引用IDを置く。手掛かりの中核性・代表性の評価は`clue_centrality`に、手掛かりIDを`clue_id`、結論を`claim`、理由を`reason`、引用IDを`evidence_ids`として置き、検査結果は`centrality_reviews`に`clue_id`、`status`（`passed`・`failed`）、`reason`として置く。準一意性には比較範囲、対抗候補、単独で十分に絞れること、依存する他の手掛かりがないことを置く。専門用語と解答候補は一語・一候補ごとにレコードを分ける。最終出力の必須項目も項目ごとに固定IDを使い、内容の保存先を示す。
+資料には書誌情報と逐語引用を置く。命題には問題文の対応箇所と、真偽を判定する文を置く。命題の裏取りは`proposition_support`に、命題IDを`proposition_id`、引用IDを`evidence_ids`、引用から判断へ至る理由を`reason`、推論の種類を`inference_type`として置く。一つの命題内に複数の項・限定がある場合は、`verification_elements`に検証要素ごとの`text`、引用ID、理由、推論の種類を置く。命題の確実性は`proposition_certainty`に、`proposition_id`、確実性の水準を`level`、判定理由を`reason`として置く。それぞれの検査結果は`corroboration_reviews`と`certainty_reviews`に、`proposition_id`、`status`（`passed`・`failed`）、`reason`として置く。問題文から独立に取り出した命題は`extracted_propositions`に、`id`、問題文の版を`draft_version`、真偽を判定する文を`claim`、問題文の対応箇所を`passage`として置く。照合結果は`proposition_matching_reviews`に、取り出した命題の`extracted_id`、対応する採用命題の`proposition_id`、断定の強さが確実性と合うかを`strength_matches`、`status`、`reason`として置く。手掛かりには問題文中の文字列と命題IDを置き、準一意性、知名度の各判断へ結論、理由、引用IDを置く。手掛かりの中核性・代表性の評価は`clue_centrality`に、手掛かりIDを`clue_id`、結論を`claim`、理由を`reason`、引用IDを`evidence_ids`として置き、検査結果は`centrality_reviews`に`clue_id`、`status`（`passed`・`failed`）、`reason`として置く。準一意性には比較範囲、単独で十分に絞れること、依存する他の手掛かりがないことを置く。専門用語と解答候補は一語・一候補ごとにレコードを分ける。最終出力の必須項目も項目ごとに固定IDを使い、内容の保存先を示す。
 
-各`competitors`項目には、候補の`id`と`name`、その候補を扱う資料の`evidence_ids`を置く。手掛かりに書かれた条件ごとの`passage`、`matches`（真偽値）、`reason`、`evidence_ids`を`conditions`に置く。候補を別対象として退けるか同一対象の別名として扱うかを`disposition`（`excluded`・`same_target`）と`reason`で示す。別対象を退ける場合だけ、相違する条件の`passage`を`exclusion_passage`へ置く。条件の引用IDは候補の引用IDへ、候補の引用IDは準一意性の引用IDへ含める。
+対抗候補は`competitors`に、候補の`id`と`name`、逆引きの元にした手掛かりの`clue_ids`、その候補を扱う資料の`evidence_ids`を置く。条件の照合は`competitor_comparisons`に、手掛かりの`clue_id`と候補の`competitor_id`の組ごとに置き、手掛かりに書かれた条件ごとの`passage`、`matches`（真偽値）、`reason`、`evidence_ids`を`conditions`に置く。候補を別対象として退けるか同一対象の別名として扱うかを`disposition`（`excluded`・`same_target`）と`reason`で示す。別対象を退ける場合だけ、相違する条件の`passage`を`exclusion_passage`へ置く。条件の引用IDは候補の引用IDへ含める。
+
+逆引き探索の検査結果は`competitor_search_reviews`に、手掛かりの`clue_id`ごとに、見つけた候補を`found`（候補の`id`、`name`、候補を扱う資料の`source_url`、`evidence_ids`）、判定を`status`、理由を`reason`として置く。条件照合の検査結果は`competitor_comparison_reviews`に、`clue_id`と`competitor_id`の組ごとに、条件ごとの`passage`、`match`（`一致`・`近接`・`不一致`）、`reason`を`conditions`に置き、`disposition`、`status`、`reason`を置く。`work_state_check.py`は、作る側の照合と逆引きで見つけた候補のすべてに照合の検査があること、作る側と採否が一致すること、新しく見つけた候補を除外していること、除外には不一致の条件があることを確認する。
 
 問う知識の内容を`asked_knowledge`に記録し、難易度の独立検査は`difficulty_review`に記録する。後者の`asked_knowledge`には検査対象とした問う知識、`answer_granularity`には要求する解答知識の細かさ、`beginner`と`general`には各集団の`status`、`reason`、`evidence_ids`を置く。一般層側の`other_access_paths`には、定義的な資料とは別に名称と代表情報の対応が共有され得る経路を`path`、実際に調べた内容を`search_record`、その対応への接触を確認できたかを`outcome`、調査結果を`result`、確認した資料の引用IDを`evidence_ids`として置く。`outcome`は`confirmed`または`not_confirmed`とし、前者では引用IDを必須とする。後者では引用IDを空にできるが、調べた範囲を超える不在の根拠とは扱わない。
 
