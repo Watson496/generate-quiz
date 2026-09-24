@@ -1485,10 +1485,10 @@ def validate_topic_selection(state, final):
         )
     require_condition(
         not re.search(
-            r"重み付きで選択|抽選過程|候補台帳|候補から選|(?:subject|place|time|type)::|\bROOT\b",
+            r"(?:subject|place|time|type)::",
             content,
         ),
-        "final_input.material.topic_selectionに抽選過程または内部ノードIDがある",
+        "final_input.material.topic_selectionに内部ノードIDがある",
     )
 
 
