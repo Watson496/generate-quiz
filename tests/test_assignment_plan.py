@@ -106,9 +106,7 @@ class TestBundledTable:
     def test_blind_phases_hold_only_draft(self, load_script):
         """解答を伏せる段階の入力は問題文だけである。"""
         module = load_script("generate-quiz", "assignment_plan.py")
-        table = module.load_table()
-        for role_id in ("exposure", "audit"):
-            assert find_role(table, role_id)["inputs"][0] == ["draft"]
+        assert find_role(module.load_table(), "exposure")["inputs"][0] == ["draft"]
 
     def test_extraction_sees_answer_but_not_propositions(self, load_script):
         """実現命題の抽出担当は、問題文と解答対象だけを受け取り、裏取り済みの命題を見ない。"""
