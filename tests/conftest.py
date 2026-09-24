@@ -322,6 +322,46 @@ def selection_state(intersection_state):
             }
             for candidate_id, label in (("K1", "候補1"), ("K2", "候補2"))
         ],
+        "topic_groups": [
+            {
+                "id": "G1",
+                "label": "無機化学工業の製法",
+                "candidate_ids": ["K1"],
+                "reason": "無機化学工業の製法を比べる",
+            },
+            {
+                "id": "G2",
+                "label": "有機化学工業の製法",
+                "candidate_ids": ["K2"],
+                "reason": "有機化学工業の製法を比べる",
+            },
+        ],
+        "group_weights": [
+            {
+                "group_id": group_id,
+                "weight": weight,
+                "viewpoints": {
+                    "sharing": f"{group_id}の製法の日本語圏での共有度",
+                    "communication": f"{group_id}の製法が話題になる場面",
+                    "background": f"{group_id}の製法が背景知識として働く範囲",
+                },
+                "reason": f"{group_id}の三観点をまとめた",
+            }
+            for group_id, weight in (("G1", 2.0), ("G2", 1.0))
+        ],
+        "candidate_weights": [
+            {
+                "candidate_id": candidate_id,
+                "weight": 1.0,
+                "viewpoints": {
+                    "sharing": f"{candidate_id}の日本語圏での共有度",
+                    "communication": f"{candidate_id}が話題になる場面",
+                    "background": f"{candidate_id}が背景知識として働く範囲",
+                },
+                "reason": f"{candidate_id}の三観点をまとめた",
+            }
+            for candidate_id in ("K1", "K2")
+        ],
         "frontier_ids": [],
         "saturated": True,
         "memberships": [
@@ -389,7 +429,10 @@ def selection_state(intersection_state):
         ("alternate_exploration", None),
         ("saturation_review", None),
         ("exposure_precheck", ["K1", "K2"]),
-        ("topic_weighting", None),
+        ("topic_grouping", None),
+        ("group_weighting", None),
+        ("topic_weighting", ["G1"]),
+        ("topic_weighting", ["G2"]),
     )
     state["execution"] = {
         **state["execution"],

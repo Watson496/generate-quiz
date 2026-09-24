@@ -53,6 +53,8 @@
 
 解答露出の予備検査は`exposure_prechecks`に、候補IDを`candidate_id`、残すか除外するかを`result`（`keep`・`exclude`）、判断理由を`reason`として置く。除外した候補の検査結果は`exposure_precheck_reviews`に、候補IDを`candidate_id`、判定を`status`（`passed`・`failed`）、理由を`reason`として置く。所属する選択対象のうち、`keep`とした候補だけを抽選の対象にする。
 
+抽選の対象の候補のまとまりは`topic_groups`に、`id`、名前を`label`、含む候補IDを`candidate_ids`、切り方の理由を`reason`として置く。まとまりが複数あれば、まとまり同士のweightを`group_weights`に、まとまりの`group_id`と、ファセットのweightと同じ`weight`・`viewpoints`・`reason`として置く。まとまりの中の各候補のweightは`candidate_weights`に、`candidate_id`と`weight`・`viewpoints`・`reason`、対象再出現の履歴距離を`history_distances`として置く。`topic_pick.py`は二つのweightの積を基礎weightとして抽選する。
+
 ## 解答対象ごとの作業状態
 
 ユーザーが解答対象を直接指定した場合は`selection_mode: specified`と`user_specified_target`を記録する。ファセットから抽選した場合は`selection_mode: random`とする。題材探索の担当の起動の記録は題材探索状態に残し、作業状態へ写さない。どちらの場合も、決まった解答対象について生成以降の検査を省かない。
@@ -225,7 +227,7 @@ JSON manifestは、検査対象を具体的な内容へ結び付け、確定的�
 ```json
 {
   "facet_nodes": {"subject": "subject::66", "place": "place::ROOT", "time": "time::ROOT", "type": "type::ROOT"},
-  "execution": {"delegation_available": true, "assignments": [{"role": "intersection", "agent_id": "agent-1", "artifact_refs": ["intersection.md"]}, {"role": "exploration", "agent_id": "agent-2", "artifact_refs": ["exploration_D1.md"], "items": ["D1"]}, {"role": "exploration", "agent_id": "agent-3", "artifact_refs": ["exploration_D2.md"], "items": ["D2"]}, {"role": "nearby_exploration", "agent_id": "agent-4", "artifact_refs": ["nearby_exploration.md"], "items": ["K1", "K2"]}, {"role": "alternate_exploration", "agent_id": "agent-5", "artifact_refs": ["alternate_exploration.md"]}, {"role": "saturation_review", "agent_id": "agent-6", "artifact_refs": ["saturation_review.md"]}, {"role": "membership", "agent_id": "agent-7", "artifact_refs": ["membership.json"], "items": ["K1", "K2"]}, {"role": "membership_review", "agent_id": "agent-8", "artifact_refs": ["membership_review.json"], "items": ["K1", "K2"]}, {"role": "exposure_precheck", "agent_id": "agent-9", "artifact_refs": ["exposure_precheck.md"], "items": ["K1", "K2"]}, {"role": "topic_weighting", "agent_id": "agent-10", "artifact_refs": ["topic_weights.json"]}]},
+  "execution": {"delegation_available": true, "assignments": [{"role": "intersection", "agent_id": "agent-1", "artifact_refs": ["intersection.md"]}, {"role": "exploration", "agent_id": "agent-2", "artifact_refs": ["exploration_D1.md"], "items": ["D1"]}, {"role": "exploration", "agent_id": "agent-3", "artifact_refs": ["exploration_D2.md"], "items": ["D2"]}, {"role": "nearby_exploration", "agent_id": "agent-4", "artifact_refs": ["nearby_exploration.md"], "items": ["K1", "K2"]}, {"role": "alternate_exploration", "agent_id": "agent-5", "artifact_refs": ["alternate_exploration.md"]}, {"role": "saturation_review", "agent_id": "agent-6", "artifact_refs": ["saturation_review.md"]}, {"role": "membership", "agent_id": "agent-7", "artifact_refs": ["membership.json"], "items": ["K1", "K2"]}, {"role": "membership_review", "agent_id": "agent-8", "artifact_refs": ["membership_review.json"], "items": ["K1", "K2"]}, {"role": "exposure_precheck", "agent_id": "agent-9", "artifact_refs": ["exposure_precheck.md"], "items": ["K1", "K2"]}, {"role": "topic_grouping", "agent_id": "agent-10", "artifact_refs": ["topic_grouping.json"]}, {"role": "topic_weighting", "agent_id": "agent-11", "artifact_refs": ["topic_weighting_G1.json"], "items": ["G1"]}]},
   "intersection_review": {
     "source_refs": ["https://example.org/outline", "https://example.org/lesson"],
     "candidate_examples": [
@@ -265,6 +267,13 @@ JSON manifestは、検査対象を具体的な内容へ結び付け、確定的�
   "exposure_prechecks": [
     {"candidate_id": "K1", "result": "keep", "reason": "「食塩と石灰石から炭酸ナトリウムを工業的に得る製法」のように、名称の「アンモニア」を出さずに説明できる"},
     {"candidate_id": "K2", "result": "keep", "reason": "説明に中間体を出すと「クメン」から名称を作れるが、「ベンゼンとプロピレンからフェノールとアセトンを同時に得る製法」のように中間体を出さずに説明できる"}
+  ],
+  "topic_groups": [
+    {"id": "G1", "label": "化学工業の製法", "candidate_ids": ["K1", "K2"], "reason": "候補が二つで、一度に比べられる"}
+  ],
+  "candidate_weights": [
+    {"candidate_id": "K1", "weight": 3.0, "viewpoints": {"sharing": "高校化学で炭酸ナトリウムの製法として学び、名称を聞いたことのある人が多い", "communication": "化学の授業や受験の話題で出る", "background": "化学工業の歴史や塩の利用を理解する前提になる"}, "reason": "学校教育を通じた共有度が高く、クメン法より重要度が高い"},
+    {"candidate_id": "K2", "weight": 1.0, "viewpoints": {"sharing": "高校化学の有機分野で扱われるが、アンモニアソーダ法ほど知られていない", "communication": "化学の授業や受験の話題で出る", "background": "フェノール樹脂などの素材を理解する前提になる"}, "reason": "学校教育で扱われるが共有度はアンモニアソーダ法より低い"}
   ],
   "frontier_ids": [],
   "saturated": true

@@ -49,7 +49,7 @@ subagentを利用できない環境では、親エージェントが同じ状態
 
 - `assignment_plan.py`：担当表からステップの構成、依頼文、担当の分割、再実行する担当を決定
 - `weighted_pick.py`：重みの正規化、履歴補正、重み付き乱択
-- `topic_pick.py`：題材候補の探索状態と抽選対象を照合してから抽選
+- `topic_pick.py`：題材候補の探索状態を検査し、二段階のweightの積で抽選
 - `length_check.py`：文字数の計測と許容度による採否判定
 - `facet_node.py`：分類カタログから指定したノードを取得
 - `work_state_check.py`：作業状態の必須項目、問題文の版、IDの参照関係を検査

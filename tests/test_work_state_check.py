@@ -490,6 +490,29 @@ def assignment_of(state, role):
     )
 
 
+def drop_from_weights(state, candidate_id):
+    """抽選の対象から外れた候補を、まとまりとweightから除く。"""
+    groups = []
+    for group in state["topic_groups"]:
+        group["candidate_ids"] = [
+            item for item in group["candidate_ids"] if item != candidate_id
+        ]
+        if group["candidate_ids"]:
+            groups.append(group)
+    state["topic_groups"] = groups
+    kept = {group["id"] for group in groups}
+    state["group_weights"] = [
+        item for item in state["group_weights"] if item["group_id"] in kept
+    ]
+    if len(groups) == 1:
+        del state["group_weights"]
+    state["candidate_weights"] = [
+        item
+        for item in state["candidate_weights"]
+        if item["candidate_id"] != candidate_id
+    ]
+
+
 @pytest.fixture
 def generation_state(complete_state):
     """生成工程の監査前にある一問分の作業状態を作る。"""
@@ -1037,11 +1060,48 @@ class TestSelectionState:
         assert result.returncode == 1
         assert "予備検査のない候補がある: ['K2']" in result.stderr
 
+    def test_groups_must_cover_pickable_candidates_once(
+        self, run_script, selection_state
+    ):
+        """まとまりは抽選の対象の候補を一度ずつ含む。"""
+        selection_state["topic_groups"][1]["candidate_ids"] = ["K1"]
+        result = check_state(run_script, "selection", selection_state)
+        assert result.returncode == 1
+        assert "topic_groupsが抽選の対象の候補を一度ずつ含んでいない" in result.stderr
+
+    def test_several_groups_need_group_weights(self, run_script, selection_state):
+        """まとまりが複数あれば、まとまり同士のweightを要する。"""
+        del selection_state["group_weights"]
+        result = check_state(run_script, "selection", selection_state)
+        assert result.returncode == 1
+        assert "group_weightsが空である" in result.stderr
+
+    def test_candidate_weight_must_be_positive(self, run_script, selection_state):
+        """抽選の対象の候補には正のweightを付ける。"""
+        selection_state["candidate_weights"][0]["weight"] = 0
+        result = check_state(run_script, "selection", selection_state)
+        assert result.returncode == 1
+        assert "candidate_weights[0].weightが正の数ではない" in result.stderr
+
+    def test_every_group_needs_weighting_assignment(self, run_script, selection_state):
+        """まとまりごとに、まとまりの中のweight担当を割り当てる。"""
+        selection_state["execution"]["assignments"] = [
+            item
+            for item in selection_state["execution"]["assignments"]
+            if item.get("items") != ["G2"]
+        ]
+        result = check_state(run_script, "selection", selection_state)
+        assert result.returncode == 1
+        assert (
+            "topic_weightingの担当に割り当てていない項目がある: ['G2']" in result.stderr
+        )
+
     def test_excluded_candidate_requires_passed_review(
         self, run_script, selection_state
     ):
         """予備検査で除外した候補は、別の担当の検査に合格して除外する。"""
         selection_state["exposure_prechecks"][1]["result"] = "exclude"
+        drop_from_weights(selection_state, "K2")
         result = check_state(run_script, "selection", selection_state)
         assert result.returncode == 1
         assert "exposure_precheck_reviewsは配列でなければならない" in result.stderr
@@ -1172,6 +1232,7 @@ class TestSelectionState:
             exclusion_reason="日本語資料中で対象の名称として確認できない",
         )
         del candidate["name_use_note"]
+        drop_from_weights(selection_state, "K1")
         assert check_state(run_script, "discovery", selection_state).returncode == 0
         assert check_state(run_script, "selection", selection_state).returncode == 0
 

@@ -130,6 +130,7 @@ STAGE_ROLES = {
         "membership",
         "membership_review",
         "exposure_precheck",
+        "topic_grouping",
         "topic_weighting",
     ),
     "generation-start": ("generation",),
@@ -294,6 +295,27 @@ def validate_reviews(state, key, expected_ids, id_field):
     require_condition(not failed, f"{key}に不合格の項目がある: {failed}")
 
 
+def validate_weight_record(item, name, *, positive):
+    """weightと三観点の評価、根拠、履歴距離を検査する。"""
+    require_condition(isinstance(item, dict), f"{name}はオブジェクトでなければならない")
+    weight = item.get("weight")
+    require_condition(
+        type(weight) in {int, float} and (weight > 0 if positive else weight >= 0),
+        f"{name}.weightが{'正' if positive else '0以上'}の数ではない",
+    )
+    viewpoints = item.get("viewpoints")
+    require_condition(isinstance(viewpoints, dict), f"{name}.viewpointsがない")
+    for viewpoint in FACET_VIEWPOINTS:
+        required_text(viewpoints, viewpoint, f"{name}.viewpoints")
+    required_text(item, "reason", name)
+    distances = item.get("history_distances", [])
+    require_condition(
+        isinstance(distances, list)
+        and all(type(value) is int and value >= 1 for value in distances),
+        f"{name}.history_distancesが1以上の整数の配列ではない",
+    )
+
+
 def validate_facet_weights(item, node, name):
     """子へ進む階層のweightが、兄弟ノードすべてに三観点の評価と根拠を持つことを検査する。"""
     candidates = required_list(
@@ -302,27 +324,9 @@ def validate_facet_weights(item, node, name):
     keys = []
     for index, candidate in enumerate(candidates):
         cname = f"{name}.candidates[{index}]"
-        require_condition(
-            isinstance(candidate, dict), f"{cname}はオブジェクトでなければならない"
-        )
+        validate_weight_record(candidate, cname, positive=False)
         keys.append(required_text(candidate, "key", cname))
         required_text(candidate, "label", cname)
-        weight = candidate.get("weight")
-        require_condition(
-            type(weight) in {int, float} and weight >= 0,
-            f"{cname}.weightが0以上の数ではない",
-        )
-        viewpoints = candidate.get("viewpoints")
-        require_condition(isinstance(viewpoints, dict), f"{cname}.viewpointsがない")
-        for viewpoint in FACET_VIEWPOINTS:
-            required_text(viewpoints, viewpoint, f"{cname}.viewpoints")
-        required_text(candidate, "reason", cname)
-        distances = candidate.get("history_distances", [])
-        require_condition(
-            isinstance(distances, list)
-            and all(type(value) is int and value >= 1 for value in distances),
-            f"{cname}.history_distancesが1以上の整数の配列ではない",
-        )
     require_condition(
         keys == facet_node.child_keys(node),
         f"{name}.candidatesが{node}の直接の子と一致しない",
@@ -718,6 +722,48 @@ def validate_exposure_prechecks(state, members, known_ids):
     }
 
 
+def validate_topic_weights(state, pickable):
+    """まとまりの切り方と、二段階のweightが抽選の対象の候補に対応することを検査する。"""
+    groups, group_ids = records_with_ids(
+        state.get("topic_groups"), "topic_groups", nonempty=bool(pickable)
+    )
+    grouped = []
+    for group in groups:
+        name = f"topic_groups.{group['id']}"
+        required_text(group, "label", name)
+        required_text(group, "reason", name)
+        grouped.extend(referenced_ids(group, "candidate_ids", pickable, name))
+    require_condition(
+        sorted(grouped) == sorted(pickable),
+        "topic_groupsが抽選の対象の候補を一度ずつ含んでいない",
+    )
+    group_weights = required_list(
+        state.get("group_weights", []), "group_weights", nonempty=len(groups) > 1
+    )
+    weighted_groups = []
+    for index, item in enumerate(group_weights):
+        name = f"group_weights[{index}]"
+        validate_weight_record(item, name, positive=True)
+        weighted_groups.append(required_text(item, "group_id", name))
+    require_condition(
+        (len(groups) == 1 and not weighted_groups)
+        or sorted(weighted_groups) == sorted(group_ids),
+        "group_weightsがまとまりと一致しない",
+    )
+    weighted = []
+    for index, item in enumerate(
+        required_list(state.get("candidate_weights"), "candidate_weights")
+    ):
+        name = f"candidate_weights[{index}]"
+        validate_weight_record(item, name, positive=True)
+        weighted.append(required_text(item, "candidate_id", name))
+    require_condition(
+        sorted(weighted) == sorted(pickable),
+        "candidate_weightsが抽選の対象の候補と一致しない",
+    )
+    return sorted(group_ids)
+
+
 def validate_memberships(state, candidate_ids, known_ids):
     """所属判定が選択対象ごとに4軸の判断を持つことを検査し、所属する候補を返す。"""
     memberships = required_list(
@@ -872,7 +918,8 @@ def validate_selection_state(state, stage):
     members = validate_memberships(state, eligible_candidate_ids(state), candidate_ids)
     if stage == "membership":
         return
-    validate_exposure_prechecks(state, members, candidate_ids)
+    pickable = validate_exposure_prechecks(state, members, candidate_ids)
+    validate_topic_weights(state, pickable)
 
 
 def validate_selection_mode(state):
@@ -982,6 +1029,16 @@ def validate_selection_execution(state, stage):
         require_items_assigned(state, "membership", eligible)
         require_items_assigned(state, "membership_review", eligible)
     if stage == "selection":
+        groups = [group["id"] for group in state["topic_groups"]]
+        require_items_assigned(state, "topic_weighting", groups)
+        if len(groups) > 1 and state["execution"]["delegation_available"]:
+            require_condition(
+                any(
+                    record["role"] == "group_weighting"
+                    for record in state["execution"]["assignments"]
+                ),
+                "execution.assignmentsに担当の記録がない: ['group_weighting']",
+            )
         members = member_candidate_ids(state)
         require_items_assigned(state, "exposure_precheck", sorted(members))
         excluded = members - pickable_candidate_ids(state)
