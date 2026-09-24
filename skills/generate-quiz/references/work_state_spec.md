@@ -41,7 +41,7 @@
 
 一つの解答対象を棄却しても、この状態は同じ問題番号で題材を再選定するために保持する。棄却した対象に固有の引用、推論、問題文、検査の記録は、新しい解答対象の作業状態へ渡さない。
 
-題材候補の探索状態は最終出力へ含めない。探索が飽和したら所属判定の前に`work_state_check.py --stage discovery`で検査する。抽選に使う探索状態は`--stage selection`で確認する。解答対象を決めた後は探索台帳を含まない作問状態を別に作り、生成担当の起動の記録とともに`--stage generation-start`で確認する。
+題材候補の探索状態は最終出力へ含めない。探索が飽和したら所属判定の前に`work_state_check.py --stage discovery`で検査する。抽選に使う探索状態は`--stage selection`で確認する。解答対象を決めた後は探索台帳を含まない作問状態を別に作り、作文担当の起動の記録とともに`--stage target-start`で確認する。
 
 探索状態は、題材を抽選する前に `topic_pick.py` へ渡す。入口には本文を開いたURL、`opened: true`、確認箇所を`access_note`として記録する。下位領域の`source_searches`には、候補名を含めない入口探しを`mode: open`、既知候補からの近接探索を`mode: nearby`として記録する。候補の`discovery_entry_point_ids`と`coverage_area_ids`は、同じ`source_searches`の`entry_point_ids`と`found_candidate_ids`に対応させる。最初の候補を記録した時点と入口・候補を追加した節目に`--stage discovery-progress`でこの対応を検査する。内部知識から挙げ、まだ資料で確認していない候補は、途中状態では`discovery_entry_point_ids`を空配列にできる。資料の探索記録にその候補を加えたら発見元も記録し、`--stage discovery`までに対応を確定する。途中検査では探索の完了や露出予備検査の記録を要求しない。資料で名称を確認できず除外する候補を除き、`name_use_note`には名称の使用箇所を記す。選択対象の`expansion_searches`には近接探索の検索先・調べた関係・得た候補IDを残す。検査を通った後で候補を追加した場合は、その候補からも探索を展開し、再度検査する。
 
@@ -99,9 +99,9 @@
 
 詳細を保存できる環境では、必要になったときだけ保存先から読み直す。
 
-## 生成側の検査単位
+## 作る側の検査単位
 
-生成担当は、次を検査単位として記録する。各単位は、`workflow_spec.md`で定めた観点別の検査担当が検査する。
+作文担当は、次を検査単位として記録する。各単位は、`workflow_spec.md`で定めた観点別の検査担当が検査する。
 
 - 問題文にある各専門用語と、その意味内容が命題理解に必要かの判断
 - 複数の手掛かり順序案
@@ -123,11 +123,11 @@
 
 連用中止・テ形接続がない場合も、完成稿を走査した結果として「該当なし」と記録する。接続がある場合は、左右の述定をそれぞれ省略のない形に戻し、並列、継起、理由、対立、手段、条件のどの関係が成立するかと、その判断理由を一箇所ずつ記録する。
 
-構造、手掛かりの順序、日本語の自然さ、前から読んだときの理解しやすさの検査結果は、`structure_review`、`clue_order_review`、`naturalness_review`、`incremental_comprehension_review`に、問題文の版を`draft_version`、判定を`status`、理由を`reason`として置く。`structure_review`には、独立に判定した構文型を`question_form`、落としを構成する手掛かりIDを`otoshi_clue_ids`として置き、`work_state_check.py`は生成側の区分との一致を確認する。
+構造、手掛かりの順序、日本語の自然さ、前から読んだときの理解しやすさの検査結果は、`structure_review`、`clue_order_review`、`naturalness_review`、`incremental_comprehension_review`に、問題文の版を`draft_version`、判定を`status`、理由を`reason`として置く。`structure_review`には、独立に判定した構文型を`question_form`、落としを構成する手掛かりIDを`otoshi_clue_ids`として置き、`work_state_check.py`は作る側の区分との一致を確認する。
 
 構文型は問題文の質問表現から判定する。落としは作問時の予定ではなく、完成稿で核名詞句の直前に実際にある表現を記録する。核名詞は、解答対象の種類を表す上位分類とする。落としを構成する手掛かりIDと、各手掛かりが対象を直接説明するかも記録する。上位分類だけ、作品や人物の列挙だけ、付随的性質だけになっていないか、前フリと後限定を除いた文でも解答対象の直接的な説明と準一意性が成立するかは、構造の検査担当が検査する。`work_state_check.py`は記録した文字列が問題文にあることと手掛かりとの参照関係を検査するが、構文型、落としの位置、核名詞が上位分類に当たるかは判定しない。
 
-## 生成側の完了条件
+## 作る側の完了条件
 
 外部資料によって評価する検査単位は、次が揃ったときに完了とする。
 
@@ -138,7 +138,7 @@
 - 直接記載、演繹、解釈、複数資料の総合の別
 - 未解決の反例または対抗候補がないこと
 
-日本語としての自然さなど、通常は外部資料を必要としない項目では、資料中の情報に代えて、実際に比較した二つ以上の問題文案と判断理由を記録する。解答露出では、生成担当が問題文の意味および語形成から生じる候補を`answer_exposure`の`semantic_candidates`に記録し、解答を伏せた名称候補の担当が挙げた候補は`blind_candidates`に記録する。露出の分析担当は、両方の候補を`exposure_analysis`に候補の`candidate_id`ごとに分析し、判定を`status`（`passed`・`failed`）、理由を`reason`として置く。生成担当と露出の分析担当は、各候補について、名称を形成する要素、その入手元、形成規則、名称候補の形成に解答側の知識が必要か、形成後に標準名称だと確認するためだけに解答側の知識が必要かを別々に記録する。各要素を得るのに使う知識は、`quiz_generation_spec.md`第18節の区分に従い、`knowledge`（`surface`・`audience_known`・`answer_side`）に記録する。各値は、問題文の表層、想定層の既習知識、解答側の知識に当たる。`answer_side`とした要素には、その知識が想定プレイヤー層にとって明白に既習でない理由を`answer_side_reason`に記録する。
+日本語としての自然さなど、通常は外部資料を必要としない項目では、資料中の情報に代えて、実際に比較した二つ以上の問題文案と判断理由を記録する。解答露出では、作文担当が問題文の意味および語形成から生じる候補を`answer_exposure`の`semantic_candidates`に記録し、解答を伏せた名称候補の担当が挙げた候補は`blind_candidates`に記録する。露出の分析担当は、両方の候補を`exposure_analysis`に候補の`candidate_id`ごとに分析し、判定を`status`（`passed`・`failed`）、理由を`reason`として置く。作文担当と露出の分析担当は、各候補について、名称を形成する要素、その入手元、形成規則、名称候補の形成に解答側の知識が必要か、形成後に標準名称だと確認するためだけに解答側の知識が必要かを別々に記録する。各要素を得るのに使う知識は、`quiz_generation_spec.md`第18節の区分に従い、`knowledge`（`surface`・`audience_known`・`answer_side`）に記録する。各値は、問題文の表層、想定層の既習知識、解答側の知識に当たる。`answer_side`とした要素には、その知識が想定プレイヤー層にとって明白に既習でない理由を`answer_side_reason`に記録する。
 
 対抗候補、露出候補、回答はIDで照合する。候補を最初に挙げた担当が、記録する時点でIDを付ける。後から候補を挙げる担当は、既存の候補と同じ対象なら既存のIDに対応付け、別の対象なら新しいIDを付ける。担当の記録にある名称を、ほかの担当、親、統括役が書き換えない。
 
@@ -148,7 +148,7 @@
 
 `answer_review`には正答範囲の検査担当が行う、各回答と露出候補の正誤判定を記録する。回答ごとに同一対象か、指定は十分か、明確な誤りがあるか、名称の適用範囲が一致するかを分け、結論、引用、理由を対応させる。露出候補の判定は`candidate_reviews`に`candidate_id`で置き、解答を伏せて挙げた候補には対応する回答の`answer_id`（該当がなければ`null`）も置く。露出候補を正答と判断した場合は解答一覧にも追加する。
 
-生成側の必要な検査単位がすべて完了するまで、検査担当へ渡さない。
+作る側の必要な検査単位がすべて完了するまで、検査担当へ渡さない。
 
 ## 難易度の検査
 
@@ -184,7 +184,7 @@
 
 JSON manifestは、検査対象を具体的な内容へ結び付け、確定的な参照整合性と工程境界を検査するために使う。IDだけのレコードや、複数の専門用語・解答候補・出力項目を一つのIDにまとめたレコードを置かない。
 
-資料には書誌情報と逐語引用を置く。命題には問題文の対応箇所と、真偽を判定する文を置く。命題の裏取りは`proposition_support`に、命題IDを`proposition_id`、引用IDを`evidence_ids`、引用から判断へ至る理由を`reason`、推論の種類を`inference_type`として置く。一つの命題内に複数の項・限定がある場合は、`verification_elements`に検証要素ごとの`text`、引用ID、理由、推論の種類を置く。命題の確実性は`proposition_certainty`に、`proposition_id`、確実性の水準を`level`、判定理由を`reason`として置く。それぞれの検査結果は`corroboration_reviews`と`certainty_reviews`に、`proposition_id`、`status`（`passed`・`failed`）、`reason`として置く。問題文から独立に取り出した命題は`extracted_propositions`に、`id`、問題文の版を`draft_version`、真偽を判定する文を`claim`、問題文の対応箇所を`passage`として置く。照合結果は`proposition_matching_reviews`に、取り出した命題の`extracted_id`、対応する採用命題の`proposition_id`、断定の強さが確実性と合うかを`strength_matches`、`status`、`reason`として置く。手掛かりには問題文中の文字列と命題IDを置き、準一意性、知名度の各判断へ結論、理由、引用IDを置く。手掛かりの中核性・代表性の評価は`clue_centrality`に、手掛かりIDを`clue_id`、結論を`claim`、理由を`reason`、引用IDを`evidence_ids`として置き、検査結果は`centrality_reviews`に`clue_id`、`status`（`passed`・`failed`）、`reason`として置く。知名度の検査結果も`familiarity_reviews`に同じ形で置く。準一意性には比較範囲、単独で十分に絞れること、依存する他の手掛かりがないことを置く。専門用語と解答候補は一語・一候補ごとにレコードを分ける。最終出力の必須項目も項目ごとに固定IDを使い、内容の保存先を示す。
+資料には書誌情報と逐語引用を置く。命題は`propositions`に、真偽を判定する文を`claim`として置く。作文担当は、問題文で実現した命題を`realized_propositions`に、命題IDを`proposition_id`、問題文の版を`draft_version`、問題文の対応箇所を`passage`として置く。命題の裏取りは`proposition_support`に、命題IDを`proposition_id`、引用IDを`evidence_ids`、引用から判断へ至る理由を`reason`、推論の種類を`inference_type`として置く。一つの命題内に複数の項・限定がある場合は、`verification_elements`に検証要素ごとの`text`、引用ID、理由、推論の種類を置く。命題の確実性は`proposition_certainty`に、`proposition_id`、確実性の水準を`level`、判定理由を`reason`として置く。それぞれの検査結果は`corroboration_reviews`と`certainty_reviews`に、`proposition_id`、`status`（`passed`・`failed`）、`reason`として置く。問題文から独立に取り出した命題は`extracted_propositions`に、`id`、問題文の版を`draft_version`、真偽を判定する文を`claim`、問題文の対応箇所を`passage`として置く。照合結果は`proposition_matching_reviews`に、取り出した命題の`extracted_id`、対応する採用命題の`proposition_id`、断定の強さが確実性と合うかを`strength_matches`、`status`、`reason`として置く。手掛かり候補は`clues`に、事実を`fact`、命題IDを`proposition_ids`として置く。作文担当は、手掛かりの採否を`clue_uses`に、手掛かりIDを`clue_id`、採否を`status`（`active`・`rejected`）、採用した手掛かりの問題文中の文字列を`text`、対象を直接説明するかを`directly_describes_target`として置く。準一意性と知名度の判断は`clue_checks`に、`clue_id`ごとに`quasi_uniqueness`と`familiarity`として、結論、理由、引用IDを置く。手掛かりの中核性・代表性の評価は`clue_centrality`に、手掛かりIDを`clue_id`、結論を`claim`、理由を`reason`、引用IDを`evidence_ids`として置き、検査結果は`centrality_reviews`に`clue_id`、`status`（`passed`・`failed`）、`reason`として置く。知名度の検査結果も`familiarity_reviews`に同じ形で置く。準一意性には比較範囲、単独で十分に絞れること、依存する他の手掛かりがないことを置く。専門用語と解答候補は一語・一候補ごとにレコードを分ける。最終出力の必須項目も項目ごとに固定IDを使い、内容の保存先を示す。
 
 対抗候補は`competitors`に、候補の`id`と`name`、逆引きの元にした手掛かりの`clue_ids`、その候補を扱う資料の`evidence_ids`を置く。条件の照合は`competitor_comparisons`に、手掛かりの`clue_id`と候補の`competitor_id`の組ごとに置き、手掛かりに書かれた条件ごとの`passage`、`matches`（真偽値）、`reason`、`evidence_ids`を`conditions`に置く。候補を別対象として退けるか同一対象の別名として扱うかを`disposition`（`excluded`・`same_target`）と`reason`で示す。別対象を退ける場合だけ、相違する条件の`passage`を`exclusion_passage`へ置く。条件の引用IDは候補の引用IDへ含める。
 
@@ -198,7 +198,7 @@ JSON manifestは、検査対象を具体的な内容へ結び付け、確定的�
 
 専門用語の`term`には、現行問題文にある表記を記録する。命題理解に意味内容が必要かを`meaning_needed`に記録する。必要な場合は、語の意味を確認した引用と理由を`meaning_evidence_ids`・`meaning_reason`、想定プレイヤー層がその意味を明白に知っていると判断する引用と理由を`audience_evidence_ids`・`audience_reason`に分ける。必要ない場合は、意味内容を知らなくても問題文を理解できる理由を`understanding_without_meaning`に記録する。同じ引用を両方に使うときも、語義の確認と既習性の判断をそれぞれ説明する。
 
-専門用語の列挙担当は、`term_listing`に`draft_version`と、列挙した語を`terms`（語IDを`id`、表記を`term`）として置く。該当語がない場合も空の`terms`を置く。意味内容の要否の検査結果は`term_necessity_reviews`に、語IDを`term_id`、要否を`meaning_needed`、判定を`status`、理由を`reason`として置く。語義と既習性の検査結果は`term_sense_reviews`と`term_audience_reviews`に、意味内容が必要な語の`term_id`、`status`、`reason`、確認した引用IDを`evidence_ids`として置く。`work_state_check.py`は、列挙した語が生成側の語と一致すること、要否の判断が生成側と一致すること、各検査が合格していること、検査の引用が生成側の採用した引用と一致することを確認する。問題文からの語の抽出、必要性の判断、引用が判断を実際に支えるかまでは判定しない。
+専門用語の列挙担当は、`term_listing`に`draft_version`と、列挙した語を`terms`（語IDを`id`、表記を`term`）として置く。該当語がない場合も空の`terms`を置く。意味内容の要否の検査結果は`term_necessity_reviews`に、語IDを`term_id`、要否を`meaning_needed`、判定を`status`、理由を`reason`として置く。語義と既習性の検査結果は`term_sense_reviews`と`term_audience_reviews`に、意味内容が必要な語の`term_id`、`status`、`reason`、確認した引用IDを`evidence_ids`として置く。`work_state_check.py`は、列挙した語が作る側の語と一致すること、要否の判断が作る側と一致すること、各検査が合格していること、検査の引用が作る側の採用した引用と一致することを確認する。問題文からの語の抽出、必要性の判断、引用が判断を実際に支えるかまでは判定しない。
 
 `final_input`は検査の前に確定する。`final_input.relative_clauses`には、現行問題文の各連体修飾節を`passage`、内の関係か外の関係かを`relation`（`inner`・`outer`）として置き、判断理由を`reason`として記録する。外の関係では、修飾節が表す内容と解答対象を結ぶ命題IDを`relation_proposition_ids`に置く。連体修飾節がなければ空配列とする。`work_state_check.py`は各`passage`が問題文にあって重複しないことと、外の関係だけに命題IDがあることを確認し、節の漏れ、内外関係の判断、命題が関係を表すかは実現命題の照合担当が判定する。`final_input.quote_ids`には採用中の判断に用いた引用IDを過不足なく置く。`other_access_paths`の調査だけに用いた引用は含めない。
 
