@@ -205,7 +205,7 @@ JSON manifestは、検査対象を具体的な内容へ結び付け、確定的�
 
 委譲機能を利用できる環境では、ファセットの交差領域の確認、探索、生成、難易度と専門用語の独立検査、解答露出検査、監査、最終出力の組立て、最終照合を別々のagentへ割り当てる。親agentは起動toolが返した正規の識別子を起動直後に `execution.agents` へ記録し、各成果物に記載された担当識別子と照合する。候補変更時にも、継続して使う探索担当の識別子を別名へ置き換えない。利用できない環境では、その事実と理由を記録する。
 
-具体的なJSONの形は `scripts/work_state_check.py` が検査するフィールドに従う。次は架空の名称・URLを使った題材探索状態の形式例である。
+具体的なJSONの形は `scripts/work_state_check.py` が検査するフィールドに従う。次は架空のURLを使った題材探索状態の形式例である。
 
 ```json
 {
@@ -214,10 +214,10 @@ JSON manifestは、検査対象を具体的な内容へ結び付け、確定的�
   "intersection_review": {
     "source_refs": ["https://example.org/outline", "https://example.org/lesson"],
     "candidate_examples": [
-      {"name": "候補1", "source_ref": "https://example.org/outline", "beginner_source_ref": "https://example.org/lesson", "beginner_learning_basis": "名称と代表情報を学習項目として扱う"},
-      {"name": "候補2", "source_ref": "https://example.org/outline"}
+      {"name": "アンモニアソーダ法", "source_ref": "https://example.org/outline", "beginner_source_ref": "https://example.org/lesson", "beginner_learning_basis": "高校化学の教材が、炭酸ナトリウムの工業的製法として名称と反応の流れを学習項目にしている"},
+      {"name": "クメン法", "source_ref": "https://example.org/outline"}
     ],
-    "scope_reason": "対象の種類と下位領域を区分できる",
+    "scope_reason": "産業分類表の化学工業の区分（無機・有機・高分子等）と、実務記事が扱う製法・装置の種類から、区分ごとに探索経路を設けられる",
     "result": "viable"
   },
   "entry_points": [
@@ -227,18 +227,18 @@ JSON manifestは、検査対象を具体的な内容へ結び付け、確定的�
     {"id": "E4", "kind": "産業誌", "label": "産業誌記事", "url": "https://example.org/trade", "access_note": "記事本文", "opened": true}
   ],
   "coverage_areas": [
-    {"id": "D1", "label": "無機化学工業", "basis": "分類表の区分", "target_kinds": "工業技術", "explored": true, "entry_point_ids": ["E1"], "source_searches": [{"mode": "open", "query": "無機化学工業 技術", "angle": "分野の分類", "result": "候補1を発見", "entry_point_ids": ["E1"], "found_candidate_ids": ["K1"], "next_searches": []}]},
-    {"id": "D2", "label": "有機化学工業", "basis": "事典の区分", "target_kinds": "工業技術", "explored": true, "entry_point_ids": ["E2"], "source_searches": [{"mode": "open", "query": "有機化学工業 技術", "angle": "分野の索引", "result": "候補2を発見", "entry_point_ids": ["E2"], "found_candidate_ids": ["K2"], "next_searches": []}]}
+    {"id": "D1", "label": "無機化学工業", "basis": "産業分類表で無機化学工業が独立した区分になっている", "target_kinds": "工業技術", "explored": true, "entry_point_ids": ["E1"], "source_searches": [{"mode": "open", "query": "無機化学工業 技術", "angle": "分類表の区分に挙がる製法名を探す", "result": "アンモニアソーダ法を発見", "entry_point_ids": ["E1"], "found_candidate_ids": ["K1"], "next_searches": []}]},
+    {"id": "D2", "label": "有機化学工業", "basis": "化学事典の索引で有機工業化学の製法がまとめて挙げられている", "target_kinds": "工業技術", "explored": true, "entry_point_ids": ["E2"], "source_searches": [{"mode": "open", "query": "有機化学工業 技術", "angle": "事典索引の製法項目を探す", "result": "クメン法を発見", "entry_point_ids": ["E2"], "found_candidate_ids": ["K2"], "next_searches": []}]}
   ],
   "candidates": [
-    {"id": "K1", "label": "候補1", "coverage_area_ids": ["D1"], "discovery_entry_point_ids": ["E1"], "name_use_note": "本文で対象の名称として使われる", "facet_membership_reason": "選択した四軸の内側にある", "disposition": "eligible", "expanded": true, "expansion_searches": [{"source_or_query": "候補1の関連項目", "relation_checked": "同じ分野の並列項目", "found_candidate_ids": []}], "exposure_screen": {"central_description": "対象を説明する語句", "source_entry_point_ids": ["E1"], "formation_risk": "none_detected", "reason": "中心的説明から名称を形成できない"}},
-    {"id": "K2", "label": "候補2", "coverage_area_ids": ["D2"], "discovery_entry_point_ids": ["E2"], "name_use_note": "本文で対象の名称として使われる", "facet_membership_reason": "選択した四軸の内側にある", "disposition": "eligible", "expanded": true, "expansion_searches": [{"source_or_query": "候補2の関連項目", "relation_checked": "同じ分野の並列項目", "found_candidate_ids": []}], "exposure_screen": {"central_description": "対象を説明する語句", "source_entry_point_ids": ["E2"], "formation_risk": "suspected", "reason": "名称を形成できる可能性を調べる"}, "exposure_precheck": {"representative_descriptions": ["対象を説明する語句", "別の中心的な特徴を説明する語句"], "accepted_names": ["候補2"], "formations": [{"name": "候補2", "description_index": 0, "formation_rule": "対象との既知の対応から名称を選ぶ", "components": [{"form": "候補2", "source": "対象との既知の対応", "knowledge": "answer_side", "answer_side_reason": "名称そのものを知っている必要がある"}], "formation_requires_answer_side_knowledge": true, "standard_name_confirmation_requires_answer_side_knowledge": true}, {"name": "候補2", "description_index": 1, "formation_rule": "対象との既知の対応から名称を選ぶ", "components": [{"form": "候補2", "source": "対象との既知の対応", "knowledge": "answer_side", "answer_side_reason": "名称そのものを知っている必要がある"}], "formation_requires_answer_side_knowledge": true, "standard_name_confirmation_requires_answer_side_knowledge": true}], "status": "passed"}}
+    {"id": "K1", "label": "アンモニアソーダ法", "coverage_area_ids": ["D1"], "discovery_entry_point_ids": ["E1"], "name_use_note": "化学事典の本文で、炭酸ナトリウムの製法の名称として使われている", "facet_membership_reason": "炭酸ナトリウムを工業的に製造する方法で、化学工業のうち無機化学工業に当たる", "disposition": "eligible", "expanded": true, "expansion_searches": [{"source_or_query": "化学事典のアンモニアソーダ法の項の関連項目", "relation_checked": "炭酸ナトリウムを得る別の製法", "found_candidate_ids": []}], "exposure_screen": {"central_description": "食塩と石灰石から炭酸ナトリウムを工業的に得る製法", "source_entry_point_ids": ["E1"], "formation_risk": "none_detected", "reason": "説明にアンモニアを使うことが現れず、名称の「アンモニア」を説明から得られない"}},
+    {"id": "K2", "label": "クメン法", "coverage_area_ids": ["D2"], "discovery_entry_point_ids": ["E2"], "name_use_note": "化学事典の索引と本文で、フェノールの製法の名称として使われている", "facet_membership_reason": "フェノールとアセトンを工業的に製造する方法で、化学工業のうち有機化学工業に当たる", "disposition": "eligible", "expanded": true, "expansion_searches": [{"source_or_query": "クメン法 原料 製法", "relation_checked": "ベンゼンとプロピレンを原料とする別の製法", "found_candidate_ids": []}], "exposure_screen": {"central_description": "ベンゼンとプロピレンからクメンを経てフェノールとアセトンを得る製法", "source_entry_point_ids": ["E2"], "formation_risk": "suspected", "reason": "説明に現れる「クメン」と、製法を表す「法」から名称を作れる可能性がある"}, "exposure_precheck": {"representative_descriptions": ["ベンゼンとプロピレンからクメンを経てフェノールとアセトンを得る製法", "ベンゼンとプロピレンからフェノールとアセトンを同時に得る製法"], "accepted_names": ["クメン法"], "formations": [{"name": "クメン法", "description_index": 0, "formation_rule": "説明中の中間体の名称に、製法を表す「法」を付ける", "components": [{"form": "クメン", "source": "説明中の「クメンを経て」", "knowledge": "surface"}, {"form": "法", "source": "製法を表す接尾要素", "knowledge": "audience_known"}], "formation_requires_answer_side_knowledge": false, "standard_name_confirmation_requires_answer_side_knowledge": true}, {"name": "クメン法", "description_index": 1, "formation_rule": "中間体の名称に、製法を表す「法」を付ける", "components": [{"form": "クメン", "source": "中間体がクメンであるという知識", "knowledge": "answer_side", "answer_side_reason": "説明に中間体が現れず、中間体がクメンであることはこの製法そのものについての知識である"}, {"form": "法", "source": "製法を表す接尾要素", "knowledge": "audience_known"}], "formation_requires_answer_side_knowledge": true, "standard_name_confirmation_requires_answer_side_knowledge": true}], "status": "passed"}}
   ],
   "independent_review": [
-    {"id": "D1", "difference_from_exploration": "実務者の利用場面", "source_discovery_query": "無機化学工業 実務者 利用", "checked_entry_point_ids": ["E3"], "found_candidate_ids": [], "spotchecked_entry_point_ids": ["E1"], "spotcheck_result": "分類項目と候補を照合した"},
-    {"id": "D2", "difference_from_exploration": "産業誌の利用場面", "source_discovery_query": "有機化学工業 産業誌", "checked_entry_point_ids": ["E4"], "found_candidate_ids": [], "spotchecked_entry_point_ids": ["E2"], "spotcheck_result": "索引項目と候補を照合した"}
+    {"id": "D1", "difference_from_exploration": "工場の工程を実務者が説明する記事から探す", "source_discovery_query": "無機化学工業 実務者 利用", "checked_entry_point_ids": ["E3"], "found_candidate_ids": [], "spotchecked_entry_point_ids": ["E1"], "spotcheck_result": "分類表の無機化学工業の項目とアンモニアソーダ法の記載を照合した"},
+    {"id": "D2", "difference_from_exploration": "産業誌が扱う製造プロセスから探す", "source_discovery_query": "有機化学工業 産業誌", "checked_entry_point_ids": ["E4"], "found_candidate_ids": [], "spotchecked_entry_point_ids": ["E2"], "spotcheck_result": "事典索引の有機工業化学の項目とクメン法の記載を照合した"}
   ],
-  "saturation_challenge": {"search_perspective": "別の書き手の産業資料", "query": "化学工業 現場 使用", "opened_entry_point_ids": ["E3", "E4"], "found_candidate_ids": [], "resolution": "新しい候補なし", "resolved": true},
+  "saturation_challenge": {"search_perspective": "工場見学や業界団体による一般向けの解説", "query": "化学工業 現場 使用", "opened_entry_point_ids": ["E3", "E4"], "found_candidate_ids": [], "resolution": "開いた資料に新しい製法名はなく、既存の候補と一致した", "resolved": true},
   "frontier_ids": [],
   "saturated": true
 }
