@@ -29,18 +29,22 @@
     "prejudgment_difficulty": "抽選した候補の、難易度帯の見込みの予備判定",
     "prejudgment_otoshi": "抽選した候補の、落としを作れる見込みの予備判定",
     "picked_candidate": "抽選した候補",
+    "research_requests": "作文担当から調査担当への依頼",
     "answer_target": "解答対象と、抽選した場合の四軸の日本語の分類経路と履歴補正の適用結果",
     "sources": "資料の書誌情報、逐語引用、所在、周辺文脈、対象読者と日本語文化圏との関係",
     "source_assessments": "資料ごとの信頼性の水準、明白な誤り、使ってよい用途",
     "source_reliability_reviews": "資料の信頼性の評価の検査結果",
-    "propositions": "命題",
+    "propositions": "手掛かり候補の事実を分けた命題",
     "proposition_support": "命題ごとの裏取り（各資料が命題を述べているか）",
     "proposition_certainty": "命題ごとの確実性の判定",
     "corroboration_reviews": "命題の裏取りの検査結果",
     "certainty_reviews": "命題の確実性の検査結果",
     "extracted_propositions": "問題文から独立に取り出した命題",
     "proposition_matching_reviews": "取り出した命題と裏取り済みの命題の照合結果",
-    "clues": "手掛かりの問題文中の文字列と命題ID",
+    "clues": "手掛かり候補の事実と命題ID",
+    "clue_uses": "採用した手掛かりと、その問題文中の文字列",
+    "clue_checks": "採用した手掛かりの準一意性と知名度の判断",
+    "realized_propositions": "問題文で実現した命題と、その問題文中の箇所",
     "clue_centrality": "手掛かりごとの中核性の評価",
     "centrality_reviews": "手掛かりの中核性の検査結果",
     "familiarity_reviews": "手掛かりの知名度の検査結果",
@@ -52,13 +56,13 @@
     "answer_granularity": "要求する解答知識の粒度",
     "difficulty_assessment": "両参照集団の難易度の判断と、判断に使った資料",
     "draft": "現行版の問題文",
-    "terms": "生成側の専門用語の一覧と語ID",
+    "terms": "作る側の専門用語の一覧と語ID",
     "names": "解答対象の正式な名称と別名、それぞれが使われている箇所",
     "answers": "解答・別解の候補のIDと名称",
     "answer_judgments": "解答・別解の候補ごとの正誤判定の案",
-    "generation_checks": "生成側の検査単位の判断と理由",
+    "generation_checks": "作る側の検査単位の判断と理由",
     "final_input": "最終出力用の限定入力",
-    "term_listing": "問題文から独立に列挙した専門用語と、生成側の語IDへの対応",
+    "term_listing": "問題文から独立に列挙した専門用語と、作る側の語IDへの対応",
     "term_necessity_reviews": "専門用語の意味内容の要否の検査結果",
     "term_sense_reviews": "専門用語の語義と引用の文脈の一致の検査結果",
     "term_audience_reviews": "専門用語の想定層にとっての既習性の検査結果",
@@ -67,7 +71,7 @@
     "naturalness_review": "日本語としての自然さの検査結果",
     "incremental_comprehension_review": "前から読んだときの理解しやすさの検査結果",
     "blind_candidates": "解答を伏せて挙げた名称候補",
-    "exposure_candidates": "生成担当が問題文の意味から挙げた名称候補",
+    "exposure_candidates": "作文担当が問題文の意味から挙げた名称候補",
     "exposure_analysis": "名称候補ごとの露出の分析",
     "answer_review": "回答と露出候補の正誤判定",
     "beginner_difficulty_review": "初学者側の難易度の検査結果",
@@ -75,7 +79,7 @@
     "final_output": "完成稿",
     "final_review": "最終照合の記録"
   },
-  "given_data": ["user_conditions", "history", "facet_picks", "picked_candidate", "answer_target"],
+  "given_data": ["user_conditions", "history", "facet_picks", "picked_candidate", "answer_target", "research_requests"],
   "steps": [
     {
       "name": "ファセット選択",
@@ -335,7 +339,7 @@
       ]
     },
     {
-      "name": "作問",
+      "name": "素材の調査",
       "roles": [
         {
           "id": "name_research",
@@ -343,7 +347,7 @@
           "side": "make",
           "section": "名称と正答範囲",
           "specs": ["verification_and_judging_spec.md", "work_state_spec.md"],
-          "inputs": [["answer_target"]],
+          "inputs": [["answer_target", "research_requests"]],
           "outputs": ["sources", "names"]
         },
         {
@@ -356,13 +360,13 @@
           "outputs": ["answers", "answer_judgments"]
         },
         {
-          "id": "generation",
-          "name": "生成担当",
+          "id": "clue_search",
+          "name": "手掛かり候補の探索担当",
           "side": "make",
-          "section": "生成",
-          "specs": ["quiz_generation_spec.md", "verification_and_judging_spec.md", "selection_and_history_spec.md", "work_state_spec.md"],
-          "inputs": [["user_conditions", "history", "answer_target", "names", "answers", "answer_judgments"]],
-          "outputs": ["sources", "propositions", "clues", "draft", "terms", "exposure_candidates", "generation_checks", "final_input"]
+          "section": "手掛かり候補",
+          "specs": ["quiz_generation_spec.md", "verification_and_judging_spec.md", "work_state_spec.md"],
+          "inputs": [["user_conditions", "answer_target", "names", "research_requests"]],
+          "outputs": ["sources", "clues", "propositions"]
         },
         {
           "id": "source_reliability",
@@ -425,7 +429,7 @@
           "side": "make",
           "section": "難易度",
           "specs": ["quiz_generation_spec.md", "verification_and_judging_spec.md", "work_state_spec.md"],
-          "inputs": [["answer_target", "draft", "clues", "propositions"]],
+          "inputs": [["answer_target", "clues", "propositions", "research_requests"]],
           "outputs": ["asked_knowledge", "answer_granularity"]
         },
         {
@@ -440,6 +444,20 @@
       ]
     },
     {
+      "name": "作文",
+      "roles": [
+        {
+          "id": "writer",
+          "name": "作文担当",
+          "side": "make",
+          "section": "作文",
+          "specs": ["quiz_generation_spec.md", "verification_and_judging_spec.md", "selection_and_history_spec.md", "work_state_spec.md"],
+          "inputs": [["user_conditions", "history", "answer_target", "names", "answers", "answer_judgments", "sources", "source_assessments", "clues", "propositions", "clue_centrality", "proposition_support", "proposition_certainty", "competitors", "competitor_comparisons", "asked_knowledge", "answer_granularity", "difficulty_assessment"]],
+          "outputs": ["draft", "clue_uses", "clue_checks", "realized_propositions", "terms", "exposure_candidates", "generation_checks", "final_input"]
+        }
+      ]
+    },
+    {
       "name": "検査",
       "roles": [
         {
@@ -448,7 +466,7 @@
           "side": "check",
           "section": "構造と表現",
           "specs": ["quiz_generation_spec.md", "work_state_spec.md"],
-          "inputs": [["answer_target", "draft", "clues"]],
+          "inputs": [["answer_target", "draft", "clues", "clue_uses"]],
           "outputs": ["structure_review"]
         },
         {
@@ -457,7 +475,7 @@
           "side": "check",
           "section": "構造と表現",
           "specs": ["quiz_generation_spec.md", "output_structure_spec.md", "work_state_spec.md"],
-          "inputs": [["answer_target", "draft", "clues", "sources"]],
+          "inputs": [["answer_target", "draft", "clues", "clue_uses", "sources"]],
           "outputs": ["clue_order_review"]
         },
         {
@@ -575,7 +593,7 @@
           "side": "check",
           "section": "手掛かりの中核性",
           "specs": ["quiz_generation_spec.md", "verification_and_judging_spec.md", "work_state_spec.md"],
-          "inputs": [["answer_target", "clues", "sources", "source_assessments", "clue_centrality"]],
+          "inputs": [["answer_target", "clues", "clue_uses", "sources", "source_assessments", "clue_centrality"]],
           "outputs": ["centrality_reviews"]
         },
         {
@@ -584,7 +602,7 @@
           "side": "check",
           "section": "手掛かりの知名度",
           "specs": ["quiz_generation_spec.md", "verification_and_judging_spec.md", "work_state_spec.md"],
-          "inputs": [["answer_target", "draft", "clues", "sources", "source_assessments"]],
+          "inputs": [["answer_target", "draft", "clues", "clue_uses", "sources", "source_assessments"]],
           "outputs": ["familiarity_reviews"]
         },
         {
@@ -620,7 +638,7 @@
           "side": "check",
           "section": "命題の裏取りと確実性",
           "specs": ["quiz_generation_spec.md", "verification_and_judging_spec.md", "work_state_spec.md"],
-          "inputs": [["draft", "extracted_propositions", "propositions", "proposition_certainty"]],
+          "inputs": [["draft", "extracted_propositions", "propositions", "realized_propositions", "proposition_certainty"]],
           "outputs": ["proposition_matching_reviews"]
         },
         {
@@ -629,7 +647,7 @@
           "side": "check",
           "section": "対抗候補",
           "specs": ["quiz_generation_spec.md", "verification_and_judging_spec.md", "work_state_spec.md"],
-          "inputs": [["answer_target", "draft", "clues"], ["competitors"]],
+          "inputs": [["answer_target", "draft", "clues", "clue_uses"], ["competitors"]],
           "outputs": ["competitor_search_reviews"]
         },
         {
@@ -638,7 +656,7 @@
           "side": "check",
           "section": "対抗候補",
           "specs": ["quiz_generation_spec.md", "verification_and_judging_spec.md", "work_state_spec.md"],
-          "inputs": [["answer_target", "draft", "clues", "sources", "competitors", "competitor_search_reviews"]],
+          "inputs": [["answer_target", "draft", "clues", "clue_uses", "sources", "competitors", "competitor_search_reviews"]],
           "outputs": ["competitor_comparison_reviews"]
         }
       ]

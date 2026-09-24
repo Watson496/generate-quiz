@@ -49,11 +49,12 @@ def complete_state():
     """全工程を通過できる一問分の作業状態を作る。"""
     evidence = ["Q1"]
     roles = (
+        "clue_search",
         "exposure_analysis",
         "name_research",
         "answer_range",
         "answer_judging",
-        "generation",
+        "writer",
         "asked_knowledge",
         "difficulty_assessment",
         "beginner_difficulty_review",
@@ -344,9 +345,13 @@ def complete_state():
         "propositions": [
             {
                 "id": "P1",
-                "status": "active",
-                "draft_version": 2,
                 "claim": "ミュラー・リヤー錯視では同じ長さの線分が矢羽の向きで異なる長さに見える",
+            }
+        ],
+        "realized_propositions": [
+            {
+                "proposition_id": "P1",
+                "draft_version": 2,
                 "passage": "同じ長さの線分が矢羽の向きで異なる長さに見える錯視",
             }
         ],
@@ -370,19 +375,28 @@ def complete_state():
         "clues": [
             {
                 "id": "C1",
+                "fact": "同じ長さの線分が矢羽の向きで異なる長さに見える錯視である",
+                "proposition_ids": ["P1"],
+            }
+        ],
+        "clue_uses": [
+            {
+                "clue_id": "C1",
                 "status": "active",
                 "text": "同じ長さの線分が矢羽の向きで異なる長さに見える錯視",
                 "directly_describes_target": True,
-                "proposition_ids": ["P1"],
-                "checks": {
-                    "quasi_uniqueness": {
-                        **clue_check,
-                        "comparison_scope": "同じ上位分類",
-                        "standalone_sufficient": True,
-                        "depends_on_clue_ids": [],
-                    },
-                    "familiarity": copy.deepcopy(clue_check),
+            }
+        ],
+        "clue_checks": [
+            {
+                "clue_id": "C1",
+                "quasi_uniqueness": {
+                    **clue_check,
+                    "comparison_scope": "同じ上位分類",
+                    "standalone_sufficient": True,
+                    "depends_on_clue_ids": [],
                 },
+                "familiarity": copy.deepcopy(clue_check),
             }
         ],
         "terms": [
@@ -689,7 +703,7 @@ def drop_from_weights(state, candidate_id):
 
 
 @pytest.fixture
-def generation_state(complete_state):
+def writing_state(complete_state):
     """検査のステップを完了する前の一問分の作業状態を作る。"""
     state = copy.deepcopy(complete_state)
     for group in ("beginner", "general"):
@@ -1501,11 +1515,11 @@ class TestWorkState:
         ],
     )
     def test_active_proposition_needs_support_and_certainty(
-        self, run_script, generation_state, key, message
+        self, run_script, writing_state, key, message
     ):
         """採用中の命題ごとに裏取りと確実性の判定を要する。"""
-        generation_state[key][0]["proposition_id"] = "P9"
-        result = check_state(run_script, "generation", generation_state)
+        writing_state[key][0]["proposition_id"] = "P9"
+        result = check_state(run_script, "writing", writing_state)
         assert result.returncode == 1
         assert message in result.stderr
 
@@ -1538,13 +1552,10 @@ class TestWorkState:
     def test_every_proposition_needs_extracted_match(self, run_script, complete_state):
         """問題文から取り出した命題に対応しない採用命題を残さない。"""
         complete_state["propositions"].append(
-            {
-                "id": "P2",
-                "status": "active",
-                "draft_version": 2,
-                "claim": "矢羽は線分の端に付く",
-                "passage": "矢羽",
-            }
+            {"id": "P2", "claim": "矢羽は線分の端に付く"}
+        )
+        complete_state["realized_propositions"].append(
+            {"proposition_id": "P2", "draft_version": 2, "passage": "矢羽"}
         )
         for key in ("proposition_support", "proposition_certainty"):
             complete_state[key].append(
@@ -1558,10 +1569,10 @@ class TestWorkState:
         assert result.returncode == 1
         assert "対応しない命題がある: ['P2']" in result.stderr
 
-    def test_active_clue_needs_centrality(self, run_script, generation_state):
+    def test_active_clue_needs_centrality(self, run_script, writing_state):
         """採用中の手掛かりごとに中核性の評価を要する。"""
-        generation_state["clue_centrality"][0]["clue_id"] = "C9"
-        result = check_state(run_script, "generation", generation_state)
+        writing_state["clue_centrality"][0]["clue_id"] = "C9"
+        result = check_state(run_script, "writing", writing_state)
         assert result.returncode == 1
         assert "clue_centrality[0].clue_idが手掛かりにない" in result.stderr
 
@@ -1584,14 +1595,14 @@ class TestWorkState:
     @pytest.mark.parametrize(
         ("field", "value", "message"),
         [
-            ("question_form", "OV", "question_formが生成側の区分と一致しない"),
+            ("question_form", "OV", "question_formが作る側の区分と一致しない"),
             ("otoshi_clue_ids", [], "otoshi_clue_idsが空である"),
         ],
     )
     def test_structure_review_must_agree_with_writer(
         self, run_script, complete_state, field, value, message
     ):
-        """独立に取り出した構文型と落としが生成側の区分と食い違えば合格させない。"""
+        """独立に取り出した構文型と落としが作る側の区分と食い違えば合格させない。"""
         complete_state["structure_review"][field] = value
         result = check_state(run_script, "review", complete_state)
         assert result.returncode == 1
@@ -1615,19 +1626,19 @@ class TestWorkState:
         assert result.returncode == 1
         assert "centrality_reviewsに不合格の項目がある: ['C1']" in result.stderr
 
-    def test_every_source_needs_assessment(self, run_script, generation_state):
+    def test_every_source_needs_assessment(self, run_script, writing_state):
         """資料ごとに信頼性の評価を要する。"""
-        generation_state["source_assessments"] = []
-        result = check_state(run_script, "generation", generation_state)
+        writing_state["source_assessments"] = []
+        result = check_state(run_script, "writing", writing_state)
         assert result.returncode == 1
         assert "source_assessmentsが空である" in result.stderr
 
     def test_usage_only_source_cannot_support_proposition(
-        self, run_script, generation_state
+        self, run_script, writing_state
     ):
         """用例にしか使えない資料の引用を命題の根拠にしない。"""
-        generation_state["source_assessments"][0]["uses"] = ["usage_example"]
-        result = check_state(run_script, "generation", generation_state)
+        writing_state["source_assessments"][0]["uses"] = ["usage_example"]
+        result = check_state(run_script, "writing", writing_state)
         assert result.returncode == 1
         assert "事実の根拠に使えない資料の引用を根拠にしている: ['Q1']" in result.stderr
 
@@ -1640,27 +1651,16 @@ class TestWorkState:
         assert result.returncode == 1
         assert "source_reliability_reviewsに不合格の項目がある: ['S1']" in result.stderr
 
-    def test_generation_start_accepts_target_state(self, run_script, complete_state):
-        """生成担当の起動後に解答対象だけの状態を検査できる。"""
-        assert (
-            check_state(run_script, "generation-start", complete_state).returncode == 0
-        )
+    def test_writing_start_accepts_target_state(self, run_script, complete_state):
+        """作文担当の起動後に解答対象だけの状態を検査できる。"""
+        assert check_state(run_script, "target-start", complete_state).returncode == 0
 
-    def test_generation_start_rejects_selection_ledger(
-        self, run_script, complete_state
-    ):
+    def test_writing_start_rejects_selection_ledger(self, run_script, complete_state):
         """題材探索の台帳を解答対象ごとの状態に混ぜない。"""
         complete_state["candidates"] = []
-        result = check_state(run_script, "generation-start", complete_state)
+        result = check_state(run_script, "target-start", complete_state)
         assert result.returncode == 1
         assert "題材探索台帳が混入" in result.stderr
-
-    def test_generation_start_requires_spawn_record(self, run_script, complete_state):
-        """生成担当の起動の記録がない状態を拒否する。"""
-        drop_assignment(complete_state, "generation")
-        result = check_state(run_script, "generation-start", complete_state)
-        assert result.returncode == 1
-        assert "担当の記録がない: ['generation']" in result.stderr
 
     @pytest.mark.parametrize("group", ["beginner", "general"])
     def test_review_requires_difficulty_review(self, run_script, complete_state, group):
@@ -1670,11 +1670,11 @@ class TestWorkState:
         assert result.returncode == 1
         assert f"{group}_difficulty_reviewがない" in result.stderr
 
-    def test_generation_does_not_require_difficulty_review(
-        self, run_script, generation_state
+    def test_writing_does_not_require_difficulty_review(
+        self, run_script, writing_state
     ):
         """生成工程の合格後に難易度の検査を加えられる。"""
-        assert check_state(run_script, "generation", generation_state).returncode == 0
+        assert check_state(run_script, "writing", writing_state).returncode == 0
 
     def test_review_rejects_challenge_for_other_knowledge(
         self, run_script, complete_state
@@ -1840,7 +1840,7 @@ class TestWorkState:
         assert result.returncode == 1
         assert message in result.stderr
 
-    def test_generation_requires_exposure_candidate_judgment(
+    def test_writing_requires_exposure_candidate_judgment(
         self, run_script, complete_state
     ):
         """露出検査で挙がった名称候補の正誤判定を要求する。"""
@@ -1849,7 +1849,7 @@ class TestWorkState:
         assert result.returncode == 1
         assert "candidate_reviewsが露出候補と一致しない" in result.stderr
 
-    def test_generation_rejects_inconsistent_exposure_candidate_judgment(
+    def test_writing_rejects_inconsistent_exposure_candidate_judgment(
         self, run_script, complete_state
     ):
         """露出候補の誤答判定を対象・誤り・適用範囲の判断と一致させる。"""
@@ -1940,11 +1940,11 @@ class TestWorkState:
         assert "担当の記録がない: ['difficulty_assessment']" in result.stderr
 
     def test_difficulty_assessment_matches_asked_knowledge(
-        self, run_script, generation_state
+        self, run_script, writing_state
     ):
         """問う知識を変更したら以前の難易度の判断を通さない。"""
-        generation_state["asked_knowledge"] = "考案年から錯視の名称を答える"
-        result = check_state(run_script, "generation", generation_state)
+        writing_state["asked_knowledge"] = "考案年から錯視の名称を答える"
+        result = check_state(run_script, "writing", writing_state)
         assert result.returncode == 1
         assert (
             "difficulty_assessment.asked_knowledgeが問う知識と一致しない"
@@ -2117,22 +2117,22 @@ class TestWorkState:
         paths[0]["evidence_ids"] = ["Q2"]
         assert check_state(run_script, "review", complete_state).returncode == 0
 
-    def test_specified_target_requires_generation_assignment(
+    def test_specified_target_requires_writer_assignment(
         self, run_script, complete_state
     ):
-        """直接指定でも生成以降の担当は省略できない。"""
+        """直接指定でも作文以降の担当は省略できない。"""
         complete_state["selection_mode"] = "specified"
         complete_state["user_specified_target"] = complete_state["answer_target"]
-        drop_assignment(complete_state, "generation")
+        drop_assignment(complete_state, "writer")
         result = check_state(run_script, "review", complete_state)
         assert result.returncode == 1
-        assert "担当の記録がない: ['generation']" in result.stderr
+        assert "担当の記録がない: ['writer']" in result.stderr
 
     def test_clue_rejects_quasi_uniqueness_depending_on_another_clue(
         self, run_script, complete_state
     ):
         """他の手掛かりに依存する準一意性を単独の評価として認めない。"""
-        check = complete_state["clues"][0]["checks"]["quasi_uniqueness"]
+        check = complete_state["clue_checks"][0]["quasi_uniqueness"]
         check["depends_on_clue_ids"] = ["C2"]
         assert check_state(run_script, "review", complete_state).returncode == 1
 
@@ -2222,7 +2222,7 @@ class TestWorkState:
         self, run_script, complete_state
     ):
         """落としに含む手掛かりは対象を直接説明する。"""
-        complete_state["clues"][0]["directly_describes_target"] = False
+        complete_state["clue_uses"][0]["directly_describes_target"] = False
         assert check_state(run_script, "review", complete_state).returncode == 1
 
     def test_structure_accepts_ov_post_limiter(self, run_script, complete_state):
@@ -2550,13 +2550,13 @@ class TestWorkState:
         [
             ("missing", "term_listing.termsが専門用語の記録と一致しない"),
             ("extra", "term_listing.termsが専門用語の記録と一致しない"),
-            ("meaning_needed", "meaning_neededが生成側の判断と一致しない"),
+            ("meaning_needed", "meaning_neededが作る側の判断と一致しない"),
         ],
     )
     def test_term_reviews_check_terms_and_meaning_need(
         self, run_script, complete_state, change, expected
     ):
-        """独立に列挙した語と意味内容の要否を生成側と照合する。"""
+        """独立に列挙した語と意味内容の要否を作る側と照合する。"""
         listed = complete_state["term_listing"]["terms"]
         if change == "missing":
             listed.clear()
@@ -2605,7 +2605,7 @@ class TestWorkState:
     def test_term_reviews_cover_all_adopted_evidence(
         self, run_script, complete_state, kind, key
     ):
-        """生成側が採用した専門用語の引用を検査担当が残さず確認する。"""
+        """作る側が採用した専門用語の引用を検査担当が残さず確認する。"""
         complete_state["sources"][0]["quotes"].append(
             {"id": "Q2", "text": "矢羽の別の説明", "location": "第二節"}
         )
@@ -2636,7 +2636,7 @@ class TestWorkState:
             complete_state["term_listing"]["draft_version"] = 1
         else:
             assignment_of(complete_state, "term_listing")["agent_id"] = assignment_of(
-                complete_state, "generation"
+                complete_state, "writer"
             )["agent_id"]
         result = check_state(run_script, "review", complete_state)
         assert result.returncode == 1
@@ -2740,7 +2740,7 @@ class TestWorkState:
 
     def test_review_ignores_unchecked_clue_field(self, run_script, complete_state):
         """手掛かりの必須検査以外の値を引用収集の対象にしない。"""
-        complete_state["clues"][0]["checks"]["note"] = "補足"
+        complete_state["clue_checks"][0]["note"] = "補足"
         result = check_state(run_script, "review", complete_state)
         assert result.returncode == 0
 
@@ -2911,9 +2911,9 @@ class TestWorkState:
         assert "final_reviewがない" in result.stderr
 
     def test_final_requires_independent_reviewer(self, run_script, reviewed_state):
-        """最終照合担当を生成担当と兼任させない。"""
+        """最終照合担当を作文担当と兼任させない。"""
         assignment_of(reviewed_state, "final_review")["agent_id"] = assignment_of(
-            reviewed_state, "generation"
+            reviewed_state, "writer"
         )["agent_id"]
         result = check_state(run_script, "final", reviewed_state)
         assert result.returncode == 1
@@ -3000,7 +3000,10 @@ class TestWorkState:
 
     def test_final_rejects_rejected_clue(self, run_script, reviewed_state):
         """棄却済みの手掛かりを最終入力で参照できないことを確認する。"""
-        reviewed_state["clues"].append({"id": "C2", "status": "rejected"})
+        reviewed_state["clues"].append(
+            {"id": "C2", "fact": "矢羽は線分の端に付く", "proposition_ids": ["P1"]}
+        )
+        reviewed_state["clue_uses"].append({"clue_id": "C2", "status": "rejected"})
         reviewed_state["final_input"]["clue_ids"].append("C2")
         result = check_state(run_script, "final", reviewed_state)
         assert result.returncode == 1
@@ -3027,9 +3030,7 @@ class TestWorkState:
 
     def test_invalid_json_is_input_error(self, run_script):
         """解析できないJSONは作業状態の不合格とは異なる入力エラーとする。"""
-        result = run_script(
-            "work_state_check.py", "--stage", "generation", stdin="{不正"
-        )
+        result = run_script("work_state_check.py", "--stage", "writing", stdin="{不正")
         assert result.returncode == 2
         assert "入力エラー" in result.stderr
         assert "Traceback" not in result.stderr

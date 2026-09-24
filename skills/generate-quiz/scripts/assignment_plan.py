@@ -20,7 +20,7 @@
     python3 assignment_plan.py steps
     python3 assignment_plan.py coordinate 3
     python3 assignment_plan.py assign exposure
-    python3 assignment_plan.py rerun generation
+    python3 assignment_plan.py rerun writer
 """
 
 import argparse

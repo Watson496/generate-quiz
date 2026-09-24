@@ -3,7 +3,7 @@
 
 入力はJSONファイルのパスまたは標準入力から受け取る。--stageには
 facet-selection、intersection-checkpoint、discovery、membership、selection、prejudgment、
-generation-start、generation、review、finalのいずれかを指定する。
+target-start、writing、review、finalのいずれかを指定する。
 
 終了コード:
     0  指定工程の条件を満たす
@@ -102,6 +102,18 @@ OUTPUT_HEADINGS = {
     "answer_judging": "解答と正誤判定",
     "references": "参考文献",
 }
+
+
+def step_roles(*names):
+    """担当表で指定したステップに置く担当のIDを、表の順に返す。"""
+    return tuple(
+        role["id"]
+        for step in assignment_plan.load_table()["steps"]
+        if step["name"] in names
+        for role in step["roles"]
+    )
+
+
 FACET_AXES = ("subject", "place", "time", "type")
 FACET_VIEWPOINTS = ("sharing", "communication", "background")
 PREJUDGMENT_KEYS = (
@@ -153,92 +165,10 @@ STAGE_ROLES = {
         "topic_distribution_review",
         *PREJUDGMENT_KEYS,
     ),
-    "generation-start": ("generation",),
-    "generation": (
-        "name_research",
-        "answer_range",
-        "generation",
-        "source_reliability",
-        "clue_centrality",
-        "corroboration",
-        "certainty",
-        "competitor_search",
-        "competitor_comparison",
-        "asked_knowledge",
-        "difficulty_assessment",
-    ),
-    "review": (
-        "name_research",
-        "answer_range",
-        "answer_judging",
-        "generation",
-        "source_reliability",
-        "source_reliability_review",
-        "clue_centrality",
-        "centrality_review",
-        "familiarity_review",
-        "corroboration",
-        "corroboration_review",
-        "certainty",
-        "certainty_review",
-        "proposition_extraction",
-        "proposition_matching",
-        "competitor_search",
-        "competitor_search_review",
-        "competitor_comparison",
-        "competitor_comparison_review",
-        "asked_knowledge",
-        "difficulty_assessment",
-        "term_listing",
-        "term_necessity_review",
-        "term_sense_review",
-        "term_audience_review",
-        "structure_review",
-        "clue_order_review",
-        "naturalness_review",
-        "incremental_comprehension_review",
-        "exposure",
-        "exposure_analysis",
-        "beginner_difficulty_review",
-        "general_difficulty_review",
-    ),
-    "final": (
-        "name_research",
-        "answer_range",
-        "answer_judging",
-        "generation",
-        "source_reliability",
-        "source_reliability_review",
-        "clue_centrality",
-        "centrality_review",
-        "familiarity_review",
-        "corroboration",
-        "corroboration_review",
-        "certainty",
-        "certainty_review",
-        "proposition_extraction",
-        "proposition_matching",
-        "competitor_search",
-        "competitor_search_review",
-        "competitor_comparison",
-        "competitor_comparison_review",
-        "asked_knowledge",
-        "difficulty_assessment",
-        "term_listing",
-        "term_necessity_review",
-        "term_sense_review",
-        "term_audience_review",
-        "structure_review",
-        "clue_order_review",
-        "naturalness_review",
-        "incremental_comprehension_review",
-        "exposure",
-        "exposure_analysis",
-        "beginner_difficulty_review",
-        "general_difficulty_review",
-        "finalization",
-        "final_review",
-    ),
+    "target-start": (),
+    "writing": step_roles("素材の調査", "作文"),
+    "review": step_roles("素材の調査", "作文", "検査"),
+    "final": step_roles("素材の調査", "作文", "検査", "最終出力"),
 }
 MIN_ENTRY_POINTS = 2
 MIN_COVERAGE_AREAS = 2
@@ -1230,7 +1160,8 @@ def validate_condition_list(conditions, clue_text, evidence, name):
 def validate_competitors(state, active_clues, quote_ids, stage):
     """対抗候補と条件の照合が採用中の手掛かりに対応し、検査で合格していることを検査する。"""
     clue_text = {clue["id"]: clue["text"] for clue in active_clues}
-    all_clue_ids = {clue["id"] for clue in state["clues"]}
+    clue_fact = {clue["id"]: clue["fact"] for clue in state["clues"]}
+    all_clue_ids = set(clue_fact)
     competitors, competitor_ids = records_with_ids(
         state.get("competitors"), "competitors", nonempty=True
     )
@@ -1265,7 +1196,7 @@ def validate_competitors(state, active_clues, quote_ids, stage):
             item.get("conditions"), f"{name}.conditions", nonempty=True
         )
         differences = validate_condition_list(
-            conditions, clue_text[pair[0]], evidence_of[pair[1]], name
+            conditions, clue_fact[pair[0]], evidence_of[pair[1]], name
         )
         disposition = item.get("disposition")
         require_condition(
@@ -1386,55 +1317,108 @@ def validate_competitor_reviews(state, clue_text, compared, quote_ids):
     )
 
 
+def validate_clue_checks(item, name, quote_ids):
+    """作文担当が記録する準一意性と知名度の判断を検査する。"""
+    for key in ("quasi_uniqueness", "familiarity"):
+        check = item.get(key)
+        cname = f"{name}.{key}"
+        require_condition(isinstance(check, dict), f"{cname}がない")
+        required_text(check, "claim", cname)
+        required_text(check, "reason", cname)
+        referenced_ids(check, "evidence_ids", quote_ids, cname)
+        if key == "quasi_uniqueness":
+            required_text(check, "comparison_scope", cname)
+            require_condition(
+                check.get("standalone_sufficient") is True,
+                f"{cname}.standalone_sufficientがtrueではない",
+            )
+            require_condition(
+                not required_list(
+                    check.get("depends_on_clue_ids"),
+                    f"{cname}.depends_on_clue_ids",
+                ),
+                f"{cname}が他の手掛かりに依存している",
+            )
+
+
 def validate_sources_propositions_and_clues(state, version):
+    """調査担当の命題と手掛かり候補、作文担当の実現命題と手掛かりの使い方を合わせて検査する。"""
     quote_ids = validate_source_quotes(state)
     props, prop_ids = records_with_ids(
         state.get("propositions"), "propositions", nonempty=True
     )
+    claims = {
+        item["id"]: required_text(item, "claim", f"propositions.{item['id']}")
+        for item in props
+    }
     active_props = []
-    for item in props:
-        if item.get("status") != "active":
-            continue
-        active_props.append(item)
-        name = f"propositions.{item['id']}"
-        required_text(item, "claim", name)
-        required_text(item, "passage", name)
+    for index, item in enumerate(
+        required_list(
+            state.get("realized_propositions"), "realized_propositions", nonempty=True
+        )
+    ):
+        name = f"realized_propositions[{index}]"
+        require_condition(
+            isinstance(item, dict), f"{name}はオブジェクトでなければならない"
+        )
+        prop_id = required_text(item, "proposition_id", name)
+        require_condition(prop_id in prop_ids, f"{name}.proposition_idが命題にない")
+        require_condition(
+            prop_id not in {prop["id"] for prop in active_props},
+            f"{name}.proposition_idが重複している",
+        )
+        passage = required_text(item, "passage", name)
         require_condition(
             item.get("draft_version") == version, f"{name}の問題文の版が一致しない"
         )
-    require_condition(active_props, "activeな命題がない")
-    clues, _ = records_with_ids(state.get("clues"), "clues", nonempty=True)
-    active_clues = []
+        active_props.append(
+            {"id": prop_id, "claim": claims[prop_id], "passage": passage}
+        )
+    clues, clue_ids = records_with_ids(state.get("clues"), "clues", nonempty=True)
+    candidates = {}
     for item in clues:
-        if item.get("status") != "active":
-            continue
-        active_clues.append(item)
         name = f"clues.{item['id']}"
-        required_text(item, "text", name)
+        required_text(item, "fact", name)
         referenced_ids(item, "proposition_ids", prop_ids, name)
-        values = item.get("checks")
-        require_condition(isinstance(values, dict), f"{name}.checksがない")
-        for key in ("quasi_uniqueness", "familiarity"):
-            check = values.get(key)
-            cname = f"{name}.{key}"
-            require_condition(isinstance(check, dict), f"{cname}がない")
-            required_text(check, "claim", cname)
-            required_text(check, "reason", cname)
-            referenced_ids(check, "evidence_ids", quote_ids, cname)
-            if key == "quasi_uniqueness":
-                required_text(check, "comparison_scope", cname)
-                require_condition(
-                    check.get("standalone_sufficient") is True,
-                    f"{cname}.standalone_sufficientがtrueではない",
-                )
-                require_condition(
-                    not required_list(
-                        check.get("depends_on_clue_ids"),
-                        f"{cname}.depends_on_clue_ids",
-                    ),
-                    f"{cname}が他の手掛かりに依存している",
-                )
+        candidates[item["id"]] = item
+    active_clues = []
+    used = set()
+    for index, item in enumerate(
+        required_list(state.get("clue_uses"), "clue_uses", nonempty=True)
+    ):
+        name = f"clue_uses[{index}]"
+        require_condition(
+            isinstance(item, dict), f"{name}はオブジェクトでなければならない"
+        )
+        clue_id = required_text(item, "clue_id", name)
+        require_condition(clue_id in clue_ids, f"{name}.clue_idが手掛かり候補にない")
+        require_condition(clue_id not in used, f"{name}.clue_idが重複している")
+        used.add(clue_id)
+        require_condition(
+            item.get("status") in {"active", "rejected"}, f"{name}.statusが不正である"
+        )
+        if item["status"] != "active":
+            continue
+        required_text(item, "text", f"clue_uses.{clue_id}")
+        active_clues.append({**candidates[clue_id], **item, "id": clue_id})
     require_condition(active_clues, "activeな手掛かりがない")
+    checks = {}
+    for index, item in enumerate(
+        required_list(state.get("clue_checks"), "clue_checks", nonempty=True)
+    ):
+        name = f"clue_checks[{index}]"
+        require_condition(
+            isinstance(item, dict), f"{name}はオブジェクトでなければならない"
+        )
+        clue_id = required_text(item, "clue_id", name)
+        require_condition(clue_id not in checks, f"{name}.clue_idが重複している")
+        validate_clue_checks(item, f"clue_checks.{clue_id}", quote_ids)
+        checks[clue_id] = item
+    for clue in active_clues:
+        require_condition(
+            clue["id"] in checks, f"手掛かり{clue['id']}の準一意性と知名度の判断がない"
+        )
+        clue["checks"] = checks[clue["id"]]
     return quote_ids, active_props, active_clues
 
 
@@ -1739,7 +1723,7 @@ def validate_expression_reviews(state, checks, active_clues, version):
     review = state["structure_review"]
     require_condition(
         review.get("question_form") == structure["question_form"],
-        "structure_review.question_formが生成側の区分と一致しない",
+        "structure_review.question_formが作る側の区分と一致しない",
     )
     otoshi = referenced_ids(
         review,
@@ -1749,7 +1733,7 @@ def validate_expression_reviews(state, checks, active_clues, version):
     )
     require_condition(
         set(otoshi) == set(structure["otoshi_clue_ids"]),
-        "structure_review.otoshi_clue_idsが生成側の区分と一致しない",
+        "structure_review.otoshi_clue_idsが作る側の区分と一致しない",
     )
 
 
@@ -1791,7 +1775,7 @@ def validate_structure_check(item, name, draft_text, active_clues):
         )
         require_condition(
             clue.get("directly_describes_target") is True,
-            f"clues.{clue['id']}が対象を直接説明する手掛かりとして確認されていない",
+            f"clue_uses.{clue['id']}が対象を直接説明する手掛かりとして確認されていない",
         )
     required_text(item, "connective_scan", name)
     connective_forms = required_list(
@@ -2160,7 +2144,7 @@ def validate_terminology(state, quote_ids, version, stage, draft_text):
 
 
 def validate_term_reviews(state, terms, term_ids, quote_ids, version):
-    """独立に列挙した語、意味内容の要否、語義、既習性の検査が生成側の記録と対応することを検査する。"""
+    """独立に列挙した語、意味内容の要否、語義、既習性の検査が作る側の記録と対応することを検査する。"""
     listing = state.get("term_listing")
     require_condition(isinstance(listing, dict), "term_listingがない")
     require_condition(
@@ -2178,7 +2162,7 @@ def validate_term_reviews(state, terms, term_ids, quote_ids, version):
     for item in state["term_necessity_reviews"]:
         require_condition(
             item.get("meaning_needed") == by_id[item["term_id"]]["meaning_needed"],
-            f"term_necessity_reviews.{item['term_id']}.meaning_neededが生成側の判断と一致しない",
+            f"term_necessity_reviews.{item['term_id']}.meaning_neededが作る側の判断と一致しない",
         )
     needed = sorted(item["id"] for item in terms if item["meaning_needed"])
     for kind, key in (
@@ -2473,10 +2457,10 @@ def require_no_selection_ledger(state):
     )
 
 
-def validate_generation_start(state):
+def validate_target_start(state):
     require_no_selection_ledger(state)
     validate_selection_mode(state)
-    validate_execution_assignments(state, "generation-start")
+    validate_execution_assignments(state, "target-start")
     required_text(state, "answer_target", "state")
 
 
@@ -2493,8 +2477,8 @@ def main():
             "membership",
             "selection",
             "prejudgment",
-            "generation-start",
-            "generation",
+            "target-start",
+            "writing",
             "review",
             "final",
         ),
@@ -2527,8 +2511,8 @@ def main():
         elif args.stage in {"discovery", "membership", "selection", "prejudgment"}:
             validate_selection_state(state, args.stage)
             validate_selection_execution(state, args.stage)
-        elif args.stage == "generation-start":
-            validate_generation_start(state)
+        elif args.stage == "target-start":
+            validate_target_start(state)
         elif args.stage == "final":
             require_condition(args.output, "final段階には--outputが必要である")
             output_bytes = Path(args.output).read_bytes()

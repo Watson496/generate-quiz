@@ -60,7 +60,7 @@ argument-hint: <作問条件（主題・問題数・文字数・履歴など。�
 python3 "$SKILL_DIR/scripts/assignment_plan.py" steps
 python3 "$SKILL_DIR/scripts/assignment_plan.py" coordinate 3
 python3 "$SKILL_DIR/scripts/assignment_plan.py" assign exploration
-python3 "$SKILL_DIR/scripts/assignment_plan.py" rerun generation
+python3 "$SKILL_DIR/scripts/assignment_plan.py" rerun writer
 ```
 
 ファセットカタログは全文を読まず、必要なブロックだけを取得する。
@@ -100,8 +100,8 @@ python3 "$SKILL_DIR/scripts/work_state_check.py" --stage discovery state.json
 python3 "$SKILL_DIR/scripts/work_state_check.py" --stage membership state.json
 python3 "$SKILL_DIR/scripts/work_state_check.py" --stage selection state.json
 python3 "$SKILL_DIR/scripts/work_state_check.py" --stage prejudgment state.json
-python3 "$SKILL_DIR/scripts/work_state_check.py" --stage generation-start state.json
-python3 "$SKILL_DIR/scripts/work_state_check.py" --stage generation state.json
+python3 "$SKILL_DIR/scripts/work_state_check.py" --stage target-start state.json
+python3 "$SKILL_DIR/scripts/work_state_check.py" --stage writing state.json
 python3 "$SKILL_DIR/scripts/work_state_check.py" --stage review state.json
 python3 "$SKILL_DIR/scripts/work_state_check.py" --stage final --output completed.md state.json
 ```
@@ -114,7 +114,7 @@ python3 "$SKILL_DIR/scripts/work_state_check.py" --stage final --output complete
 
 次をすべて満たしたときだけ、一問を確定する。
 
-- 生成側の全検査単位が完了している。
+- 作る側の全検査単位が完了している。
 - 観点別の検査担当の検査がすべて合格している。
 - 現行問題文の版について、文字数判定と作業状態の検査に合格している。
 - 最終出力が限定入力と一致し、検討過程を含まない。
