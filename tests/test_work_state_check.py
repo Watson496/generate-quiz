@@ -167,6 +167,10 @@ def complete_state():
             "certainty_review",
             "proposition_extraction",
             "proposition_matching",
+            "competitor_search",
+            "competitor_search_review",
+            "competitor_comparison",
+            "competitor_comparison_review",
         )
     )
     state = {
@@ -270,6 +274,62 @@ def complete_state():
         "certainty_reviews": [
             {"proposition_id": "P1", "status": "passed", "reason": "断定できる"}
         ],
+        "competitors": [
+            {
+                "id": "R1",
+                "name": "近接候補",
+                "clue_ids": ["C1"],
+                "evidence_ids": evidence.copy(),
+            }
+        ],
+        "competitor_comparisons": [
+            {
+                "clue_id": "C1",
+                "competitor_id": "R1",
+                "conditions": [
+                    {
+                        "passage": "矢羽の向きで異なる長さに見える",
+                        "matches": False,
+                        "reason": "引用で候補の図形条件との差を確認した",
+                        "evidence_ids": evidence.copy(),
+                    }
+                ],
+                "disposition": "excluded",
+                "exclusion_passage": "矢羽の向きで異なる長さに見える",
+                "reason": "手掛かりに書かれた図形条件で区別する",
+            }
+        ],
+        "competitor_search_reviews": [
+            {
+                "clue_id": "C1",
+                "found": [
+                    {
+                        "id": "R1",
+                        "name": "近接候補",
+                        "source_url": "https://example.org/competitor",
+                        "evidence_ids": evidence.copy(),
+                    }
+                ],
+                "status": "passed",
+                "reason": "逆引きで作る側と同じ候補を見つけた",
+            }
+        ],
+        "competitor_comparison_reviews": [
+            {
+                "clue_id": "C1",
+                "competitor_id": "R1",
+                "conditions": [
+                    {
+                        "passage": "矢羽の向きで異なる長さに見える",
+                        "match": "不一致",
+                        "reason": "候補には当てはまらない",
+                    }
+                ],
+                "disposition": "excluded",
+                "status": "passed",
+                "reason": "図形条件で区別する",
+            }
+        ],
         "clue_centrality": [
             {
                 "clue_id": "C1",
@@ -318,24 +378,6 @@ def complete_state():
                     "quasi_uniqueness": {
                         **clue_check,
                         "comparison_scope": "同じ上位分類",
-                        "competitors": [
-                            {
-                                "id": "R1",
-                                "name": "近接候補",
-                                "evidence_ids": evidence,
-                                "conditions": [
-                                    {
-                                        "passage": "矢羽の向きで異なる長さに見える",
-                                        "matches": False,
-                                        "reason": "引用で候補の図形条件との差を確認した",
-                                        "evidence_ids": evidence,
-                                    }
-                                ],
-                                "disposition": "excluded",
-                                "exclusion_passage": "矢羽の向きで異なる長さに見える",
-                                "reason": "手掛かりに書かれた図形条件で区別する",
-                            }
-                        ],
                         "standalone_sufficient": True,
                         "depends_on_clue_ids": [],
                     },
@@ -390,34 +432,6 @@ def complete_state():
                 "resolution_reason": "紹介の範囲を考慮して判断する",
                 "status": "passed",
             },
-            "clues": [
-                {
-                    "id": "C1",
-                    "source_urls_checked": ["https://example.org/competitor"],
-                    "adverse_finding": "近接候補を調べた",
-                    "resolution_evidence_ids": evidence.copy(),
-                    "resolution_reason": "候補の図形条件が異なる",
-                    "status": "passed",
-                    "competitor_comparisons": [
-                        {
-                            "id": "R1",
-                            "name": "近接候補",
-                            "source_url": "https://example.org/competitor",
-                            "evidence_ids": evidence.copy(),
-                            "conditions": [
-                                {
-                                    "passage": "矢羽の向きで異なる長さに見える",
-                                    "match": "不一致",
-                                    "reason": "候補には当てはまらない",
-                                }
-                            ],
-                            "disposition": "excluded",
-                            "resolution_reason": "図形条件で区別する",
-                            "remaining": False,
-                        }
-                    ],
-                }
-            ],
         },
         "answers": [
             {
@@ -1617,41 +1631,34 @@ class TestWorkState:
         assert result.returncode == 1
         assert "asked_knowledgeが問う知識と一致しない" in result.stderr
 
-    def test_audit_rejects_challenge_for_other_clue(self, run_script, complete_state):
-        """別の手掛かりIDについての反証記録を現行問題へ使わない。"""
-        complete_state["evidence_challenge"]["clues"][0]["id"] = "C2"
+    def test_audit_rejects_review_of_unknown_pair(self, run_script, complete_state):
+        """作る側の照合にも逆引きの結果にもない組の照合結果を使わない。"""
+        complete_state["competitor_comparison_reviews"][0]["competitor_id"] = "R9"
         result = check_state(run_script, "audit", complete_state)
         assert result.returncode == 1
-        assert "evidence_challenge.cluesが採用手掛かりと一致しない" in result.stderr
+        assert "作る側の照合にも逆引きで見つけた候補にもない" in result.stderr
 
     def test_audit_rejects_unresolved_competitor(self, run_script, complete_state):
-        """対抗候補が未解決のまま監査を通さない。"""
-        comparison = complete_state["evidence_challenge"]["clues"][0][
-            "competitor_comparisons"
-        ][0]
-        comparison["remaining"] = True
+        """条件照合の検査が不合格の対抗候補を残さない。"""
+        complete_state["competitor_comparison_reviews"][0]["status"] = "failed"
         result = check_state(run_script, "audit", complete_state)
         assert result.returncode == 1
-        assert "未解決" in result.stderr
+        assert "competitor_comparison_reviewsに不合格の項目がある" in result.stderr
 
     def test_audit_rejects_excluding_matching_competitor(
         self, run_script, complete_state
     ):
         """全条件に一致する対抗候補を除外しない。"""
-        comparison = complete_state["evidence_challenge"]["clues"][0][
-            "competitor_comparisons"
-        ][0]
-        comparison["conditions"][0]["match"] = "一致"
+        review = complete_state["competitor_comparison_reviews"][0]
+        review["conditions"][0]["match"] = "一致"
         result = check_state(run_script, "audit", complete_state)
         assert result.returncode == 1
         assert "相違する条件なしに候補を除外" in result.stderr
 
     def test_audit_rejects_excluding_near_competitor(self, run_script, complete_state):
         """近接するだけの条件を相違として候補を除外しない。"""
-        comparison = complete_state["evidence_challenge"]["clues"][0][
-            "competitor_comparisons"
-        ][0]
-        comparison["conditions"][0]["match"] = "近接"
+        review = complete_state["competitor_comparison_reviews"][0]
+        review["conditions"][0]["match"] = "近接"
         result = check_state(run_script, "audit", complete_state)
         assert result.returncode == 1
         assert "相違する条件なしに候補を除外" in result.stderr
@@ -1659,40 +1666,42 @@ class TestWorkState:
     def test_audit_accepts_additional_excluded_competitor(
         self, run_script, complete_state
     ):
-        """独立調査で見つけた別対象も反証記録に加えられる。"""
-        comparisons = complete_state["evidence_challenge"]["clues"][0][
-            "competitor_comparisons"
-        ]
-        additional = copy.deepcopy(comparisons[0])
-        additional.update(id="R2", name="追加の対抗候補")
-        comparisons.append(additional)
+        """逆引きで新しく見つけた別対象も、除外として照合できる。"""
+        found = copy.deepcopy(
+            complete_state["competitor_search_reviews"][0]["found"][0]
+        )
+        found.update(id="R2", name="追加の対抗候補")
+        complete_state["competitor_search_reviews"][0]["found"].append(found)
+        review = copy.deepcopy(complete_state["competitor_comparison_reviews"][0])
+        review["competitor_id"] = "R2"
+        complete_state["competitor_comparison_reviews"].append(review)
         assert check_state(run_script, "audit", complete_state).returncode == 0
 
     def test_audit_rejects_omitted_generated_competitor(
         self, run_script, complete_state
     ):
-        """生成側が挙げた対抗候補の照合漏れを拒否する。"""
-        competitors = complete_state["clues"][0]["checks"]["quasi_uniqueness"][
-            "competitors"
-        ]
-        additional = copy.deepcopy(competitors[0])
-        additional.update(id="R2", name="別の対抗候補")
-        competitors.append(additional)
+        """作る側が挙げた対抗候補の照合を検査から漏らさない。"""
+        competitor = copy.deepcopy(complete_state["competitors"][0])
+        competitor.update(id="R2", name="別の対抗候補")
+        complete_state["competitors"].append(competitor)
+        comparison = copy.deepcopy(complete_state["competitor_comparisons"][0])
+        comparison["competitor_id"] = "R2"
+        complete_state["competitor_comparisons"].append(comparison)
         result = check_state(run_script, "audit", complete_state)
         assert result.returncode == 1
-        assert "生成側の対抗候補が不足" in result.stderr
+        assert (
+            "条件の照合を検査していない対抗候補がある: [('C1', 'R2')]" in result.stderr
+        )
 
     def test_audit_rejects_conflicting_competitor_judgment(
         self, run_script, complete_state
     ):
-        """生成側と独立反証の候補採否が食い違う場合は合格させない。"""
-        comparison = complete_state["evidence_challenge"]["clues"][0][
-            "competitor_comparisons"
-        ][0]
-        comparison["disposition"] = "same_target"
+        """作る側と検査側の候補の採否が食い違う場合は合格させない。"""
+        review = complete_state["competitor_comparison_reviews"][0]
+        review["disposition"] = "same_target"
         result = check_state(run_script, "audit", complete_state)
         assert result.returncode == 1
-        assert "生成側の判断と一致しない" in result.stderr
+        assert "作る側の判断と一致しない" in result.stderr
 
     def test_audit_requires_current_exposure_assignment(
         self, run_script, complete_state
@@ -2119,37 +2128,24 @@ class TestWorkState:
         self, run_script, complete_state, invalid_part
     ):
         """対抗候補の資料と問題文中の区別条件を欠く記録を拒否する。"""
-        check = complete_state["clues"][0]["checks"]["quasi_uniqueness"]
-        competitor = check["competitors"][0]
+        competitor = complete_state["competitors"][0]
+        comparison = complete_state["competitor_comparisons"][0]
         if invalid_part == "name":
             competitor["name"] = ""
         elif invalid_part == "evidence_ids":
             competitor["evidence_ids"] = []
         elif invalid_part == "conditions":
-            competitor["conditions"] = []
+            comparison["conditions"] = []
         elif invalid_part == "passage":
-            competitor["conditions"][0]["passage"] = "問題文にない条件"
+            comparison["conditions"][0]["passage"] = "問題文にない条件"
         elif invalid_part == "matches":
-            competitor["conditions"][0]["matches"] = "未確認"
+            comparison["conditions"][0]["matches"] = "未確認"
         elif invalid_part == "condition_evidence_ids":
-            competitor["conditions"][0]["evidence_ids"] = []
+            comparison["conditions"][0]["evidence_ids"] = []
         elif invalid_part == "exclusion_passage":
-            competitor["exclusion_passage"] = "同じ長さの線分"
+            comparison["exclusion_passage"] = "同じ長さの線分"
         else:
-            competitor["reason"] = ""
-        assert check_state(run_script, "audit", complete_state).returncode == 1
-
-    def test_competitor_evidence_belongs_to_clue_judgment(
-        self, run_script, complete_state
-    ):
-        """対抗候補の引用を準一意性の判断根拠にも対応させる。"""
-        complete_state["sources"][0]["quotes"].append(
-            {"id": "Q2", "text": "対抗候補の記述", "location": "第二節"}
-        )
-        competitor = complete_state["clues"][0]["checks"]["quasi_uniqueness"][
-            "competitors"
-        ][0]
-        competitor["evidence_ids"] = ["Q2"]
+            comparison["reason"] = ""
         assert check_state(run_script, "audit", complete_state).returncode == 1
 
     def test_condition_evidence_belongs_to_competitor(self, run_script, complete_state):
@@ -2157,49 +2153,45 @@ class TestWorkState:
         complete_state["sources"][0]["quotes"].append(
             {"id": "Q2", "text": "条件についての記述", "location": "第二節"}
         )
-        competitor = complete_state["clues"][0]["checks"]["quasi_uniqueness"][
-            "competitors"
-        ][0]
-        competitor["conditions"][0]["evidence_ids"] = ["Q2"]
-        assert check_state(run_script, "audit", complete_state).returncode == 1
+        complete_state["competitor_comparisons"][0]["conditions"][0]["evidence_ids"] = [
+            "Q2"
+        ]
+        result = check_state(run_script, "audit", complete_state)
+        assert result.returncode == 1
+        assert "evidence_idsが候補の引用に含まれていない" in result.stderr
 
     def test_competitor_with_all_matching_conditions_cannot_be_excluded(
         self, run_script, complete_state
     ):
         """問題文の条件に相違がない別対象を退けない。"""
-        competitor = complete_state["clues"][0]["checks"]["quasi_uniqueness"][
-            "competitors"
-        ][0]
-        competitor["conditions"][0]["matches"] = True
-        assert check_state(run_script, "audit", complete_state).returncode == 1
+        complete_state["competitor_comparisons"][0]["conditions"][0]["matches"] = True
+        result = check_state(run_script, "audit", complete_state)
+        assert result.returncode == 1
+        assert "exclusion_passageが相違する条件ではない" in result.stderr
 
     def test_same_target_name_does_not_need_exclusion_passage(
         self, run_script, complete_state
     ):
         """同一対象の別名に別対象を退ける表現を要求しない。"""
-        competitor = complete_state["clues"][0]["checks"]["quasi_uniqueness"][
-            "competitors"
-        ][0]
-        competitor["disposition"] = "same_target"
-        competitor["conditions"][0]["matches"] = True
-        del competitor["exclusion_passage"]
-        comparison = complete_state["evidence_challenge"]["clues"][0][
-            "competitor_comparisons"
-        ][0]
+        comparison = complete_state["competitor_comparisons"][0]
         comparison["disposition"] = "same_target"
-        comparison["conditions"][0]["match"] = "一致"
+        comparison["conditions"][0]["matches"] = True
+        del comparison["exclusion_passage"]
+        review = complete_state["competitor_comparison_reviews"][0]
+        review["disposition"] = "same_target"
+        review["conditions"][0]["match"] = "一致"
         assert check_state(run_script, "audit", complete_state).returncode == 0
 
     def test_same_target_name_cannot_have_different_condition(
         self, run_script, complete_state
     ):
         """異なる条件を記録した候補を同一対象の別名として通さない。"""
-        competitor = complete_state["clues"][0]["checks"]["quasi_uniqueness"][
-            "competitors"
-        ][0]
-        competitor["disposition"] = "same_target"
-        del competitor["exclusion_passage"]
-        assert check_state(run_script, "audit", complete_state).returncode == 1
+        comparison = complete_state["competitor_comparisons"][0]
+        comparison["disposition"] = "same_target"
+        del comparison["exclusion_passage"]
+        result = check_state(run_script, "audit", complete_state)
+        assert result.returncode == 1
+        assert "同一対象の別名として扱う条件と矛盾している" in result.stderr
 
     def test_otoshi_requires_directly_descriptive_clue(
         self, run_script, complete_state

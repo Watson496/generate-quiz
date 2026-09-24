@@ -43,7 +43,10 @@
     "clues": "手掛かりの問題文中の文字列と命題ID",
     "clue_centrality": "手掛かりごとの中核性の評価",
     "centrality_reviews": "手掛かりの中核性の検査結果",
-    "competitors": "生成側が挙げた対抗候補のIDと名称",
+    "competitors": "手掛かりから逆引きで探した対抗候補のIDと名称、候補を扱う資料",
+    "competitor_comparisons": "対抗候補ごとの、手掛かりに書かれた条件との照合",
+    "competitor_search_reviews": "対抗候補の逆引き探索の検査結果",
+    "competitor_comparison_reviews": "対抗候補との条件照合の検査結果",
     "asked_knowledge": "問う知識と、要求する解答知識の粒度",
     "draft": "現行版の問題文",
     "terms": "生成側の専門用語の一覧と語ID",
@@ -350,7 +353,7 @@
           "section": "生成",
           "specs": ["quiz_generation_spec.md", "verification_and_judging_spec.md", "selection_and_history_spec.md", "work_state_spec.md"],
           "inputs": [["user_conditions", "history", "answer_target", "names", "answers", "answer_judgments"]],
-          "outputs": ["sources", "propositions", "clues", "competitors", "asked_knowledge", "draft", "terms", "exposure_candidates", "generation_checks", "final_input"]
+          "outputs": ["sources", "propositions", "clues", "asked_knowledge", "draft", "terms", "exposure_candidates", "generation_checks", "final_input"]
         },
         {
           "id": "source_reliability",
@@ -388,6 +391,24 @@
           "specs": ["verification_and_judging_spec.md", "work_state_spec.md"],
           "inputs": [["propositions", "sources", "source_assessments", "proposition_support"]],
           "outputs": ["proposition_certainty"]
+        },
+        {
+          "id": "competitor_search",
+          "name": "対抗候補の逆引き探索担当",
+          "side": "make",
+          "section": "対抗候補",
+          "specs": ["quiz_generation_spec.md", "verification_and_judging_spec.md", "work_state_spec.md"],
+          "inputs": [["answer_target", "clues", "sources"]],
+          "outputs": ["sources", "competitors"]
+        },
+        {
+          "id": "competitor_comparison",
+          "name": "対抗候補の条件照合担当",
+          "side": "make",
+          "section": "対抗候補",
+          "specs": ["quiz_generation_spec.md", "verification_and_judging_spec.md", "work_state_spec.md"],
+          "inputs": [["answer_target", "clues", "sources", "source_assessments", "competitors"]],
+          "outputs": ["competitor_comparisons"]
         },
         {
           "id": "difficulty_review",
@@ -495,12 +516,30 @@
           "outputs": ["proposition_matching_reviews"]
         },
         {
+          "id": "competitor_search_review",
+          "name": "対抗候補の逆引き探索の検査担当",
+          "side": "check",
+          "section": "対抗候補",
+          "specs": ["quiz_generation_spec.md", "verification_and_judging_spec.md", "work_state_spec.md"],
+          "inputs": [["answer_target", "draft", "clues"], ["competitors"]],
+          "outputs": ["competitor_search_reviews"]
+        },
+        {
+          "id": "competitor_comparison_review",
+          "name": "対抗候補の条件照合の検査担当",
+          "side": "check",
+          "section": "対抗候補",
+          "specs": ["quiz_generation_spec.md", "verification_and_judging_spec.md", "work_state_spec.md"],
+          "inputs": [["answer_target", "draft", "clues", "sources", "competitors", "competitor_search_reviews"]],
+          "outputs": ["competitor_comparison_reviews"]
+        },
+        {
           "id": "evidence_challenge",
           "name": "反証確認担当",
           "side": "check",
           "section": "監査前の反証確認",
           "specs": ["quiz_generation_spec.md", "verification_and_judging_spec.md", "work_state_spec.md"],
-          "inputs": [["answer_target", "sources", "propositions", "clues", "competitors", "asked_knowledge", "draft", "answers"]],
+          "inputs": [["answer_target", "sources", "asked_knowledge", "draft"]],
           "outputs": ["evidence_challenge"]
         },
         {
@@ -511,7 +550,7 @@
           "specs": ["quiz_generation_spec.md", "verification_and_judging_spec.md", "selection_and_history_spec.md", "output_structure_spec.md", "work_state_spec.md"],
           "inputs": [
             ["draft", "answer_target"],
-            ["user_conditions", "sources", "propositions", "clues", "competitors", "asked_knowledge", "terms", "answers", "generation_checks", "final_input", "difficulty_review", "terminology_review", "blind_candidates", "exposure_analysis", "answer_review", "evidence_challenge"]
+            ["user_conditions", "sources", "propositions", "clues", "competitors", "competitor_comparisons", "asked_knowledge", "terms", "answers", "generation_checks", "final_input", "difficulty_review", "terminology_review", "blind_candidates", "exposure_analysis", "answer_review", "evidence_challenge"]
           ],
           "outputs": ["audit_results"]
         }
