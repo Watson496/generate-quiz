@@ -12,6 +12,12 @@
 
 利用できる場合は、担当を起動するたびに`execution.assignments`へ一件を加える。担当表の役割を`role`、起動toolが返した正規IDを`agent_id`、回収した成果物の場所を`artifact_refs`に置く。露出検査担当の記録には、対象とした問題文の版を`draft_version`に置く。一つのagentを複数の役割に使わない。露出検査担当は版ごとに別のagentとし、同じ版を新しい担当が再検査した場合も一件を加える。解答対象を替えた後も、既存の記録を消したり、別の担当の記録へ書き換えたりしない。
 
+## ファセットの選択
+
+ファセットの選択は、題材探索状態とは別のJSONに記録し、`work_state_check.py --stage facet-selection`で検査する。`facet_levels`には、判断した階層ごとに`id`、軸を`axis`、現在のノードを`node`、停止か子へ進むかを`decision`（`stop`・`descend`）、判断理由を`reason`として、判断した順に置く。子へ進む階層については、`facet_weights`に階層の`level_id`と、兄弟ノードごとの`candidates`を置く。各候補には、ノードの`key`と`label`、基礎weightを`weight`、文化的共有度・コミュニケーション場面での重要性・文化的背景知識としての機能の評価を`viewpoints`の`sharing`・`communication`・`background`、三観点をweightへまとめた根拠を`reason`、履歴距離を`history_distances`として置く。統括役は抽選結果を`facet_picks`に`level_id`と`key`として記録する。選び終えた4軸のノードは`facet_nodes`に置く。
+
+`work_state_check.py`は、各軸が最上位ノードから始まって抽選結果のノードへ続き、停止で終わること、weightの候補が現在のノードの直接の子と一致すること、抽選結果が正のweightを持つ候補であること、`facet_nodes`が停止した階層のノードと一致することを確認する。粒度とweightの判断の妥当性は判定しない。
+
 ## ファセットの交差領域
 
 ファセット選択後、題材探索前に4軸の正規ノードキーと交差領域の確認記録をJSONへ保存し、`work_state_check.py --stage intersection-checkpoint`で検査する。確認記録には、開いた資料のURL、交差領域の広さを判断した理由、資料中に実名がある異なる候補二つ以上と各資料のURL、うち一件以上の初級学習資料と扱いの根拠、成立の判定を含める。広さの理由には、選択範囲に入る大区分と、異なる用途の資料で確かめた対象の種類・下位領域を対応させ、候補探索の経路を設けられるかを記す。担当の起動は「担当の起動の記録」節に従って記録する。形式検査は資料の独立性や判断の妥当性を保証しない。
@@ -216,7 +222,7 @@ JSON manifestは、検査対象を具体的な内容へ結び付け、確定的�
 ```json
 {
   "facet_nodes": {"subject": "subject::66", "place": "place::ROOT", "time": "time::ROOT", "type": "type::ROOT"},
-  "execution": {"delegation_available": true, "assignments": [{"role": "facet_selection", "agent_id": "agent-1", "artifact_refs": ["facet_selection.md"]}, {"role": "intersection", "agent_id": "agent-2", "artifact_refs": ["intersection.md"]}, {"role": "exploration", "agent_id": "agent-3", "artifact_refs": ["exploration.md"]}, {"role": "alternate_exploration", "agent_id": "agent-4", "artifact_refs": ["alternate_exploration.md"]}, {"role": "saturation_review", "agent_id": "agent-5", "artifact_refs": ["saturation_review.md"]}, {"role": "exposure_precheck", "agent_id": "agent-6", "artifact_refs": ["exposure_precheck.md"]}, {"role": "topic_weighting", "agent_id": "agent-7", "artifact_refs": ["topic_weights.json"]}]},
+  "execution": {"delegation_available": true, "assignments": [{"role": "intersection", "agent_id": "agent-1", "artifact_refs": ["intersection.md"]}, {"role": "exploration", "agent_id": "agent-2", "artifact_refs": ["exploration.md"]}, {"role": "alternate_exploration", "agent_id": "agent-3", "artifact_refs": ["alternate_exploration.md"]}, {"role": "saturation_review", "agent_id": "agent-4", "artifact_refs": ["saturation_review.md"]}, {"role": "exposure_precheck", "agent_id": "agent-5", "artifact_refs": ["exposure_precheck.md"]}, {"role": "topic_weighting", "agent_id": "agent-6", "artifact_refs": ["topic_weights.json"]}]},
   "intersection_review": {
     "source_refs": ["https://example.org/outline", "https://example.org/lesson"],
     "candidate_examples": [

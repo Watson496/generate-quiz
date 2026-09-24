@@ -220,7 +220,7 @@ class TestSteps:
         result = run_script("assignment_plan.py", "steps")
         assert result.returncode == 0
         steps = json.loads(result.stdout)
-        assert steps[0]["roles"] == ["facet_selection"]
+        assert steps[0]["roles"] == ["facet_granularity", "facet_weighting"]
 
 
 class TestRequests:
@@ -261,7 +261,7 @@ class TestRequests:
         [
             ("assign", "unknown_role"),
             ("assign", "exposure", "--items", "K1"),
-            ("coordinate", "1"),
+            ("coordinate", "2"),
             ("coordinate", "99"),
         ],
     )

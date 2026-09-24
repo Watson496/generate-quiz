@@ -2,6 +2,9 @@
   "data": {
     "user_conditions": "ユーザーの作問条件",
     "history": "確定済み履歴またはその保存先",
+    "facet_levels": "ファセットの各階層の粒度判断",
+    "facet_weights": "ファセットの兄弟ノードのweightと、候補ごとの三観点の評価と根拠",
+    "facet_picks": "ファセットの各階層の抽選結果",
     "facet_nodes": "選択した4軸のノード",
     "intersection_review": "交差領域の確認記録",
     "ledger": "題材候補の探索台帳（下位領域、入口、候補、探索記録）",
@@ -29,19 +32,28 @@
     "final_output": "完成稿",
     "final_review": "最終照合の記録"
   },
-  "given_data": ["user_conditions", "history", "answer_target"],
+  "given_data": ["user_conditions", "history", "facet_picks", "answer_target"],
   "steps": [
     {
       "name": "ファセット選択",
       "roles": [
         {
-          "id": "facet_selection",
-          "name": "ファセット選択担当",
+          "id": "facet_granularity",
+          "name": "ファセットの粒度判断担当",
           "side": "make",
           "section": "ファセット選択",
           "specs": ["selection_and_history_spec.md", "facet_index.md", "work_state_spec.md"],
-          "inputs": [["user_conditions", "history"]],
-          "outputs": ["facet_nodes"]
+          "inputs": [["user_conditions", "facet_picks"]],
+          "outputs": ["facet_levels", "facet_nodes"]
+        },
+        {
+          "id": "facet_weighting",
+          "name": "ファセットのweight担当",
+          "side": "make",
+          "section": "ファセット選択",
+          "specs": ["selection_and_history_spec.md", "facet_index.md", "work_state_spec.md"],
+          "inputs": [["user_conditions", "history", "facet_levels", "facet_picks"]],
+          "outputs": ["facet_weights"]
         }
       ]
     },

@@ -716,6 +716,67 @@ class TestWorkStateFunctions:
             state_module.require_stage_completion(record, "命題", stage)
 
 
+class TestFacetSelectionState:
+    """ファセットの各階層の判断、weight、抽選結果を検査する。"""
+
+    def test_valid_state_passes(self, run_script, facet_state):
+        """停止まで一続きに記録した状態を受け付ける。"""
+        assert check_state(run_script, "facet-selection", facet_state).returncode == 0
+
+    def test_weights_must_cover_all_children(self, run_script, facet_state):
+        """兄弟ノードの一部だけにweightを付けた状態を拒否する。"""
+        facet_state["facet_weights"][0]["candidates"].pop()
+        result = check_state(run_script, "facet-selection", facet_state)
+        assert result.returncode == 1
+        assert "subject::ROOTの直接の子と一致しない" in result.stderr
+
+    @pytest.mark.parametrize("viewpoint", ["sharing", "communication", "background"])
+    def test_weights_require_each_viewpoint(self, run_script, facet_state, viewpoint):
+        """候補ごとに三観点の評価をそれぞれ要求する。"""
+        del facet_state["facet_weights"][0]["candidates"][0]["viewpoints"][viewpoint]
+        result = check_state(run_script, "facet-selection", facet_state)
+        assert result.returncode == 1
+        assert f"viewpoints.{viewpoint}がない" in result.stderr
+
+    def test_pick_must_have_positive_weight(self, run_script, facet_state):
+        """weight 0の候補を抽選結果にしない。"""
+        chosen = facet_state["facet_picks"][0]["key"]
+        for candidate in facet_state["facet_weights"][0]["candidates"]:
+            if candidate["key"] == chosen:
+                candidate["weight"] = 0
+        result = check_state(run_script, "facet-selection", facet_state)
+        assert result.returncode == 1
+        assert "正のweightを持つ候補ではない" in result.stderr
+
+    def test_next_level_must_follow_pick(self, run_script, facet_state):
+        """抽選結果と異なるノードから次の階層を始めない。"""
+        facet_state["facet_picks"][0]["key"] = "subject::7"
+        result = check_state(run_script, "facet-selection", facet_state)
+        assert result.returncode == 1
+        assert "前の階層の抽選結果から続いていない" in result.stderr
+
+    def test_nodes_must_match_stopped_levels(self, run_script, facet_state):
+        """選択したノードは停止した階層のノードと一致させる。"""
+        facet_state["facet_nodes"]["subject"] = "subject::6"
+        result = check_state(run_script, "facet-selection", facet_state)
+        assert result.returncode == 1
+        assert "facet_nodes.subjectが停止した階層のノードと一致しない" in result.stderr
+
+    def test_all_axes_must_stop(self, run_script, facet_state):
+        """4軸すべてで停止するまで記録する。"""
+        facet_state["facet_levels"].pop()
+        result = check_state(run_script, "facet-selection", facet_state)
+        assert result.returncode == 1
+        assert "4軸すべての粒度判断が停止まで記録されていない" in result.stderr
+
+    def test_requires_weighting_assignment(self, run_script, facet_state):
+        """weightを推定した担当の起動の記録を要求する。"""
+        drop_assignment(facet_state, "facet_weighting")
+        result = check_state(run_script, "facet-selection", facet_state)
+        assert result.returncode == 1
+        assert "担当の記録がない: ['facet_weighting']" in result.stderr
+
+
 class TestIntersectionState:
     """題材探索前の4軸の交差領域の記録を検査する。"""
 
@@ -748,18 +809,7 @@ class TestIntersectionState:
         drop_assignment(intersection_state, "intersection")
         result = check_state(run_script, "intersection-checkpoint", intersection_state)
         assert result.returncode == 1
-        assert "担当の記録がない: ['intersection']" in result.stderr
-
-    def test_review_rejects_agent_shared_with_selection(
-        self, run_script, intersection_state
-    ):
-        """ファセット選択担当に交差領域の確認を兼ねさせない。"""
-        assignment_of(intersection_state, "intersection")["agent_id"] = assignment_of(
-            intersection_state, "facet_selection"
-        )["agent_id"]
-        result = check_state(run_script, "intersection-checkpoint", intersection_state)
-        assert result.returncode == 1
-        assert "agent_idを別の役割にも割り当てている" in result.stderr
+        assert "execution.assignmentsが空である" in result.stderr
 
     @pytest.mark.parametrize(
         ("field", "value", "message"),

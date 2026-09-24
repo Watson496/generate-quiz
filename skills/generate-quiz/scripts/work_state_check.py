@@ -2,7 +2,7 @@
 """題材探索と作問状態の内容、参照関係、工程境界を検査する。
 
 入力はJSONファイルのパスまたは標準入力から受け取る。--stageには
-intersection-checkpoint、discovery、selection、
+facet-selection、intersection-checkpoint、discovery、selection、
 generation-start、difficulty、generation、audit、finalのいずれかを指定する。
 
 終了コード:
@@ -104,13 +104,15 @@ OUTPUT_HEADINGS = {
     "answer_judging": "解答と正誤判定",
     "references": "参考文献",
 }
+FACET_AXES = ("subject", "place", "time", "type")
+FACET_VIEWPOINTS = ("sharing", "communication", "background")
 SELECTION_ROLES = ("exploration", "alternate_exploration", "saturation_review")
 STAGE_ROLES = {
-    "intersection-checkpoint": ("facet_selection", "intersection"),
-    "discovery-progress": ("facet_selection", "intersection", "exploration"),
-    "discovery": ("facet_selection", "intersection", *SELECTION_ROLES),
+    "facet-selection": ("facet_granularity", "facet_weighting"),
+    "intersection-checkpoint": ("intersection",),
+    "discovery-progress": ("intersection", "exploration"),
+    "discovery": ("intersection", *SELECTION_ROLES),
     "selection": (
-        "facet_selection",
         "intersection",
         *SELECTION_ROLES,
         "exposure_precheck",
@@ -323,6 +325,125 @@ def validate_exposure_screen(item, entry_ids, name):
     )
     required_text(screen, "reason", screen_name)
     return screen["formation_risk"]
+
+
+def validate_facet_weights(item, node, name):
+    """子へ進む階層のweightが、兄弟ノードすべてに三観点の評価と根拠を持つことを検査する。"""
+    candidates = required_list(
+        item.get("candidates"), f"{name}.candidates", nonempty=True
+    )
+    keys = []
+    for index, candidate in enumerate(candidates):
+        cname = f"{name}.candidates[{index}]"
+        require_condition(
+            isinstance(candidate, dict), f"{cname}はオブジェクトでなければならない"
+        )
+        keys.append(required_text(candidate, "key", cname))
+        required_text(candidate, "label", cname)
+        weight = candidate.get("weight")
+        require_condition(
+            type(weight) in {int, float} and weight >= 0,
+            f"{cname}.weightが0以上の数ではない",
+        )
+        viewpoints = candidate.get("viewpoints")
+        require_condition(isinstance(viewpoints, dict), f"{cname}.viewpointsがない")
+        for viewpoint in FACET_VIEWPOINTS:
+            required_text(viewpoints, viewpoint, f"{cname}.viewpoints")
+        required_text(candidate, "reason", cname)
+        distances = candidate.get("history_distances", [])
+        require_condition(
+            isinstance(distances, list)
+            and all(type(value) is int and value >= 1 for value in distances),
+            f"{cname}.history_distancesが1以上の整数の配列ではない",
+        )
+    require_condition(
+        keys == facet_node.child_keys(node),
+        f"{name}.candidatesが{node}の直接の子と一致しない",
+    )
+    require_condition(
+        any(candidate["weight"] > 0 for candidate in candidates),
+        f"{name}に正のweightがない",
+    )
+    return {candidate["key"]: candidate["weight"] for candidate in candidates}
+
+
+def validate_facet_selection(state):
+    """4軸の各階層の粒度判断、weight、抽選結果が一続きになっていることを検査する。"""
+    levels, _ = records_with_ids(
+        state.get("facet_levels"), "facet_levels", nonempty=True
+    )
+    weights = required_list(state.get("facet_weights"), "facet_weights")
+    picks = required_list(state.get("facet_picks"), "facet_picks")
+    weights_by_level = {}
+    for index, item in enumerate(weights):
+        name = f"facet_weights[{index}]"
+        require_condition(
+            isinstance(item, dict), f"{name}はオブジェクトでなければならない"
+        )
+        level_id = required_text(item, "level_id", name)
+        require_condition(
+            level_id not in weights_by_level, f"{name}.level_idが重複している"
+        )
+        weights_by_level[level_id] = item
+    picks_by_level = {}
+    for index, item in enumerate(picks):
+        name = f"facet_picks[{index}]"
+        require_condition(
+            isinstance(item, dict), f"{name}はオブジェクトでなければならない"
+        )
+        level_id = required_text(item, "level_id", name)
+        require_condition(
+            level_id not in picks_by_level, f"{name}.level_idが重複している"
+        )
+        picks_by_level[level_id] = required_text(item, "key", name)
+    nodes = state.get("facet_nodes")
+    require_condition(isinstance(nodes, dict), "facet_nodesがない")
+    axes = iter(FACET_AXES)
+    axis = next(axes)
+    expected = f"{axis}::ROOT"
+    descended = set()
+    for level in levels:
+        name = f"facet_levels.{level['id']}"
+        require_condition(
+            level.get("axis") == axis and level.get("node") == expected,
+            f"{name}が前の階層の抽選結果から続いていない",
+        )
+        require_condition(
+            facet_node.child_keys(expected) is not None,
+            f"{name}.nodeがカタログに存在しない",
+        )
+        required_text(level, "reason", name)
+        decision = level.get("decision")
+        require_condition(
+            decision in {"descend", "stop"}, f"{name}.decisionが不正である"
+        )
+        if decision == "stop":
+            require_condition(
+                nodes.get(axis) == expected,
+                f"facet_nodes.{axis}が停止した階層のノードと一致しない",
+            )
+            axis = next(axes, None)
+            expected = f"{axis}::ROOT"
+            continue
+        require_condition(
+            level["id"] in weights_by_level, f"{name}の兄弟ノードのweightがない"
+        )
+        candidate_weights = validate_facet_weights(
+            weights_by_level[level["id"]], expected, f"facet_weights.{level['id']}"
+        )
+        chosen = picks_by_level.get(level["id"])
+        require_condition(
+            candidate_weights.get(chosen, 0) > 0,
+            f"{name}の抽選結果が正のweightを持つ候補ではない",
+        )
+        descended.add(level["id"])
+        expected = chosen
+    require_condition(axis is None, "4軸すべての粒度判断が停止まで記録されていない")
+    require_condition(
+        set(weights_by_level) <= descended and set(picks_by_level) <= descended,
+        "子へ進まない階層にweightまたは抽選結果がある",
+    )
+    require_condition(set(nodes) == set(FACET_AXES), "facet_nodesに4軸がない")
 
 
 def validate_intersection_state(state):
@@ -1861,6 +1982,7 @@ def main():
     parser.add_argument(
         "--stage",
         choices=(
+            "facet-selection",
             "intersection-checkpoint",
             "discovery-progress",
             "discovery",
@@ -1888,7 +2010,10 @@ def main():
         require_condition(
             isinstance(state, dict), "最上位はオブジェクトでなければならない"
         )
-        if args.stage == "intersection-checkpoint":
+        if args.stage == "facet-selection":
+            validate_facet_selection(state)
+            validate_execution_assignments(state, args.stage)
+        elif args.stage == "intersection-checkpoint":
             validate_intersection_state(state)
             validate_execution_assignments(state, args.stage)
         elif args.stage == "discovery-progress":

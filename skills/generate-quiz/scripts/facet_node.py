@@ -68,6 +68,14 @@ def find_block(key):
     return None, None
 
 
+def child_keys(key):
+    """ノードの直接の子のキーを返す。ノードがなければNoneを返す。"""
+    _, block = find_block(key)
+    if block is None:
+        return None
+    return [match.group(1) for line in block if (match := CHILD_RE.match(line))]
+
+
 def grep_labels(needle, limit):
     needle = unicodedata.normalize("NFC", needle)
     seen = set()

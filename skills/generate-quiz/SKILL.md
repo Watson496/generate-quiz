@@ -93,6 +93,7 @@ python3 "$SKILL_DIR/scripts/topic_pick.py" state.json --json candidates.json
 作業状態のJSON manifestは、工程に応じて次のいずれかで検査する。
 
 ```bash
+python3 "$SKILL_DIR/scripts/work_state_check.py" --stage facet-selection facet.json
 python3 "$SKILL_DIR/scripts/work_state_check.py" --stage intersection-checkpoint state.json
 python3 "$SKILL_DIR/scripts/work_state_check.py" --stage discovery-progress state.json
 python3 "$SKILL_DIR/scripts/work_state_check.py" --stage discovery state.json

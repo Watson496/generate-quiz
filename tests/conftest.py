@@ -49,8 +49,47 @@ def load_script(monkeypatch):
 
 
 @pytest.fixture
-def intersection_state():
-    """4軸の交差領域の成立性を確認した状態を作る。"""
+def facet_state(load_script):
+    """subjectだけを二階層下り、ほかの軸を最上位で止めたファセット選択の状態を作る。"""
+    facet_node = load_script("generate-quiz", "facet_node.py")
+    path = {"subject": ["subject::ROOT", "subject::6", "subject::66"]}
+    levels, weights, picks = [], [], []
+    for axis in ("subject", "place", "time", "type"):
+        nodes = path.get(axis, [f"{axis}::ROOT"])
+        for position, node in enumerate(nodes):
+            level_id = f"F{len(levels) + 1}"
+            descend = position < len(nodes) - 1
+            levels.append(
+                {
+                    "id": level_id,
+                    "axis": axis,
+                    "node": node,
+                    "decision": "descend" if descend else "stop",
+                    "reason": f"{node}で止めるか子へ進むかを先行軸から判断した",
+                }
+            )
+            if not descend:
+                continue
+            weights.append(
+                {
+                    "level_id": level_id,
+                    "candidates": [
+                        {
+                            "key": key,
+                            "label": key,
+                            "weight": 1.0,
+                            "viewpoints": {
+                                "sharing": f"{key}の日本語圏での共有度",
+                                "communication": f"{key}が使われる場面",
+                                "background": f"{key}が背景知識として働く範囲",
+                            },
+                            "reason": f"{key}の三観点をまとめた",
+                        }
+                        for key in facet_node.child_keys(node)
+                    ],
+                }
+            )
+            picks.append({"level_id": level_id, "key": nodes[position + 1]})
     return {
         "execution": {
             "delegation_available": True,
@@ -58,9 +97,37 @@ def intersection_state():
                 {
                     "role": role,
                     "agent_id": f"agent-{index}",
-                    "artifact_refs": [f"{role}.md"],
+                    "artifact_refs": [f"{role}.json"],
                 }
-                for index, role in enumerate(("facet_selection", "intersection"), 1)
+                for index, role in enumerate(
+                    ("facet_granularity", "facet_weighting"), 1
+                )
+            ],
+        },
+        "facet_levels": levels,
+        "facet_weights": weights,
+        "facet_picks": picks,
+        "facet_nodes": {
+            "subject": "subject::66",
+            "place": "place::ROOT",
+            "time": "time::ROOT",
+            "type": "type::ROOT",
+        },
+    }
+
+
+@pytest.fixture
+def intersection_state():
+    """4軸の交差領域の成立性を確認した状態を作る。"""
+    return {
+        "execution": {
+            "delegation_available": True,
+            "assignments": [
+                {
+                    "role": "intersection",
+                    "agent_id": "agent-1",
+                    "artifact_refs": ["intersection.md"],
+                }
             ],
         },
         "facet_nodes": {
@@ -273,7 +340,7 @@ def selection_state(intersection_state):
                     "agent_id": f"agent-{index}",
                     "artifact_refs": [f"{role}.md"],
                 }
-                for index, role in enumerate(roles, 3)
+                for index, role in enumerate(roles, 2)
             ),
         ],
     }
