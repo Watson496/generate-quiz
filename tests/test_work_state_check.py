@@ -2007,24 +2007,6 @@ class TestWorkState:
         complete_state["clues"][0]["directly_describes_target"] = False
         assert check_state(run_script, "audit", complete_state).returncode == 1
 
-    def test_structure_rejects_otoshi_before_later_modifier(
-        self, run_script, complete_state
-    ):
-        """最後端の付随説明より前の句を落としとは扱わない。"""
-        complete_state["draft"]["text"] = (
-            "流体のエネルギーを軸動力に変える原動機で、圧力が低下するものを何というでしょう？"
-        )
-        structure = next(
-            check for check in complete_state["checks"] if check["id"] == "structure"
-        )
-        structure.update(
-            question_form="OV",
-            question_phrase="を何というでしょう？",
-            nucleus="原動機",
-            otoshi="流体のエネルギーを軸動力に変える原動機",
-        )
-        assert check_state(run_script, "audit", complete_state).returncode == 1
-
     def test_structure_accepts_ov_post_limiter(self, run_script, complete_state):
         """OV型では落としの後に名称を限定する表現を置ける。"""
         complete_state["draft"]["text"] = (

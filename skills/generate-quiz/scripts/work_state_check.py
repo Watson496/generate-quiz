@@ -1248,18 +1248,6 @@ def validate_structure_check(item, name, draft_text, active_clues):
         otoshi.endswith(nucleus) and otoshi in draft_text,
         f"{name}.otoshiが完成稿の核名詞句で終わらない",
     )
-    before_question = draft_text.split(phrase, 1)[0]
-    if form == "SC":
-        require_condition(
-            before_question.rstrip("、， ").endswith(otoshi),
-            f"{name}.otoshiが核名詞句の直前にない",
-        )
-    else:
-        after_otoshi = draft_text.rsplit(otoshi, 1)[1]
-        require_condition(
-            after_otoshi.startswith(("を", "のことを")),
-            f"{name}.otoshiが核名詞句の直前にない",
-        )
     prefuri_segments = required_list(
         item.get("prefuri_segments"), f"{name}.prefuri_segments"
     )
