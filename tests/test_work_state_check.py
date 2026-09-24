@@ -1104,6 +1104,11 @@ class TestSelectionState:
                 2,
                 "topic_weight_reviewsに不合格の項目がある: ['groups']",
             ),
+            (
+                "topic_distribution_reviews",
+                0,
+                "topic_distribution_reviewsに不合格の項目がある: ['all']",
+            ),
         ],
     )
     def test_grouping_and_weights_require_passed_reviews(
