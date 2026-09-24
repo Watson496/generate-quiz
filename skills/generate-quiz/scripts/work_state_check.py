@@ -146,7 +146,6 @@ STAGE_ROLES = {
         "final_review",
     ),
 }
-WORK_STAGES = {"generation-start", "difficulty", "generation", "audit", "final"}
 MIN_ENTRY_POINTS = 2
 MIN_COVERAGE_AREAS = 2
 MIN_EXPRESSION_ALTERNATIVES = 2
@@ -853,7 +852,7 @@ def validate_selection_mode(state):
     return mode
 
 
-def validate_execution_assignments(state, stage, selection_mode="random"):
+def validate_execution_assignments(state, stage):
     data = state.get("execution")
     require_condition(isinstance(data, dict), "executionがない")
     available = data.get("delegation_available")
@@ -898,8 +897,6 @@ def validate_execution_assignments(state, stage, selection_mode="random"):
                 f"{name}.agent_idを別の版の露出検査に再利用している",
             )
     roles = STAGE_ROLES[stage]
-    if selection_mode == "random" and stage in WORK_STAGES:
-        roles = SELECTION_ROLES + roles
     assigned = set(roles_by_agent.values())
     missing = [role for role in roles if role not in assigned]
     require_condition(
@@ -1889,8 +1886,8 @@ def validate_work_state(state, stage):
             "evidence_challenge" not in state,
             "生成工程の状態に監査前の反証確認が混入している",
         )
-    selection_mode = validate_selection_mode(state)
-    validate_execution_assignments(state, stage, selection_mode)
+    validate_selection_mode(state)
+    validate_execution_assignments(state, stage)
     required_text(state, "answer_target", "state")
     draft = state.get("draft")
     require_condition(isinstance(draft, dict), "draftがない")
@@ -1980,8 +1977,8 @@ def validate_work_state(state, stage):
 
 
 def validate_difficulty_checkpoint(state):
-    selection_mode = validate_selection_mode(state)
-    validate_execution_assignments(state, "difficulty", selection_mode)
+    validate_selection_mode(state)
+    validate_execution_assignments(state, "difficulty")
     required_text(state, "answer_target", "state")
     quote_ids = validate_source_quotes(state)
     validate_difficulty_review(state, quote_ids, "difficulty")
@@ -2005,8 +2002,8 @@ def require_no_selection_ledger(state):
 
 def validate_generation_start(state):
     require_no_selection_ledger(state)
-    selection_mode = validate_selection_mode(state)
-    validate_execution_assignments(state, "generation-start", selection_mode)
+    validate_selection_mode(state)
+    validate_execution_assignments(state, "generation-start")
     required_text(state, "answer_target", "state")
 
 

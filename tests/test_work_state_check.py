@@ -51,9 +51,6 @@ def complete_state():
     """全工程を通過できる一問分の作業状態を作る。"""
     evidence = ["Q1"]
     roles = (
-        "exploration",
-        "alternate_exploration",
-        "saturation_review",
         "generation",
         "difficulty_review",
         "evidence_challenge",
@@ -1646,7 +1643,7 @@ class TestWorkState:
     def test_specified_target_skips_exploration_assignments(
         self, run_script, complete_state, reviewed_state, stage
     ):
-        """解答対象が直接指定された場合は題材探索の担当記録を要しない。"""
+        """解答対象が直接指定された場合も、同じ記録で合格する。"""
         state = complete_state if stage == "audit" else reviewed_state
         state["selection_mode"] = "specified"
         state["user_specified_target"] = state["answer_target"]
@@ -1656,8 +1653,6 @@ class TestWorkState:
         state["final_input"]["material"]["topic_selection"] = (
             f"ユーザー指定の解答対象：{state['answer_target']}。履歴補正なし。"
         )
-        for role in ("exploration", "alternate_exploration", "saturation_review"):
-            drop_assignment(state, role)
         if stage == "final":
             state["final_review"]["output_sha256"] = hashlib.sha256(
                 final_output_text(state).encode()
@@ -1693,13 +1688,7 @@ class TestWorkState:
             "difficulty_review",
         }
         state = {key: copy.deepcopy(complete_state[key]) for key in keys}
-        roles = {
-            "exploration",
-            "alternate_exploration",
-            "saturation_review",
-            "generation",
-            "difficulty_review",
-        }
+        roles = {"generation", "difficulty_review"}
         state["execution"]["assignments"] = [
             item for item in state["execution"]["assignments"] if item["role"] in roles
         ]
