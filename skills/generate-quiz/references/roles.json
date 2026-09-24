@@ -171,7 +171,8 @@
           "section": "露出の予備検査",
           "specs": ["selection_and_history_spec.md", "quiz_generation_spec.md", "work_state_spec.md"],
           "inputs": [["ledger", "memberships"]],
-          "outputs": ["exposure_prechecks"]
+          "outputs": ["exposure_prechecks"],
+          "split_size": 20
         }
       ]
     },

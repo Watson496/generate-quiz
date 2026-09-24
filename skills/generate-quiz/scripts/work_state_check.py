@@ -754,15 +754,20 @@ def eligible_candidate_ids(state):
     }
 
 
-def pickable_candidate_ids(state):
-    """探索段階の選択対象のうち、4軸すべてに所属し、予備検査で残した候補のIDを返す。"""
+def member_candidate_ids(state):
+    """探索段階の選択対象のうち、4軸すべてに所属する候補のIDを返す。"""
     eligible = eligible_candidate_ids(state)
-    members = {
+    return {
         item["candidate_id"]
         for item in state["memberships"]
         if item["candidate_id"] in eligible
         and all(item["axes"][axis]["belongs"] for axis in FACET_AXES)
     }
+
+
+def pickable_candidate_ids(state):
+    """所属する候補のうち、露出の予備検査で残した候補のIDを返す。"""
+    members = member_candidate_ids(state)
     return {
         item["candidate_id"]
         for item in state["exposure_prechecks"]
@@ -966,6 +971,9 @@ def validate_selection_execution(state, stage):
     require_items_assigned(state, "nearby_exploration", eligible)
     if stage != "discovery":
         require_items_assigned(state, "membership", eligible)
+    if stage == "selection":
+        members = member_candidate_ids(state)
+        require_items_assigned(state, "exposure_precheck", sorted(members))
 
 
 def validate_source_quotes(state):

@@ -156,6 +156,11 @@ def find_role(table, role_id):
     return roles[role_id]
 
 
+def has_coordinator(step):
+    """担当を複数起動し得るステップ（担当が複数あるか、項目で分割する担当がある）なら真を返す。"""
+    return len(step["roles"]) > 1 or any("split_size" in role for role in step["roles"])
+
+
 def step_plan(table):
     """ステップごとの担当と、統括役を置くかを返す。"""
     return [
@@ -163,7 +168,7 @@ def step_plan(table):
             "step": number,
             "name": step["name"],
             "roles": [role["id"] for role in step["roles"]],
-            "coordinator": len(step["roles"]) > 1,
+            "coordinator": has_coordinator(step),
         }
         for number, step in enumerate(table["steps"], 1)
     ]
@@ -176,7 +181,7 @@ def coordinator_request(table, number):
         f"存在しないステップである: {number}",
     )
     step = table["steps"][number - 1]
-    require(len(step["roles"]) > 1, f"ステップ{number}には統括役を置かない")
+    require(has_coordinator(step), f"ステップ{number}には統括役を置かない")
     workflow = REF_DIR / "workflow_spec.md"
     sections = "」節、「".join(dict.fromkeys(role["section"] for role in step["roles"]))
     lines = [

@@ -1037,6 +1037,11 @@ class TestSelectionState:
         assert result.returncode == 1
         assert "予備検査のない候補がある: ['K2']" in result.stderr
 
+    def test_precheck_exclusion_leaves_pick_pool(self, run_script, selection_state):
+        """予備検査で除外した候補は、抽選の対象から外せる。"""
+        selection_state["exposure_prechecks"][1]["result"] = "exclude"
+        assert check_state(run_script, "selection", selection_state).returncode == 0
+
     @pytest.mark.parametrize(
         ("field", "value", "message"),
         [("result", "unclear", "resultが不正である"), ("reason", "", "reasonがない")],

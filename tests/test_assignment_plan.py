@@ -210,6 +210,13 @@ class TestSteps:
             False,
         ]
 
+    def test_coordinator_for_single_split_role(self, load_script):
+        """担当が一種類でも、項目で分割する担当なら統括役を置く。"""
+        module = load_script("generate-quiz", "assignment_plan.py")
+        table = small_table()
+        table["steps"][0]["roles"].pop(0)
+        assert module.step_plan(table)[0]["coordinator"] is True
+
     def test_coordinator_request_lists_roles(self, load_script):
         """統括役への依頼文はステップの担当を示し、担当が一つなら出さない。"""
         module = load_script("generate-quiz", "assignment_plan.py")
