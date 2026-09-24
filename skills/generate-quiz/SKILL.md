@@ -103,6 +103,7 @@ python3 "$SKILL_DIR/scripts/work_state_check.py" --stage prejudgment state.json
 python3 "$SKILL_DIR/scripts/work_state_check.py" --stage target-start state.json
 python3 "$SKILL_DIR/scripts/work_state_check.py" --stage writing state.json
 python3 "$SKILL_DIR/scripts/work_state_check.py" --stage review state.json
+python3 "$SKILL_DIR/scripts/work_state_check.py" --stage material state.json
 python3 "$SKILL_DIR/scripts/work_state_check.py" --stage final --output completed.md state.json
 ```
 
