@@ -88,7 +88,7 @@ JSON
 python3 "$SKILL_DIR/scripts/topic_pick.py" state.json
 ```
 
-問題文の版ごとに文字数判定の`DRAW`を保持する。同じ版を監査するときは`--draw`へ同じ値を渡し、再抽選しない。
+問題文の版ごとに文字数判定の`DRAW`を保持する。同じ版を検査するときは`--draw`へ同じ値を渡し、再抽選しない。
 
 作業状態のJSON manifestは、工程に応じて次のいずれかで検査する。
 
@@ -102,20 +102,20 @@ python3 "$SKILL_DIR/scripts/work_state_check.py" --stage selection state.json
 python3 "$SKILL_DIR/scripts/work_state_check.py" --stage prejudgment state.json
 python3 "$SKILL_DIR/scripts/work_state_check.py" --stage generation-start state.json
 python3 "$SKILL_DIR/scripts/work_state_check.py" --stage generation state.json
-python3 "$SKILL_DIR/scripts/work_state_check.py" --stage audit state.json
+python3 "$SKILL_DIR/scripts/work_state_check.py" --stage review state.json
 python3 "$SKILL_DIR/scripts/work_state_check.py" --stage final --output completed.md state.json
 ```
 
 # 最終出力
 
-最終出力には、`work_state_spec.md`で定めた限定入力だけを使い、`output_structure_spec.md`に従う。内部のweight、コード、抽選過程、不採用候補、予定命題、検索過程、監査の往復、スクリプトの生出力を表示しない。
+最終出力には、`work_state_spec.md`で定めた限定入力だけを使い、`output_structure_spec.md`に従う。内部のweight、コード、抽選過程、不採用候補、予定命題、検索過程、検査の往復、スクリプトの生出力を表示しない。
 
 # 完了条件
 
 次をすべて満たしたときだけ、一問を確定する。
 
 - 生成側の全検査単位が完了している。
-- 独立監査の全検査単位が合格している。
+- 観点別の検査担当の検査がすべて合格している。
 - 現行問題文の版について、文字数判定と作業状態の検査に合格している。
 - 最終出力が限定入力と一致し、検討過程を含まない。
 
