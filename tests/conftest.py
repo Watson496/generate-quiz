@@ -167,6 +167,20 @@ def intersection_state():
             "time": "time::ROOT",
             "type": "type::ROOT",
         },
+        "coverage_areas": [
+            {
+                "id": "D1",
+                "label": "無機化学工業",
+                "basis": "分類表の区分",
+                "target_kinds": "工業技術",
+            },
+            {
+                "id": "D2",
+                "label": "有機化学工業",
+                "basis": "事典の区分",
+                "target_kinds": "工業技術",
+            },
+        ],
         "intersection_review": {
             "source_refs": [
                 "https://example.org/outline",
@@ -355,11 +369,12 @@ def selection_state(intersection_state):
         },
     }
     roles = (
-        "exploration",
-        "alternate_exploration",
-        "saturation_review",
-        "exposure_precheck",
-        "topic_weighting",
+        ("exploration", ["D1"]),
+        ("exploration", ["D2"]),
+        ("alternate_exploration", None),
+        ("saturation_review", None),
+        ("exposure_precheck", None),
+        ("topic_weighting", None),
     )
     state["execution"] = {
         **state["execution"],
@@ -369,9 +384,10 @@ def selection_state(intersection_state):
                 {
                     "role": role,
                     "agent_id": f"agent-{index}",
-                    "artifact_refs": [f"{role}.md"],
+                    "artifact_refs": [f"{role}-{index}.md"],
+                    **({"items": items} if items else {}),
                 }
-                for index, role in enumerate(roles, 2)
+                for index, (role, items) in enumerate(roles, 2)
             ),
         ],
     }

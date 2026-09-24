@@ -10,7 +10,8 @@
     "facet_picks": "ファセットの各階層の抽選結果",
     "facet_nodes": "選択した4軸のノード",
     "intersection_review": "交差領域の確認記録",
-    "ledger": "題材候補の探索台帳（下位領域、入口、候補、探索記録）",
+    "coverage_areas": "探索する下位領域と、下位領域ごとの探索記録",
+    "ledger": "題材候補の探索台帳（入口、候補、近接探索の記録）",
     "independent_review": "別経路の探索記録",
     "saturation_challenge": "探索完了の反証調査の記録",
     "exposure_screen": "各選択対象の解答露出の予備検査の記録",
@@ -97,7 +98,7 @@
           "section": "交差領域の確認",
           "specs": ["selection_and_history_spec.md", "work_state_spec.md"],
           "inputs": [["facet_nodes"]],
-          "outputs": ["intersection_review"]
+          "outputs": ["intersection_review", "coverage_areas"]
         }
       ]
     },
@@ -110,8 +111,9 @@
           "side": "make",
           "section": "題材探索",
           "specs": ["selection_and_history_spec.md", "work_state_spec.md"],
-          "inputs": [["user_conditions", "history", "facet_nodes"]],
-          "outputs": ["ledger"]
+          "inputs": [["user_conditions", "history", "facet_nodes", "coverage_areas", "ledger"]],
+          "outputs": ["coverage_areas", "ledger"],
+          "split_size": 1
         },
         {
           "id": "alternate_exploration",
@@ -119,8 +121,8 @@
           "side": "make",
           "section": "題材探索",
           "specs": ["selection_and_history_spec.md", "work_state_spec.md"],
-          "inputs": [["facet_nodes", "ledger"]],
-          "outputs": ["ledger", "independent_review"]
+          "inputs": [["facet_nodes", "coverage_areas", "ledger"]],
+          "outputs": ["coverage_areas", "ledger", "independent_review"]
         },
         {
           "id": "saturation_review",
@@ -128,7 +130,7 @@
           "side": "check",
           "section": "題材探索",
           "specs": ["selection_and_history_spec.md", "work_state_spec.md"],
-          "inputs": [["facet_nodes", "intersection_review", "ledger", "independent_review"]],
+          "inputs": [["facet_nodes", "intersection_review", "coverage_areas", "ledger", "independent_review"]],
           "outputs": ["saturation_challenge"]
         }
       ]

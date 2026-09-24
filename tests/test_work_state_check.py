@@ -922,6 +922,32 @@ class TestDiscoveryProgressState:
             == 0
         )
 
+    def test_discovery_progress_accepts_unstarted_area(
+        self, run_script, selection_state
+    ):
+        """探索を始めていない下位領域が残っていても途中検査できる。"""
+        area = selection_state["coverage_areas"][1]
+        for key in ("explored", "entry_point_ids", "source_searches"):
+            del area[key]
+        selection_state["candidates"] = selection_state["candidates"][:1]
+        selection_state["candidates"][0]["expansion_searches"] = []
+        assert (
+            check_state(run_script, "discovery-progress", selection_state).returncode
+            == 0
+        )
+        result = check_state(run_script, "discovery", selection_state)
+        assert result.returncode == 1
+        assert "coverage_areas.D2が未探索である" in result.stderr
+
+    def test_discovery_progress_requires_searches_of_started_area(
+        self, run_script, selection_state
+    ):
+        """入口を記録した下位領域には探索記録を求める。"""
+        del selection_state["coverage_areas"][1]["source_searches"]
+        result = check_state(run_script, "discovery-progress", selection_state)
+        assert result.returncode == 1
+        assert "coverage_areas.D2.source_searches" in result.stderr
+
     def test_discovery_progress_requires_candidate_source_link(
         self, run_script, selection_state
     ):
@@ -958,6 +984,33 @@ class TestDiscoveryProgressState:
 
 class TestSelectionState:
     """題材探索の完了状態を検査する。"""
+
+    def test_every_area_needs_exploration_assignment(self, run_script, selection_state):
+        """下位領域ごとに題材探索担当を割り当てる。"""
+        selection_state["execution"]["assignments"] = [
+            item
+            for item in selection_state["execution"]["assignments"]
+            if item.get("items") != ["D2"]
+        ]
+        result = check_state(run_script, "discovery", selection_state)
+        assert result.returncode == 1
+        assert "explorationの担当に割り当てていない項目がある: ['D2']" in result.stderr
+
+    @pytest.mark.parametrize(
+        ("role", "items", "message"),
+        [
+            ("exploration", ["D1", "D2"], "itemsが担当表の件数を超えている"),
+            ("saturation_review", ["D1"], "項目で分割しない担当である"),
+        ],
+    )
+    def test_assignment_items_follow_table(
+        self, run_script, selection_state, role, items, message
+    ):
+        """起動の記録の項目は担当表の分割に従う。"""
+        assignment_of(selection_state, role)["items"] = items
+        result = check_state(run_script, "discovery", selection_state)
+        assert result.returncode == 1
+        assert message in result.stderr
 
     def test_selection_requires_candidate_source_link(
         self, run_script, selection_state

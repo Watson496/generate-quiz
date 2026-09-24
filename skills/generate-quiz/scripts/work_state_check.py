@@ -497,6 +497,12 @@ def validate_intersection_state(state):
         )
     review = state.get("intersection_review")
     require_condition(isinstance(review, dict), "intersection_reviewがない")
+    areas, _ = records_with_ids(
+        state.get("coverage_areas"), "coverage_areas", nonempty=True
+    )
+    for item in areas:
+        for key in ("label", "basis", "target_kinds"):
+            required_text(item, key, f"coverage_areas.{item['id']}")
     sources = required_id_list(
         review.get("source_refs"), "intersection_review.source_refs", nonempty=True
     )
@@ -582,6 +588,12 @@ def validate_selection_entries_areas(state, *, complete=True):
         required_text(item, "target_kinds", name)
         if complete:
             require_condition(item.get("explored") is True, f"{name}が未探索である")
+        elif (
+            item.get("explored") is not True
+            and not item.get("entry_point_ids")
+            and not item.get("source_searches")
+        ):
+            continue
         used_entries = set(referenced_ids(item, "entry_point_ids", entry_ids, name))
         searches = required_list(
             item.get("source_searches"), f"{name}.source_searches", nonempty=True
@@ -647,7 +659,7 @@ def require_candidate_discovery_links(
 def candidate_discovery_index(areas, candidate_ids):
     discovered = {candidate_id: set() for candidate_id in candidate_ids}
     for area in areas:
-        for index, search in enumerate(area["source_searches"]):
+        for index, search in enumerate(area.get("source_searches", [])):
             found_ids = referenced_ids(
                 search,
                 "found_candidate_ids",
@@ -863,7 +875,7 @@ def validate_execution_assignments(state, stage):
         required_text(data, "unavailable_reason", "execution")
         return
     known = {
-        role["id"]
+        role["id"]: role
         for _, role in assignment_plan.ordered_roles(assignment_plan.load_table())
     }
     records = required_list(
@@ -886,6 +898,18 @@ def validate_execution_assignments(state, stage):
             roles_by_agent.setdefault(agent_id, role) == role,
             f"{name}.agent_idを別の役割にも割り当てている",
         )
+        size = known[role].get("split_size")
+        if size is None:
+            require_condition(
+                "items" not in record, f"{name}は項目で分割しない担当である"
+            )
+        else:
+            items = required_id_list(
+                record.get("items"), f"{name}.items", nonempty=True
+            )
+            require_condition(
+                len(items) <= size, f"{name}.itemsが担当表の件数を超えている"
+            )
         if role == "exposure":
             version = record.get("draft_version")
             require_condition(
@@ -909,6 +933,30 @@ def validate_execution_assignments(state, stage):
             version in exposure_versions.values(),
             "現行版の露出検査担当の記録がない",
         )
+
+
+def require_items_assigned(state, role, ids):
+    """分割する担当の起動の記録が、対象の項目をすべて受け持っていることを確認する。"""
+    if not state["execution"]["delegation_available"]:
+        return
+    assigned = {
+        item
+        for record in state["execution"]["assignments"]
+        if record["role"] == role
+        for item in record["items"]
+    }
+    missing = sorted(set(ids) - assigned)
+    require_condition(
+        not missing, f"{role}の担当に割り当てていない項目がある: {missing}"
+    )
+
+
+def validate_selection_execution(state, stage):
+    """題材探索状態の起動の記録と、分割した担当の受け持ちを検査する。"""
+    validate_execution_assignments(state, stage)
+    require_items_assigned(
+        state, "exploration", [area["id"] for area in state["coverage_areas"]]
+    )
 
 
 def validate_source_quotes(state):
@@ -2052,7 +2100,7 @@ def main():
             validate_execution_assignments(state, args.stage)
         elif args.stage in {"discovery", "selection"}:
             validate_selection_state(state, discovery_only=args.stage == "discovery")
-            validate_execution_assignments(state, args.stage)
+            validate_selection_execution(state, args.stage)
         elif args.stage == "generation-start":
             validate_generation_start(state)
         elif args.stage == "difficulty":

@@ -80,7 +80,7 @@ def main():
             isinstance(state, dict), "最上位はオブジェクトでなければならない"
         )
         work_state_check.validate_selection_state(state)
-        work_state_check.validate_execution_assignments(state, "selection")
+        work_state_check.validate_selection_execution(state, "selection")
     except work_state_check.StateError as error:
         print(f"不合格: {error}", file=sys.stderr)
         return EXIT_SELECTION_BLOCKED
