@@ -61,6 +61,7 @@
     "answers": "解答・別解の候補のIDと名称",
     "answer_judgments": "解答・別解の候補ごとの正誤判定の案",
     "generation_checks": "作る側の検査単位の判断と理由",
+    "relative_clauses": "連体修飾節の内外関係と、対応する命題",
     "final_input": "最終出力用の限定入力",
     "term_listing": "問題文から独立に列挙した専門用語と、作る側の語IDへの対応",
     "term_necessity_reviews": "専門用語の意味内容の要否の検査結果",
@@ -453,7 +454,7 @@
           "section": "作文",
           "specs": ["quiz_generation_spec.md", "verification_and_judging_spec.md", "selection_and_history_spec.md", "work_state_spec.md"],
           "inputs": [["user_conditions", "history", "answer_target", "names", "answers", "answer_judgments", "sources", "source_assessments", "clues", "propositions", "clue_centrality", "proposition_support", "proposition_certainty", "competitors", "competitor_comparisons", "asked_knowledge", "answer_granularity", "difficulty_assessment"]],
-          "outputs": ["draft", "clue_uses", "clue_checks", "realized_propositions", "terms", "exposure_candidates", "generation_checks", "final_input"]
+          "outputs": ["draft", "clue_uses", "clue_checks", "realized_propositions", "terms", "exposure_candidates", "generation_checks", "relative_clauses"]
         }
       ]
     },
@@ -664,6 +665,15 @@
     {
       "name": "最終出力",
       "roles": [
+        {
+          "id": "material_writer",
+          "name": "本文の執筆担当",
+          "side": "make",
+          "section": "最終出力",
+          "specs": ["output_structure_spec.md", "verification_and_judging_spec.md", "work_state_spec.md"],
+          "inputs": [["answer_target", "draft", "names", "answers", "answer_judgments", "sources", "clues", "clue_uses", "clue_checks", "propositions", "realized_propositions", "proposition_support", "proposition_certainty", "clue_centrality", "competitors", "competitor_comparisons", "asked_knowledge", "answer_granularity", "difficulty_assessment", "terms", "exposure_candidates", "generation_checks", "relative_clauses", "answer_review", "competitor_search_reviews", "beginner_difficulty_review", "general_difficulty_review"]],
+          "outputs": ["final_input"]
+        },
         {
           "id": "finalization",
           "name": "組立て担当",
