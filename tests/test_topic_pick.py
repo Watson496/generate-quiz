@@ -79,6 +79,12 @@ class TestTopicPick:
         selection_state["topic_groups"] = selection_state["topic_groups"][:1]
         del selection_state["group_weights"]
         selection_state["candidate_weights"] = selection_state["candidate_weights"][:1]
+        selection_state["topic_group_reviews"] = selection_state["topic_group_reviews"][
+            :1
+        ]
+        selection_state["topic_weight_reviews"] = selection_state[
+            "topic_weight_reviews"
+        ][:1]
         result = self.pick(run_script, tmp_path, selection_state)
         assert result.returncode == 0
         assert result.stdout.startswith("CHOSEN\tK1")

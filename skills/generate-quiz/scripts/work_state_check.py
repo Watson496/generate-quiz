@@ -131,7 +131,9 @@ STAGE_ROLES = {
         "membership_review",
         "exposure_precheck",
         "topic_grouping",
+        "topic_group_review",
         "topic_weighting",
+        "topic_weight_review",
     ),
     "generation-start": ("generation",),
     "difficulty": ("generation", "difficulty_review"),
@@ -761,6 +763,9 @@ def validate_topic_weights(state, pickable):
         sorted(weighted) == sorted(pickable),
         "candidate_weightsが抽選の対象の候補と一致しない",
     )
+    validate_reviews(state, "topic_group_reviews", sorted(group_ids), "group_id")
+    weight_targets = sorted(group_ids) + (["groups"] if len(groups) > 1 else [])
+    validate_reviews(state, "topic_weight_reviews", weight_targets, "target")
     return sorted(group_ids)
 
 

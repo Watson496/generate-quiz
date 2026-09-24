@@ -511,6 +511,14 @@ def drop_from_weights(state, candidate_id):
         for item in state["candidate_weights"]
         if item["candidate_id"] != candidate_id
     ]
+    state["topic_group_reviews"] = [
+        item for item in state["topic_group_reviews"] if item["group_id"] in kept
+    ]
+    state["topic_weight_reviews"] = [
+        item
+        for item in state["topic_weight_reviews"]
+        if item["target"] in kept or (item["target"] == "groups" and len(groups) > 1)
+    ]
 
 
 @pytest.fixture
@@ -1082,6 +1090,30 @@ class TestSelectionState:
         result = check_state(run_script, "selection", selection_state)
         assert result.returncode == 1
         assert "candidate_weights[0].weightが正の数ではない" in result.stderr
+
+    @pytest.mark.parametrize(
+        ("key", "index", "message"),
+        [
+            (
+                "topic_group_reviews",
+                0,
+                "topic_group_reviewsに不合格の項目がある: ['G1']",
+            ),
+            (
+                "topic_weight_reviews",
+                2,
+                "topic_weight_reviewsに不合格の項目がある: ['groups']",
+            ),
+        ],
+    )
+    def test_grouping_and_weights_require_passed_reviews(
+        self, run_script, selection_state, key, index, message
+    ):
+        """まとまりの切り方とweightは検査担当の合格を要する。"""
+        selection_state[key][index]["status"] = "failed"
+        result = check_state(run_script, "selection", selection_state)
+        assert result.returncode == 1
+        assert message in result.stderr
 
     def test_every_group_needs_weighting_assignment(self, run_script, selection_state):
         """まとまりごとに、まとまりの中のweight担当を割り当てる。"""

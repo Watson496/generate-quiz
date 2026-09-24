@@ -362,6 +362,22 @@ def selection_state(intersection_state):
             }
             for candidate_id in ("K1", "K2")
         ],
+        "topic_group_reviews": [
+            {
+                "group_id": group_id,
+                "status": "passed",
+                "reason": f"{group_id}の候補を一緒に比べられることを確かめた",
+            }
+            for group_id in ("G1", "G2")
+        ],
+        "topic_weight_reviews": [
+            {
+                "target": target,
+                "status": "passed",
+                "reason": f"{target}のweightと三観点の対応を確かめた",
+            }
+            for target in ("G1", "G2", "groups")
+        ],
         "frontier_ids": [],
         "saturated": True,
         "memberships": [
@@ -430,9 +446,11 @@ def selection_state(intersection_state):
         ("saturation_review", None),
         ("exposure_precheck", ["K1", "K2"]),
         ("topic_grouping", None),
+        ("topic_group_review", None),
         ("group_weighting", None),
         ("topic_weighting", ["G1"]),
         ("topic_weighting", ["G2"]),
+        ("topic_weight_review", None),
     )
     state["execution"] = {
         **state["execution"],
