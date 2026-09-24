@@ -202,7 +202,7 @@
 
 JSON manifestは、検査対象を具体的な内容へ結び付け、確定的な参照整合性と工程境界を検査するために使う。IDだけのレコードや、複数の専門用語・解答候補・出力項目を一つのIDにまとめたレコードを置かない。
 
-資料には書誌情報と逐語引用を置く。命題には問題文の対応箇所、真偽を判定する文、引用ID、引用から判断へ至る理由、推論の種類を置く。一つの命題内に複数の項・限定がある場合は、検証要素ごとにも引用ID、理由、推論の種類を置く。手掛かりには問題文中の文字列と命題IDを置き、準一意性、知名度の各判断へ結論、理由、引用IDを置く。手掛かりの中核性・代表性の評価は`clue_centrality`に、手掛かりIDを`clue_id`、結論を`claim`、理由を`reason`、引用IDを`evidence_ids`として置き、検査結果は`centrality_reviews`に`clue_id`、`status`（`passed`・`failed`）、`reason`として置く。準一意性には比較範囲、対抗候補、単独で十分に絞れること、依存する他の手掛かりがないことを置く。専門用語と解答候補は一語・一候補ごとにレコードを分ける。最終出力の必須項目も項目ごとに固定IDを使い、内容の保存先を示す。
+資料には書誌情報と逐語引用を置く。命題には問題文の対応箇所と、真偽を判定する文を置く。命題の裏取りは`proposition_support`に、命題IDを`proposition_id`、引用IDを`evidence_ids`、引用から判断へ至る理由を`reason`、推論の種類を`inference_type`として置く。一つの命題内に複数の項・限定がある場合は、`verification_elements`に検証要素ごとの`text`、引用ID、理由、推論の種類を置く。命題の確実性は`proposition_certainty`に、`proposition_id`、確実性の水準を`level`、判定理由を`reason`として置く。それぞれの検査結果は`corroboration_reviews`と`certainty_reviews`に、`proposition_id`、`status`（`passed`・`failed`）、`reason`として置く。手掛かりには問題文中の文字列と命題IDを置き、準一意性、知名度の各判断へ結論、理由、引用IDを置く。手掛かりの中核性・代表性の評価は`clue_centrality`に、手掛かりIDを`clue_id`、結論を`claim`、理由を`reason`、引用IDを`evidence_ids`として置き、検査結果は`centrality_reviews`に`clue_id`、`status`（`passed`・`failed`）、`reason`として置く。準一意性には比較範囲、対抗候補、単独で十分に絞れること、依存する他の手掛かりがないことを置く。専門用語と解答候補は一語・一候補ごとにレコードを分ける。最終出力の必須項目も項目ごとに固定IDを使い、内容の保存先を示す。
 
 各`competitors`項目には、候補の`id`と`name`、その候補を扱う資料の`evidence_ids`を置く。手掛かりに書かれた条件ごとの`passage`、`matches`（真偽値）、`reason`、`evidence_ids`を`conditions`に置く。候補を別対象として退けるか同一対象の別名として扱うかを`disposition`（`excluded`・`same_target`）と`reason`で示す。別対象を退ける場合だけ、相違する条件の`passage`を`exclusion_passage`へ置く。条件の引用IDは候補の引用IDへ、候補の引用IDは準一意性の引用IDへ含める。
 
