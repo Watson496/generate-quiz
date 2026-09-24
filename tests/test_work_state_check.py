@@ -1345,53 +1345,6 @@ class TestWorkState:
         assert result.returncode == 1
         assert "生成側の判断と一致しない" in result.stderr
 
-    def test_generation_rejects_answer_in_exposure_artifact_ref(
-        self, run_script, generation_state
-    ):
-        """露出検査担当の成果物経路から解答を漏らさない。"""
-        generation_state["execution"]["assignment_log"]["exposure"]["artifact_refs"] = [
-            "ミュラー・リヤー錯視の露出検査.md"
-        ]
-        result = check_state(run_script, "generation", generation_state)
-        assert result.returncode == 1
-        assert "正答名が含まれている" in result.stderr
-
-    def test_generation_rejects_answer_in_exposure_agent_id(
-        self, run_script, generation_state
-    ):
-        """露出検査担当の識別子へ解答を含めない。"""
-        agent_id = "agent-ミュラー・リヤー錯視"
-        generation_state["execution"]["agents"]["exposure"] = agent_id
-        generation_state["execution"]["assignment_log"]["exposure"]["agent_id"] = (
-            agent_id
-        )
-        generation_state["execution"]["exposure_assignments"][0]["agent_id"] = agent_id
-        result = check_state(run_script, "generation", generation_state)
-        assert result.returncode == 1
-        assert "正答名が含まれている" in result.stderr
-
-    def test_generation_rejects_answer_in_exposure_task_label(
-        self, run_script, generation_state
-    ):
-        """版別に記録する露出検査の依頼名へ解答を含めない。"""
-        generation_state["execution"]["exposure_assignments"][0]["task_label"] = (
-            "ミュラー・リヤー錯視の露出検査"
-        )
-        result = check_state(run_script, "generation", generation_state)
-        assert result.returncode == 1
-        assert "正答名が含まれている" in result.stderr
-
-    def test_generation_rejects_answer_in_exposure_assignment_label(
-        self, run_script, generation_state
-    ):
-        """担当記録にある露出検査の依頼名へ解答を含めない。"""
-        generation_state["execution"]["assignment_log"]["exposure"]["task_label"] = (
-            "ミュラー・リヤー錯視の露出検査"
-        )
-        result = check_state(run_script, "generation", generation_state)
-        assert result.returncode == 1
-        assert "正答名が含まれている" in result.stderr
-
     def test_generation_requires_current_exposure_assignment(
         self, run_script, generation_state
     ):

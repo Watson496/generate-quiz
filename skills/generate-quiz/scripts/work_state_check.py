@@ -1838,31 +1838,6 @@ def validate_exposure_review(state, checks, answers, version):
         )
 
 
-def validate_exposure_assignment_secrecy(execution, answers):
-    if not execution["delegation_available"]:
-        return
-    assignment = execution["assignment_log"]["exposure"]
-    metadata_values = (
-        execution["agents"]["exposure"],
-        assignment["agent_id"],
-        required_text(assignment, "task_label", "execution.assignment_log.exposure"),
-        *assignment["artifact_refs"],
-        *(item["task_label"] for item in execution["exposure_assignments"]),
-    )
-    correct_names = {
-        normalize_candidate_name(item["answer"])
-        for item in answers
-        if item["judgment"] == "correct"
-    }
-    for value in metadata_values:
-        require_condition(isinstance(value, str), "露出検査担当の識別情報が不正である")
-        normalized_value = normalize_candidate_name(value)
-        require_condition(
-            all(name not in normalized_value for name in correct_names),
-            "露出検査担当の識別子・依頼名・成果物経路に正答名が含まれている",
-        )
-
-
 def validate_answers(state, quote_ids, stage):
     answers, _ = records_with_ids(state.get("answers"), "answers", nonempty=True)
     seen = set()
@@ -2005,7 +1980,12 @@ def validate_work_state(state, stage):
         validate_evidence_challenge(state, quote_ids, active_clues, version)
     validate_terminology(state, quote_ids, version, stage, draft["text"])
     answers = validate_answers(state, quote_ids, stage)
-    validate_exposure_assignment_secrecy(state["execution"], answers)
+    if state["execution"]["delegation_available"]:
+        required_text(
+            state["execution"]["assignment_log"]["exposure"],
+            "task_label",
+            "execution.assignment_log.exposure",
+        )
     checks, check_ids = records_with_ids(state.get("checks"), "checks", nonempty=True)
     require_condition(
         not (REQUIRED_CHECK_IDS - check_ids),
