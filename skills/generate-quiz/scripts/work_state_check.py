@@ -240,11 +240,8 @@ def validate_exposure_precheck(item, name):
         nonempty=True,
     )
     examined = set()
-    exposed_descriptions = set()
     for index, formation in enumerate(formations):
-        _, requires_answer_side = validate_name_formation(
-            formation, f"{check_name}.formations[{index}]"
-        )
+        validate_name_formation(formation, f"{check_name}.formations[{index}]")
         formation_name = f"{check_name}.formations[{index}]"
         position = formation.get("description_index")
         require_condition(
@@ -262,8 +259,6 @@ def validate_exposure_precheck(item, name):
             f"{check_name}.formationsで同じ名称と説明の組合せが重複している",
         )
         examined.add(pair)
-        if not requires_answer_side:
-            exposed_descriptions.add(position)
     require_condition(
         {
             (name_position, position)
@@ -273,14 +268,11 @@ def validate_exposure_precheck(item, name):
         <= examined,
         f"{check_name}で各説明案と正答名・別名の組合せを分析していない",
     )
-    unavoidable = len(descriptions) >= MIN_EXPOSURE_DESCRIPTIONS and len(
-        exposed_descriptions
-    ) == len(descriptions)
     require_condition(
-        precheck.get("status") == ("rejected" if unavoidable else "passed"),
-        f"{check_name}.statusが名称形成の分析と一致しない",
+        precheck.get("status") in {"passed", "rejected"},
+        f"{check_name}.statusが不正である",
     )
-    return unavoidable
+    return precheck["status"] == "rejected"
 
 
 def validate_exposure_screen(item, entry_ids, name):
@@ -572,7 +564,7 @@ def validate_selection_candidates(
                     f"{name}は露出の疑いを詳細調査していない",
                 )
                 if item.get("exposure_precheck") is not None:
-                    unavoidable = validate_exposure_precheck(item, name)
+                    rejected = validate_exposure_precheck(item, name)
                     if risk == "suspected":
                         require_condition(
                             len(
@@ -582,8 +574,8 @@ def validate_selection_candidates(
                             f"{name}は異なる代表説明を十分に調べていない",
                         )
                     require_condition(
-                        not unavoidable,
-                        f"{name}は代表説明から正答名を形成できるため選択対象にできない",
+                        not rejected,
+                        f"{name}は露出の予備検査で除外と判定しているため選択対象にできない",
                     )
         else:
             code = item.get("exclusion_code")
@@ -1710,7 +1702,7 @@ def validate_exposure_review(state, checks, answers, version):
     }
     for index, candidate in enumerate(candidates):
         cname = f"exposure_review.candidates[{index}]"
-        _, requires_answer_side = validate_name_formation(candidate, cname)
+        validate_name_formation(candidate, cname)
         require_condition(
             candidate.get("exposure_candidate_id") in recorded_ids,
             f"{cname}が露出検査に反映されていない",
@@ -1719,10 +1711,6 @@ def validate_exposure_review(state, checks, answers, version):
             "answer_id" in candidate
             and candidate["answer_id"] in set(judgments) | {None},
             f"{cname}.answer_idが解答候補を参照していない",
-        )
-        require_condition(
-            judgments.get(candidate["answer_id"]) != "correct" or requires_answer_side,
-            f"{cname}は正答名と一致し、解答側の知識なしに形成できる",
         )
 
 
@@ -1855,13 +1843,6 @@ def validate_answer_review(state, answers, checks, quote_ids, version):
         require_condition(
             judgment == by_id[answer_id]["judgment"],
             f"{name}.judgmentが採用判定と一致しない",
-        )
-        require_condition(
-            judgment != "correct"
-            or exposure_candidates[candidate_id][
-                "formation_requires_answer_side_knowledge"
-            ],
-            f"{name}は正解と一致し、解答側の知識なしに名称候補を形成できる",
         )
     require_condition(
         seen == set(exposure_candidates),

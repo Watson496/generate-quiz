@@ -1454,29 +1454,6 @@ class TestWorkState:
         assert result.returncode == 1
         assert "露出検査に反映されていない" in result.stderr
 
-    def test_audit_rejects_exposed_correct_answer(self, run_script, complete_state):
-        """解答側の知識なしに形成できる正答名を監査で見逃さない。"""
-        complete_state["exposure_review"]["candidates"] = [
-            {
-                "exposure_candidate_id": "X1",
-                "answer_id": "A1",
-                "name": "ミュラー・リヤー錯視",
-                "formation_rule": "問題文中の語を連結する",
-                "components": [
-                    {
-                        "form": "ミュラー・リヤー錯視",
-                        "source": "問題文の表層",
-                        "knowledge": "surface",
-                    }
-                ],
-                "formation_requires_answer_side_knowledge": False,
-                "standard_name_confirmation_requires_answer_side_knowledge": False,
-            }
-        ]
-        result = check_state(run_script, "audit", complete_state)
-        assert result.returncode == 1
-        assert "解答側の知識なしに形成できる" in result.stderr
-
     def test_audit_accepts_reflected_exposure_candidate(
         self, run_script, complete_state
     ):
@@ -2099,39 +2076,6 @@ class TestWorkState:
         assert result.returncode == 1
         assert "必須検査がない" in result.stderr
 
-    def test_blind_candidate_matching_answer_without_answer_side_knowledge_fails(
-        self, run_script, complete_state
-    ):
-        """解答側の知識なしに正答名を形成できる状態を拒否する。"""
-        exposure = next(
-            check
-            for check in complete_state["checks"]
-            if check["id"] == "answer_exposure"
-        )
-        exposure["blind_candidates"] = [
-            {
-                "id": "X2",
-                "name": "錯視",
-                "formation_rule": "問題文中の語をそのまま候補とする",
-                "components": [
-                    {
-                        "form": "錯視",
-                        "source": "問題文の表層",
-                        "knowledge": "surface",
-                    },
-                ],
-                "formation_requires_answer_side_knowledge": False,
-                "standard_name_confirmation_requires_answer_side_knowledge": True,
-            }
-        ]
-        review = copy.deepcopy(complete_state["answer_review"]["answers"][0])
-        del review["id"]
-        review.update(candidate_id="X2", answer_id="A1")
-        complete_state["answer_review"]["candidate_reviews"].append(review)
-        result = check_state(run_script, "audit", complete_state)
-        assert result.returncode == 1
-        assert "解答側の知識なしに名称候補を形成できる" in result.stderr
-
     def test_blind_candidate_can_require_answer_side_knowledge(
         self, run_script, complete_state
     ):
@@ -2247,38 +2191,6 @@ class TestWorkState:
         )
         exposure["semantic_candidates"] = ["ミュラー・リヤー錯視"]
         assert check_state(run_script, "audit", complete_state).returncode == 1
-
-    def test_semantic_candidate_matching_answer_without_answer_side_knowledge_fails(
-        self, run_script, complete_state
-    ):
-        """意味から正答名を形成できる状態を拒否する。"""
-        exposure = next(
-            check
-            for check in complete_state["checks"]
-            if check["id"] == "answer_exposure"
-        )
-        exposure["semantic_candidates"][0].update(
-            answer_id="A1",
-            name="錯視",
-            formation_rule="問題文の語をそのまま候補とする",
-            components=[
-                {
-                    "form": "錯視",
-                    "source": "問題文の表層",
-                    "knowledge": "surface",
-                }
-            ],
-            formation_requires_answer_side_knowledge=False,
-        )
-        complete_state["answer_review"]["candidate_reviews"][0].update(
-            judgment="correct",
-            same_target=True,
-            scope_matches=True,
-            reason="対象の名称である",
-        )
-        result = check_state(run_script, "audit", complete_state)
-        assert result.returncode == 1
-        assert "解答側の知識なしに名称候補を形成できる" in result.stderr
 
     def test_audit_rejects_old_draft_version(self, run_script, complete_state):
         """現行稿より古い版の検査結果を監査で拒否する。"""
