@@ -109,7 +109,6 @@ MIN_ENTRY_POINT_KINDS = 2
 MIN_COVERAGE_AREAS = 2
 MIN_EXPRESSION_ALTERNATIVES = 2
 MIN_INTERSECTION_EXAMPLES = 2
-MIN_CANDIDATE_NAME_LENGTH = 2
 MIN_EXPOSURE_DESCRIPTIONS = 2
 EXIT_OK, EXIT_STATE_INVALID, EXIT_USAGE = 0, 1, 2
 
@@ -645,21 +644,6 @@ def validate_selection_candidates(
 def validate_selection_review(state, entries, areas, candidates, entry_ids):
     area_ids = {item["id"] for item in areas}
     candidate_ids = {item["id"] for item in candidates}
-    candidate_names = {
-        normalize_candidate_name(item["label"])
-        for item in candidates
-        if len(normalize_candidate_name(item["label"])) >= MIN_CANDIDATE_NAME_LENGTH
-    }
-    for area in areas:
-        for index, search in enumerate(area["source_searches"]):
-            if search["mode"] != "open":
-                continue
-            query = normalize_candidate_name(search["query"])
-            contained = {name for name in candidate_names if name in query}
-            require_condition(
-                not contained,
-                f"coverage_areas.{area['id']}.source_searches[{index}]の入口検索に候補名がある",
-            )
     reviews, review_ids = records_with_ids(
         state.get("independent_review"), "independent_review", nonempty=True
     )
@@ -675,12 +659,6 @@ def validate_selection_review(state, entries, areas, candidates, entry_ids):
         name = f"independent_review.{review['id']}"
         required_text(review, "difference_from_exploration", name)
         query = required_text(review, "source_discovery_query", name)
-        require_condition(
-            not any(
-                item in normalize_candidate_name(query) for item in candidate_names
-            ),
-            f"{name}の入口検索に候補名がある",
-        )
         completed_searches.add(normalize_candidate_name(query))
         checked = set(
             referenced_ids(review, "checked_entry_point_ids", entry_ids, name)

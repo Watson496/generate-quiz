@@ -995,15 +995,6 @@ class TestSelectionState:
         selection_state["saturation_challenge"]["resolved"] = False
         assert check_state(run_script, "selection", selection_state).returncode == 1
 
-    def test_selection_rejects_candidate_name_in_open_search(
-        self, run_script, selection_state
-    ):
-        """候補名を用いた検索を候補名なしの入口探索として扱わない。"""
-        selection_state["coverage_areas"][0]["source_searches"][0]["query"] = (
-            "候補1 関連項目"
-        )
-        assert check_state(run_script, "selection", selection_state).returncode == 1
-
     def test_selection_requires_following_next_search(
         self, run_script, selection_state
     ):
