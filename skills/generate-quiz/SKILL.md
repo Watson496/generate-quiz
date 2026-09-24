@@ -31,20 +31,18 @@ argument-hint: <作問条件（主題・問題数・文字数・履歴など。�
 
 複数問でも一問でも、`workflow_spec.md`のステップを一問ずつ完了させる。作業状態は`work_state_spec.md`の単位で保持し、解答対象を変更したときは旧対象の状態を引き継がない。
 
-# 工程ごとに読む仕様
+# 担当ごとに読む仕様
 
-- ファセットと題材候補を選ぶ前に、[`references/selection_and_history_spec.md`](references/selection_and_history_spec.md)と[`references/facet_index.md`](references/facet_index.md)を全文読む。ファセットカタログは必要な親ブロックだけを`facet_node.py`で取得する。
-- 解答対象の品質を判定し、手掛かりを選び、問題文を作る前に、[`references/quiz_generation_spec.md`](references/quiz_generation_spec.md)を全文読む。
-- 外部資料による論証、別解、正誤判定、出典作成を始める前に、[`references/verification_and_judging_spec.md`](references/verification_and_judging_spec.md)を全文読む。
-- 最終出力用の限定入力を作った後に、[`references/output_structure_spec.md`](references/output_structure_spec.md)を全文読む。
+判断は、工程のステップごとに起動する担当が行う。各担当が読む仕様は担当表[`references/roles.json`](references/roles.json)で定める。担当は、判断を始める前に担当表で定めた仕様を全文読む。
 
-出力直前に全仕様を読み直して済ませず、各仕様を必要とする工程へ入る前に読む。作業状態の検査単位を使い、適用済みかを記録する。
+出力直前に全仕様を読み直して済ませず、各仕様を必要とする判断へ入る前に読む。作業状態の検査単位を使い、適用済みかを記録する。
 
 # 必須ツール
 
 - 同梱スクリプトにはPython 3.14以上を使用する。
 - 毎問Web検索を使う。検索手段が一切使えない場合は、内部知識で代替せず作問を中止する。
-- 重み付き乱択、履歴補正、文字数判定、作業状態の構造検査は、必ず同梱スクリプトを実行する。
+- ステップの構成、重み付き乱択、履歴補正、文字数判定、作業状態の構造検査は、必ず同梱スクリプトを実行する。
+  - ステップの構成：`scripts/assignment_plan.py`
   - ファセットの抽選：`scripts/weighted_pick.py`
   - 題材候補の抽選：`scripts/topic_pick.py`
   - 文字数と採否：`scripts/length_check.py`
@@ -55,6 +53,12 @@ argument-hint: <作問条件（主題・問題数・文字数・履歴など。�
 各スクリプトの終了コードは、`0`が正常、`1`が候補なし・改稿・状態修正が必要、`2`が入力や呼出しの不備である。`2`では呼出し方を修正して再実行する。
 
 # スクリプトの呼出し
+
+ステップの構成は、担当表から決める。
+
+```bash
+python3 "$SKILL_DIR/scripts/assignment_plan.py" steps
+```
 
 ファセットカタログは全文を読まず、必要なブロックだけを取得する。
 

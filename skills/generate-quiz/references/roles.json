@@ -1,0 +1,214 @@
+{
+  "data": {
+    "user_conditions": "ユーザーの作問条件",
+    "history": "確定済み履歴またはその保存先",
+    "facet_nodes": "選択した4軸のノード",
+    "intersection_review": "交差領域の確認記録",
+    "ledger": "題材候補の探索台帳（下位領域、入口、候補、探索記録）",
+    "independent_review": "別経路の探索記録",
+    "saturation_challenge": "探索完了の反証調査の記録",
+    "exposure_screen": "各選択対象の解答露出の予備検査の記録",
+    "topic_weights": "題材候補の抽選用JSON",
+    "answer_target": "解答対象と、抽選した場合の四軸の日本語の分類経路と履歴補正の適用結果",
+    "sources": "資料の書誌情報、逐語引用、所在、周辺文脈、対象読者と日本語文化圏との関係",
+    "propositions": "命題",
+    "clues": "手掛かりの問題文中の文字列と命題ID",
+    "competitors": "生成側が挙げた対抗候補のIDと名称",
+    "asked_knowledge": "問う知識と、要求する解答知識の粒度",
+    "draft": "現行版の問題文",
+    "terms": "生成側の専門用語の一覧と語ID",
+    "answers": "解答・別解の候補のIDと名称",
+    "generation_checks": "生成側の検査単位の判断と理由",
+    "final_input": "最終出力用の限定入力",
+    "difficulty_review": "難易度の独立検査の記録",
+    "terminology_review": "専門用語の独立検査の記録",
+    "blind_candidates": "解答を伏せて挙げた名称候補",
+    "answer_review": "回答と露出候補の正誤判定",
+    "evidence_challenge": "監査前の反証確認の記録",
+    "audit_results": "監査結果",
+    "final_output": "完成稿",
+    "final_review": "最終照合の記録"
+  },
+  "parent_data": ["user_conditions", "history", "answer_target"],
+  "steps": [
+    {
+      "name": "ファセット選択",
+      "roles": [
+        {
+          "id": "facet_selection",
+          "name": "ファセット選択担当",
+          "side": "make",
+          "section": "ファセット選択",
+          "specs": ["selection_and_history_spec.md", "facet_index.md", "work_state_spec.md"],
+          "inputs": [["user_conditions", "history"]],
+          "outputs": ["facet_nodes"]
+        }
+      ]
+    },
+    {
+      "name": "交差領域の確認",
+      "roles": [
+        {
+          "id": "intersection",
+          "name": "交差領域の確認担当",
+          "side": "check",
+          "section": "交差領域の確認",
+          "specs": ["selection_and_history_spec.md", "work_state_spec.md"],
+          "inputs": [["facet_nodes"]],
+          "outputs": ["intersection_review"]
+        }
+      ]
+    },
+    {
+      "name": "題材探索",
+      "roles": [
+        {
+          "id": "exploration",
+          "name": "題材探索担当",
+          "side": "make",
+          "section": "題材探索",
+          "specs": ["selection_and_history_spec.md", "work_state_spec.md"],
+          "inputs": [["user_conditions", "history", "facet_nodes"]],
+          "outputs": ["ledger"]
+        },
+        {
+          "id": "alternate_exploration",
+          "name": "別経路の探索担当",
+          "side": "make",
+          "section": "題材探索",
+          "specs": ["selection_and_history_spec.md", "work_state_spec.md"],
+          "inputs": [["facet_nodes", "ledger"]],
+          "outputs": ["ledger", "independent_review"]
+        },
+        {
+          "id": "saturation_review",
+          "name": "探索完了の反証調査担当",
+          "side": "check",
+          "section": "題材探索",
+          "specs": ["selection_and_history_spec.md", "work_state_spec.md"],
+          "inputs": [["facet_nodes", "intersection_review", "ledger", "independent_review"]],
+          "outputs": ["saturation_challenge"]
+        }
+      ]
+    },
+    {
+      "name": "露出の予備検査",
+      "roles": [
+        {
+          "id": "exposure_precheck",
+          "name": "露出の予備検査担当",
+          "side": "make",
+          "section": "露出の予備検査",
+          "specs": ["selection_and_history_spec.md", "quiz_generation_spec.md", "work_state_spec.md"],
+          "inputs": [["ledger"]],
+          "outputs": ["exposure_screen"]
+        }
+      ]
+    },
+    {
+      "name": "題材候補のweightと抽選",
+      "roles": [
+        {
+          "id": "topic_weighting",
+          "name": "題材候補のweight担当",
+          "side": "make",
+          "section": "題材候補のweightと抽選",
+          "specs": ["selection_and_history_spec.md"],
+          "inputs": [["history", "ledger", "exposure_screen"]],
+          "outputs": ["topic_weights"]
+        }
+      ]
+    },
+    {
+      "name": "作問",
+      "roles": [
+        {
+          "id": "generation",
+          "name": "生成担当",
+          "side": "make",
+          "section": "生成",
+          "specs": ["quiz_generation_spec.md", "verification_and_judging_spec.md", "selection_and_history_spec.md", "work_state_spec.md"],
+          "inputs": [["user_conditions", "history", "answer_target"]],
+          "outputs": ["sources", "propositions", "clues", "competitors", "asked_knowledge", "draft", "terms", "answers", "generation_checks", "final_input"]
+        },
+        {
+          "id": "difficulty_review",
+          "name": "難易度検査担当",
+          "side": "check",
+          "section": "難易度の独立検査",
+          "specs": ["verification_and_judging_spec.md", "quiz_generation_spec.md", "work_state_spec.md"],
+          "inputs": [["answer_target", "asked_knowledge", "sources"]],
+          "outputs": ["difficulty_review"]
+        },
+        {
+          "id": "terminology_review",
+          "name": "専門用語の検査担当",
+          "side": "check",
+          "section": "専門用語の独立検査",
+          "specs": ["quiz_generation_spec.md", "verification_and_judging_spec.md", "work_state_spec.md"],
+          "inputs": [["user_conditions", "draft", "sources"], ["terms"]],
+          "outputs": ["terminology_review"]
+        },
+        {
+          "id": "exposure",
+          "name": "露出検査担当",
+          "side": "check",
+          "section": "解答を伏せた露出検査",
+          "specs": ["quiz_generation_spec.md", "verification_and_judging_spec.md", "work_state_spec.md"],
+          "inputs": [["draft"], ["answer_target", "sources", "answers"]],
+          "outputs": ["blind_candidates", "answer_review"]
+        }
+      ]
+    },
+    {
+      "name": "監査",
+      "roles": [
+        {
+          "id": "evidence_challenge",
+          "name": "反証確認担当",
+          "side": "check",
+          "section": "監査前の反証確認",
+          "specs": ["quiz_generation_spec.md", "verification_and_judging_spec.md", "work_state_spec.md"],
+          "inputs": [["answer_target", "sources", "propositions", "clues", "competitors", "asked_knowledge", "draft", "answers"]],
+          "outputs": ["evidence_challenge"]
+        },
+        {
+          "id": "audit",
+          "name": "監査担当",
+          "side": "check",
+          "section": "独立監査",
+          "specs": ["quiz_generation_spec.md", "verification_and_judging_spec.md", "selection_and_history_spec.md", "output_structure_spec.md", "work_state_spec.md"],
+          "inputs": [
+            ["draft"],
+            ["answer_target"],
+            ["user_conditions", "sources", "propositions", "clues", "competitors", "asked_knowledge", "terms", "answers", "generation_checks", "final_input", "difficulty_review", "terminology_review", "blind_candidates", "answer_review", "evidence_challenge"]
+          ],
+          "outputs": ["audit_results"]
+        }
+      ]
+    },
+    {
+      "name": "最終出力",
+      "roles": [
+        {
+          "id": "finalization",
+          "name": "組立て担当",
+          "side": "make",
+          "section": "最終出力",
+          "specs": ["output_structure_spec.md"],
+          "inputs": [["final_input"]],
+          "outputs": ["final_output"]
+        },
+        {
+          "id": "final_review",
+          "name": "最終照合担当",
+          "side": "check",
+          "section": "最終出力",
+          "specs": ["output_structure_spec.md", "verification_and_judging_spec.md", "work_state_spec.md"],
+          "inputs": [["final_output", "final_input", "sources"]],
+          "outputs": ["final_review"]
+        }
+      ]
+    }
+  ]
+}
