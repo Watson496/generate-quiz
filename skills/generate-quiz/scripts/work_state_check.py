@@ -175,6 +175,7 @@ STAGE_ROLES = {
         "source_reliability_review",
         "clue_centrality",
         "centrality_review",
+        "familiarity_review",
         "corroboration",
         "corroboration_review",
         "certainty",
@@ -203,6 +204,7 @@ STAGE_ROLES = {
         "source_reliability_review",
         "clue_centrality",
         "centrality_review",
+        "familiarity_review",
         "corroboration",
         "corroboration_review",
         "certainty",
@@ -1360,7 +1362,7 @@ def validate_competitor_reviews(state, clue_text, compared, quote_ids):
     )
 
 
-def validate_sources_propositions_and_clues(state, version, stage):
+def validate_sources_propositions_and_clues(state, version):
     quote_ids = validate_source_quotes(state)
     props, prop_ids = records_with_ids(
         state.get("propositions"), "propositions", nonempty=True
@@ -1408,7 +1410,6 @@ def validate_sources_propositions_and_clues(state, version, stage):
                     ),
                     f"{cname}が他の手掛かりに依存している",
                 )
-            require_stage_completion(check, cname, stage)
     require_condition(active_clues, "activeな手掛かりがない")
     return quote_ids, active_props, active_clues
 
@@ -2343,12 +2344,19 @@ def validate_work_state(state, stage):
     )
     required_text(draft, "text", "draft")
     quote_ids, active_props, active_clues = validate_sources_propositions_and_clues(
-        state, version, stage
+        state, version
     )
     supports = validate_proposition_support(state, active_props, quote_ids, stage)
     validate_source_assessments(state, supports, stage)
     validate_clue_centrality(state, active_clues, quote_ids, stage)
     validate_competitors(state, active_clues, quote_ids, stage)
+    if stage in {"audit", "final"}:
+        validate_reviews(
+            state,
+            "familiarity_reviews",
+            sorted(clue["id"] for clue in active_clues),
+            "clue_id",
+        )
     difficulty_assessment = validate_difficulty_assessment(state, quote_ids)
     if stage in {"audit", "final"}:
         validate_difficulty_reviews(state, quote_ids, version)
