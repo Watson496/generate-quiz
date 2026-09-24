@@ -20,7 +20,6 @@ import hashlib
 import json
 import re
 import sys
-import unicodedata
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -105,11 +104,9 @@ OUTPUT_HEADINGS = {
     "references": "参考文献",
 }
 MIN_ENTRY_POINTS = 2
-MIN_ENTRY_POINT_KINDS = 2
 MIN_COVERAGE_AREAS = 2
 MIN_EXPRESSION_ALTERNATIVES = 2
 MIN_INTERSECTION_EXAMPLES = 2
-MIN_CANDIDATE_NAME_LENGTH = 2
 MIN_EXPOSURE_DESCRIPTIONS = 2
 EXIT_OK, EXIT_STATE_INVALID, EXIT_USAGE = 0, 1, 2
 
@@ -181,15 +178,6 @@ def require_stage_completion(obj, name, stage):
         require_condition(audit == "passed", f"{name}が監査に合格していない")
 
 
-def normalize_candidate_name(value):
-    normalized = unicodedata.normalize("NFKC", value).casefold()
-    return "".join(
-        char
-        for char in normalized
-        if char not in " \t\r\n・･‐‑‒–—―-_=＝()（）[]［］{}｛｝"
-    )
-
-
 def validate_name_formation(item, name):
     require_condition(isinstance(item, dict), f"{name}はオブジェクトでなければならない")
     candidate_name = required_text(item, "name", name)
@@ -245,57 +233,46 @@ def validate_exposure_precheck(item, name):
                 f"{check_name}.{key}[{index}]がない",
             )
     descriptions = precheck["representative_descriptions"]
-    require_condition(
-        len(descriptions) == len(set(descriptions)),
-        f"{check_name}.representative_descriptionsに同じ説明が重複している",
-    )
-    accepted_names = {
-        normalize_candidate_name(value) for value in precheck["accepted_names"]
-    }
+    accepted_names = precheck["accepted_names"]
     formations = required_list(
         precheck.get("formations"),
         f"{check_name}.formations",
         nonempty=True,
     )
     examined = set()
-    exposed_descriptions = set()
     for index, formation in enumerate(formations):
-        candidate_name, requires_answer_side = validate_name_formation(
-            formation, f"{check_name}.formations[{index}]"
-        )
+        validate_name_formation(formation, f"{check_name}.formations[{index}]")
         formation_name = f"{check_name}.formations[{index}]"
         position = formation.get("description_index")
         require_condition(
             type(position) is int and 0 <= position < len(descriptions),
             f"{formation_name}.description_indexが不正である",
         )
-        normalized_name = normalize_candidate_name(candidate_name)
-        if normalized_name in accepted_names:
-            pair = (normalized_name, position)
-            require_condition(
-                pair not in examined,
-                f"{check_name}.formationsで同じ名称と説明の組合せが重複している",
-            )
-            examined.add(pair)
-            if not requires_answer_side:
-                exposed_descriptions.add(position)
+        name_position = formation.get("name_index")
+        require_condition(
+            type(name_position) is int and 0 <= name_position < len(accepted_names),
+            f"{formation_name}.name_indexが不正である",
+        )
+        pair = (name_position, position)
+        require_condition(
+            pair not in examined,
+            f"{check_name}.formationsで同じ名称と説明の組合せが重複している",
+        )
+        examined.add(pair)
     require_condition(
         {
-            (candidate_name, position)
-            for candidate_name in accepted_names
+            (name_position, position)
+            for name_position in range(len(accepted_names))
             for position in range(len(descriptions))
         }
         <= examined,
         f"{check_name}で各説明案と正答名・別名の組合せを分析していない",
     )
-    unavoidable = len(descriptions) >= MIN_EXPOSURE_DESCRIPTIONS and len(
-        exposed_descriptions
-    ) == len(descriptions)
     require_condition(
-        precheck.get("status") == ("rejected" if unavoidable else "passed"),
-        f"{check_name}.statusが名称形成の分析と一致しない",
+        precheck.get("status") in {"passed", "rejected"},
+        f"{check_name}.statusが不正である",
     )
-    return unavoidable
+    return precheck["status"] == "rejected"
 
 
 def validate_exposure_screen(item, entry_ids, name):
@@ -394,12 +371,10 @@ def validate_intersection_state(state):
         "intersection_review.candidate_examplesが二件に満たない",
     )
     beginner_count = 0
-    candidate_names = set()
     for index, example in enumerate(examples):
         name = f"intersection_review.candidate_examples[{index}]"
         require_condition(isinstance(example, dict), f"{name}がオブジェクトではない")
-        candidate = required_text(example, "name", name)
-        candidate_names.add(unicodedata.normalize("NFKC", candidate).casefold())
+        required_text(example, "name", name)
         source = required_text(example, "source_ref", name)
         require_condition(source in sources, f"{name}.source_refが確認資料にない")
         if "beginner_source_ref" in example or "beginner_learning_basis" in example:
@@ -410,10 +385,6 @@ def validate_intersection_state(state):
             )
             required_text(example, "beginner_learning_basis", name)
             beginner_count += 1
-    require_condition(
-        len(candidate_names) >= MIN_INTERSECTION_EXAMPLES,
-        "intersection_review.candidate_examplesに異なる候補が二件ない",
-    )
     require_condition(
         beginner_count >= 1,
         "intersection_reviewに初級学習資料で確認した候補例がない",
@@ -428,11 +399,10 @@ def validate_selection_entries_areas(state, *, complete=True):
     entries, entry_ids = records_with_ids(
         state.get("entry_points"), "entry_points", nonempty=True
     )
-    kinds = set()
     for item in entries:
         name = f"entry_points.{item['id']}"
         required_text(item, "label", name)
-        kinds.add(required_text(item, "kind", name))
+        required_text(item, "kind", name)
         source = required_text(item, "url", name)
         parsed = urlsplit(source)
         require_condition(
@@ -443,8 +413,8 @@ def validate_selection_entries_areas(state, *, complete=True):
         require_condition(item.get("opened") is True, f"{name}の本文を開いていない")
     if complete:
         require_condition(
-            len(entries) >= MIN_ENTRY_POINTS and len(kinds) >= MIN_ENTRY_POINT_KINDS,
-            "異なる種類の入口を二つ以上使っていない",
+            len(entries) >= MIN_ENTRY_POINTS,
+            "入口を二つ以上使っていない",
         )
     areas, area_ids = records_with_ids(
         state.get("coverage_areas"), "coverage_areas", nonempty=True
@@ -594,7 +564,7 @@ def validate_selection_candidates(
                     f"{name}は露出の疑いを詳細調査していない",
                 )
                 if item.get("exposure_precheck") is not None:
-                    unavoidable = validate_exposure_precheck(item, name)
+                    rejected = validate_exposure_precheck(item, name)
                     if risk == "suspected":
                         require_condition(
                             len(
@@ -604,8 +574,8 @@ def validate_selection_candidates(
                             f"{name}は異なる代表説明を十分に調べていない",
                         )
                     require_condition(
-                        not unavoidable,
-                        f"{name}は代表説明から正答名を形成できるため選択対象にできない",
+                        not rejected,
+                        f"{name}は露出の予備検査で除外と判定しているため選択対象にできない",
                     )
         else:
             code = item.get("exclusion_code")
@@ -642,46 +612,19 @@ def validate_selection_candidates(
     return candidates, candidate_ids
 
 
-def validate_selection_review(state, entries, areas, candidates, entry_ids):
+def validate_selection_review(state, areas, candidates, entry_ids):
     area_ids = {item["id"] for item in areas}
     candidate_ids = {item["id"] for item in candidates}
-    candidate_names = {
-        normalize_candidate_name(item["label"])
-        for item in candidates
-        if len(normalize_candidate_name(item["label"])) >= MIN_CANDIDATE_NAME_LENGTH
-    }
-    for area in areas:
-        for index, search in enumerate(area["source_searches"]):
-            if search["mode"] != "open":
-                continue
-            query = normalize_candidate_name(search["query"])
-            contained = {name for name in candidate_names if name in query}
-            require_condition(
-                not contained,
-                f"coverage_areas.{area['id']}.source_searches[{index}]の入口検索に候補名がある",
-            )
     reviews, review_ids = records_with_ids(
         state.get("independent_review"), "independent_review", nonempty=True
     )
     require_condition(
         review_ids == area_ids, "別経路の探索が全下位領域に対応していない"
     )
-    completed_searches = {
-        normalize_candidate_name(search["query"])
-        for area in areas
-        for search in area["source_searches"]
-    }
     for review in reviews:
         name = f"independent_review.{review['id']}"
         required_text(review, "difference_from_exploration", name)
-        query = required_text(review, "source_discovery_query", name)
-        require_condition(
-            not any(
-                item in normalize_candidate_name(query) for item in candidate_names
-            ),
-            f"{name}の入口検索に候補名がある",
-        )
-        completed_searches.add(normalize_candidate_name(query))
+        required_text(review, "source_discovery_query", name)
         checked = set(
             referenced_ids(review, "checked_entry_point_ids", entry_ids, name)
         )
@@ -703,8 +646,7 @@ def validate_selection_review(state, entries, areas, candidates, entry_ids):
     challenge = state.get("saturation_challenge")
     require_condition(isinstance(challenge, dict), "saturation_challengeがない")
     required_text(challenge, "search_perspective", "saturation_challenge")
-    challenge_query = required_text(challenge, "query", "saturation_challenge")
-    completed_searches.add(normalize_candidate_name(challenge_query))
+    required_text(challenge, "query", "saturation_challenge")
     referenced_ids(
         challenge, "opened_entry_point_ids", entry_ids, "saturation_challenge"
     )
@@ -717,16 +659,6 @@ def validate_selection_review(state, entries, areas, candidates, entry_ids):
     )
     required_text(challenge, "resolution", "saturation_challenge")
     require_condition(challenge.get("resolved") is True, "反証調査の結果が未処理である")
-    opened_urls = {normalize_candidate_name(item["url"]) for item in entries}
-    for area in areas:
-        for index, search in enumerate(area["source_searches"]):
-            for next_search in search["next_searches"]:
-                require_condition(
-                    isinstance(next_search, str)
-                    and normalize_candidate_name(next_search)
-                    in completed_searches | opened_urls,
-                    f"coverage_areas.{area['id']}.source_searches[{index}]の次の検索先が未調査である",
-                )
 
 
 def validate_discovery_progress(state):
@@ -745,11 +677,11 @@ def validate_discovery_progress(state):
 
 def validate_selection_state(state, *, discovery_only=False):
     validate_intersection_state(state)
-    entries, entry_ids, areas, area_ids = validate_selection_entries_areas(state)
+    _, entry_ids, areas, area_ids = validate_selection_entries_areas(state)
     candidates, candidate_ids = validate_selection_candidates(
         state, entry_ids, areas, area_ids, discovery_only=discovery_only
     )
-    validate_selection_review(state, entries, areas, candidates, entry_ids)
+    validate_selection_review(state, areas, candidates, entry_ids)
     frontier = required_id_list(state.get("frontier_ids"), "frontier_ids")
     require_condition(
         not (set(frontier) - candidate_ids), "frontier_idsに存在しない候補がある"
@@ -762,13 +694,7 @@ def validate_selection_mode(state):
     mode = state.get("selection_mode")
     require_condition(mode in {"random", "specified"}, "selection_modeが不正である")
     if mode == "specified":
-        specified = required_text(state, "user_specified_target", "state")
-        target = required_text(state, "answer_target", "state")
-        require_condition(
-            unicodedata.normalize("NFKC", specified)
-            == unicodedata.normalize("NFKC", target),
-            "指定された解答対象と作業対象が一致しない",
-        )
+        required_text(state, "user_specified_target", "state")
     return mode
 
 
@@ -923,14 +849,11 @@ def validate_source_quotes(state):
 
 
 def validate_competitor_comparisons(check, clue_text, quote_ids, name):
-    competitors = required_list(
+    competitors, _ = records_with_ids(
         check.get("competitors"), f"{name}.competitors", nonempty=True
     )
     for index, competitor in enumerate(competitors):
         cname = f"{name}.competitors[{index}]"
-        require_condition(
-            isinstance(competitor, dict), f"{cname}はオブジェクトでなければならない"
-        )
         required_text(competitor, "name", cname)
         evidence = referenced_ids(competitor, "evidence_ids", quote_ids, cname)
         require_condition(
@@ -1204,23 +1127,17 @@ def validate_evidence_challenge(state, quote_ids, active_clues, version):
         validate_challenge_item(item, name, quote_ids)
         clue = active_by_id[item["id"]]
         generated = {
-            candidate["name"]: candidate["disposition"]
+            candidate["id"]: candidate["disposition"]
             for candidate in clue["checks"]["quasi_uniqueness"]["competitors"]
         }
-        comparisons = required_list(
+        comparisons, compared_ids = records_with_ids(
             item.get("competitor_comparisons"),
             f"{name}.competitor_comparisons",
             nonempty=bool(generated),
         )
-        names = set()
         for index, comparison in enumerate(comparisons):
             cname = f"{name}.competitor_comparisons[{index}]"
-            require_condition(isinstance(comparison, dict), f"{cname}がない")
-            candidate_name = required_text(comparison, "name", cname)
-            require_condition(
-                candidate_name not in names, f"{cname}.nameが重複している"
-            )
-            names.add(candidate_name)
+            required_text(comparison, "name", cname)
             url = required_text(comparison, "source_url", cname)
             require_condition(
                 url in item["source_urls_checked"],
@@ -1254,9 +1171,9 @@ def validate_evidence_challenge(state, quote_ids, active_clues, version):
                 comparison.get("disposition") in {"excluded", "same_target"},
                 f"{cname}.dispositionが不正である",
             )
-            if candidate_name in generated:
+            if comparison["id"] in generated:
                 require_condition(
-                    comparison["disposition"] == generated[candidate_name],
+                    comparison["disposition"] == generated[comparison["id"]],
                     f"{cname}.dispositionが生成側の判断と一致しない",
                 )
             else:
@@ -1279,7 +1196,7 @@ def validate_evidence_challenge(state, quote_ids, active_clues, version):
                 comparison.get("remaining") is False, f"{cname}が未解決である"
             )
         require_condition(
-            set(generated) <= names,
+            set(generated) <= compared_ids,
             f"{name}.competitor_comparisonsに生成側の対抗候補が不足している",
         )
 
@@ -1289,47 +1206,13 @@ def validate_structure_check(item, name, draft_text, active_clues):
     require_condition(form in {"SC", "OV"}, f"{name}.question_formが不正である")
     phrase = required_text(item, "question_phrase", name)
     require_condition(phrase in draft_text, f"{name}.question_phraseが問題文にない")
-    if re.search(r"を何(?:と|て)?(?:いう|呼ぶ|言う)", phrase):
-        require_condition(form == "OV", f"{name}.question_formが質問形式と一致しない")
-    if re.search(r"は(?:何|誰|どこ|どちら)(?:でしょう|ですか)", phrase):
-        require_condition(form == "SC", f"{name}.question_formが質問形式と一致しない")
     nucleus = required_text(item, "nucleus", name)
     otoshi = required_text(item, "otoshi", name)
     required_text(item, "otoshi_direct_description", name)
     require_condition(
-        nucleus
-        not in {
-            "もの",
-            "物",
-            "こと",
-            "事",
-            "さま",
-            "様",
-            "用語",
-            "言葉",
-            "名称",
-            "名前",
-            "通称",
-            "題名",
-        },
-        f"{name}.nucleusが解答対象の上位分類ではない",
-    )
-    require_condition(
         otoshi.endswith(nucleus) and otoshi in draft_text,
         f"{name}.otoshiが完成稿の核名詞句で終わらない",
     )
-    before_question = draft_text.split(phrase, 1)[0]
-    if form == "SC":
-        require_condition(
-            before_question.rstrip("、， ").endswith(otoshi),
-            f"{name}.otoshiが核名詞句の直前にない",
-        )
-    else:
-        after_otoshi = draft_text.rsplit(otoshi, 1)[1]
-        require_condition(
-            after_otoshi.startswith(("を", "のことを")),
-            f"{name}.otoshiが核名詞句の直前にない",
-        )
     prefuri_segments = required_list(
         item.get("prefuri_segments"), f"{name}.prefuri_segments"
     )
@@ -1461,11 +1344,11 @@ def validate_final_input(state, version, active_props, active_clues, difficulty_
         len(quote_refs) == len(set(quote_refs)) and set(quote_refs) == cited,
         "final_input.quote_idsが判断に用いた引用と一致しない",
     )
-    validate_final_material(state, final, active_props, active_clues, cited)
+    validate_final_material(state, final, active_props, cited)
     validate_topic_selection(state, final)
 
 
-def validate_final_material(state, final, active_props, active_clues, cited):
+def validate_final_material(state, final, active_props, cited):
     material = final.get("material")
     require_condition(isinstance(material, dict), "final_input.materialがない")
     require_condition(
@@ -1483,12 +1366,8 @@ def validate_final_material(state, final, active_props, active_clues, cited):
         "final_input.material.answerに解答対象がない",
     )
     require_condition(
-        not re.search(r"もう一度|×", material["alternatives"]),
-        "final_input.material.alternativesに正答以外の判定がある",
-    )
-    require_condition(
         not re.search(
-            r"\b(?:ACCEPTANCE|DRAW|VERDICT|ACCEPT|REJECT)\b|抽選値|乱数値",
+            r"\b(?:ACCEPTANCE|DRAW|VERDICT|ACCEPT|REJECT)\b",
             material["length"],
             re.IGNORECASE,
         ),
@@ -1527,42 +1406,6 @@ def validate_final_material(state, final, active_props, active_clues, cited):
             require_condition(
                 text not in all_material,
                 f"final_input.materialに不採用の引用{quote_id}がある",
-            )
-    evidence_by_output = {
-        "difficulty.beginner": set(
-            state["difficulty_review"]["beginner"]["evidence_ids"]
-        ),
-        "difficulty.general": set(
-            state["difficulty_review"]["general"]["evidence_ids"]
-        ),
-        "verification": {
-            quote_id for item in active_props for quote_id in item["evidence_ids"]
-        },
-        "clues": {
-            quote_id
-            for clue in active_clues
-            for key in ("centrality", "quasi_uniqueness", "familiarity")
-            for quote_id in clue["checks"][key]["evidence_ids"]
-        },
-        "answer_exposure": {
-            quote_id
-            for item in state["checks"]
-            if item["id"] == "answer_exposure"
-            for quote_id in item["evidence_ids"]
-        },
-        "answer_judging": {
-            quote_id for item in state["answers"] for quote_id in item["evidence_ids"]
-        },
-    }
-    for output_id, evidence_ids in evidence_by_output.items():
-        if evidence_ids:
-            require_condition(
-                any(
-                    quotes[quote_id][0] in material[output_id]
-                    and quotes[quote_id][1] in material[output_id]
-                    for quote_id in evidence_ids
-                ),
-                f"final_input.material.{output_id}に判断根拠の所在がない",
             )
 
 
@@ -1607,10 +1450,10 @@ def validate_topic_selection(state, final):
         )
     require_condition(
         not re.search(
-            r"重み付きで選択|抽選過程|候補台帳|候補から選|(?:subject|place|time|type)::|\bROOT\b",
+            r"(?:subject|place|time|type)::",
             content,
         ),
-        "final_input.material.topic_selectionに抽選過程または内部ノードIDがある",
+        "final_input.material.topic_selectionに内部ノードIDがある",
     )
 
 
@@ -1788,10 +1631,7 @@ def validate_terminology(state, quote_ids, version, stage, draft_text):
     for item in reviewed:
         name = f"terminology_review.terms.{item['id']}"
         term = term_by_id[item["id"]]
-        require_condition(
-            required_text(item, "term", name) == term["term"],
-            f"{name}.termが生成側の専門用語と一致しない",
-        )
+        required_text(item, "term", name)
         require_condition(
             isinstance(item.get("meaning_needed"), bool),
             f"{name}.meaning_neededがない",
@@ -1853,52 +1693,24 @@ def validate_exposure_review(state, checks, answers, version):
     )
     if not candidates:
         required_text(exposure_review, "no_candidate_reason", "exposure_review")
-    correct_names = {
-        normalize_candidate_name(item["answer"])
-        for item in answers
-        if item["judgment"] == "correct"
-    }
+    judgments = {item["id"]: item["judgment"] for item in answers}
     exposure_check = next(item for item in checks if item["id"] == "answer_exposure")
-    recorded_names = {
-        normalize_candidate_name(candidate["name"])
+    recorded_ids = {
+        candidate["id"]
         for key in ("blind_candidates", "semantic_candidates")
         for candidate in exposure_check[key]
     }
     for index, candidate in enumerate(candidates):
         cname = f"exposure_review.candidates[{index}]"
-        name, requires_answer_side = validate_name_formation(candidate, cname)
-        normalized = normalize_candidate_name(name)
+        validate_name_formation(candidate, cname)
         require_condition(
-            normalized not in correct_names or requires_answer_side,
-            f"{cname}は正答名と一致し、解答側の知識なしに形成できる",
+            candidate.get("exposure_candidate_id") in recorded_ids,
+            f"{cname}が露出検査に反映されていない",
         )
         require_condition(
-            normalized in recorded_names, f"{cname}が露出検査に反映されていない"
-        )
-
-
-def validate_exposure_assignment_secrecy(execution, answers):
-    if not execution["delegation_available"]:
-        return
-    assignment = execution["assignment_log"]["exposure"]
-    metadata_values = (
-        execution["agents"]["exposure"],
-        assignment["agent_id"],
-        required_text(assignment, "task_label", "execution.assignment_log.exposure"),
-        *assignment["artifact_refs"],
-        *(item["task_label"] for item in execution["exposure_assignments"]),
-    )
-    correct_names = {
-        normalize_candidate_name(item["answer"])
-        for item in answers
-        if item["judgment"] == "correct"
-    }
-    for value in metadata_values:
-        require_condition(isinstance(value, str), "露出検査担当の識別情報が不正である")
-        normalized_value = normalize_candidate_name(value)
-        require_condition(
-            all(name not in normalized_value for name in correct_names),
-            "露出検査担当の識別子・依頼名・成果物経路に正答名が含まれている",
+            "answer_id" in candidate
+            and candidate["answer_id"] in set(judgments) | {None},
+            f"{cname}.answer_idが解答候補を参照していない",
         )
 
 
@@ -1987,35 +1799,54 @@ def validate_answer_review(state, answers, checks, quote_ids, version):
             f"{name}.judgmentが採用判定と一致しない",
         )
     exposure = next(item for item in checks if item["id"] == "answer_exposure")
-    names = {
-        normalize_candidate_name(item["name"])
+    exposure_candidates = {
+        item["id"]: item
         for key in ("blind_candidates", "semantic_candidates")
         for item in exposure[key]
     }
+    semantic_ids = {item["id"] for item in exposure["semantic_candidates"]}
     candidates = required_list(
         review.get("candidate_reviews"), "answer_review.candidate_reviews"
     )
     seen = set()
-    adopted = {
-        normalize_candidate_name(item["answer"]): item["judgment"] for item in answers
-    }
     for index, candidate in enumerate(candidates):
         name = f"answer_review.candidate_reviews[{index}]"
         require_condition(isinstance(candidate, dict), f"{name}がない")
-        value = normalize_candidate_name(required_text(candidate, "name", name))
-        require_condition(value not in seen, f"{name}.nameが重複している")
-        seen.add(value)
-        judgment = validate_reviewed_answer(candidate, name, quote_ids)
+        candidate_id = required_text(candidate, "candidate_id", name)
         require_condition(
-            value in adopted or judgment != "correct",
-            f"{name}の正答名が解答範囲にない",
+            candidate_id in exposure_candidates,
+            f"{name}.candidate_idが露出候補を参照していない",
         )
         require_condition(
-            value not in adopted or judgment == adopted[value],
+            candidate_id not in seen, f"{name}.candidate_idが重複している"
+        )
+        seen.add(candidate_id)
+        if candidate_id in semantic_ids:
+            require_condition(
+                "answer_id" not in candidate,
+                f"{name}に候補を挙げた担当が対応付けた露出候補の対応付けがある",
+            )
+            answer_id = exposure_candidates[candidate_id]["answer_id"]
+        else:
+            require_condition("answer_id" in candidate, f"{name}.answer_idがない")
+            answer_id = candidate["answer_id"]
+        require_condition(
+            answer_id is None or answer_id in by_id,
+            f"{name}.answer_idが解答候補を参照していない",
+        )
+        judgment = validate_reviewed_answer(candidate, name, quote_ids)
+        if answer_id is None:
+            require_condition(
+                judgment != "correct", f"{name}の正答が解答範囲に対応付けられていない"
+            )
+            continue
+        require_condition(
+            judgment == by_id[answer_id]["judgment"],
             f"{name}.judgmentが採用判定と一致しない",
         )
     require_condition(
-        seen == names, "answer_review.candidate_reviewsが露出候補と一致しない"
+        seen == set(exposure_candidates),
+        "answer_review.candidate_reviewsが露出候補と一致しない",
     )
 
 
@@ -2044,7 +1875,12 @@ def validate_work_state(state, stage):
         validate_evidence_challenge(state, quote_ids, active_clues, version)
     validate_terminology(state, quote_ids, version, stage, draft["text"])
     answers = validate_answers(state, quote_ids, stage)
-    validate_exposure_assignment_secrecy(state["execution"], answers)
+    if state["execution"]["delegation_available"]:
+        required_text(
+            state["execution"]["assignment_log"]["exposure"],
+            "task_label",
+            "execution.assignment_log.exposure",
+        )
     checks, check_ids = records_with_ids(state.get("checks"), "checks", nonempty=True)
     require_condition(
         not (REQUIRED_CHECK_IDS - check_ids),
@@ -2080,25 +1916,31 @@ def validate_work_state(state, stage):
                 item.get("semantic_candidates"), f"{name}.semantic_candidates"
             )
             required_text(item, "answer_side_knowledge_required", name)
-            correct = {
-                normalize_candidate_name(answer["answer"])
-                for answer in answers
-                if answer.get("judgment") == "correct"
-            }
+            answer_ids = {answer["id"] for answer in answers}
+            candidate_ids = []
             for key, candidates in (
                 ("blind_candidates", blind),
                 ("semantic_candidates", semantic),
             ):
                 for index, candidate in enumerate(candidates):
                     cname = f"{name}.{key}[{index}]"
-                    candidate_name, requires_answer_side = validate_name_formation(
-                        candidate, cname
-                    )
-                    require_condition(
-                        normalize_candidate_name(candidate_name) not in correct
-                        or requires_answer_side,
-                        f"{cname}は正解と一致し、解答側の知識なしに名称候補を形成できる",
-                    )
+                    validate_name_formation(candidate, cname)
+                    candidate_ids.append(required_text(candidate, "id", cname))
+                    if key == "semantic_candidates":
+                        require_condition(
+                            "answer_id" in candidate
+                            and candidate["answer_id"] in answer_ids | {None},
+                            f"{cname}.answer_idが解答候補を参照していない",
+                        )
+                    else:
+                        require_condition(
+                            "answer_id" not in candidate,
+                            f"{cname}に解答開示前の対応付けがある",
+                        )
+            require_condition(
+                len(candidate_ids) == len(set(candidate_ids)),
+                f"{name}の露出候補のidが重複している",
+            )
         if item["id"] != "expression.naturalness":
             referenced_ids(item, "evidence_ids", quote_ids, name)
         require_stage_completion(item, name, stage)

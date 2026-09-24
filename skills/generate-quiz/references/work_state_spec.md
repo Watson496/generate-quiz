@@ -36,7 +36,7 @@
 
 `disposition`は探索段階で選択対象となるかを表す。抽選後に題材品質ゲートで棄却した候補は`eligible`のまま、満たせなかった条件を`quality_rejection_reason`へ記録する。再抽選では、この記録がある全候補のIDを`topic_pick.py --exclude`へ渡す。
 
-各選択対象と解答露出を理由に除外する候補の`exposure_screen`には、資料にある中心的説明を`central_description`、開いた資料の入口IDを`source_entry_point_ids`、名称形成の疑いを`formation_risk`（`suspected`または`none_detected`）、判断理由を`reason`として記録する。`suspected`なら`exposure_precheck`で異なる中核的な代表説明を少なくとも二つ調べ、許容名称と詳しく照合する。`formations`は名称と代表説明の組合せごとに一件作り、対応する代表説明の添字を`description_index`で記録する。調べた説明案と許容名称の各組合せを照合し、一つの説明で名称を形成できても、ほかの説明で形成できなければ選択対象に残す。`status: passed`は露出がないという意味ではなく、抽選前に回避不能な露出を立証できなかったことを表す。`unavoidable_exposure`で除外するには、調べたすべての代表説明で正答名または許容別名を解答側の知識なしに形成できる必要がある。形式検査は説明の妥当性を保証しないため、候補名を言い換えただけの説明を複数並べて除外しない。
+各選択対象と解答露出を理由に除外する候補の`exposure_screen`には、資料にある中心的説明を`central_description`、開いた資料の入口IDを`source_entry_point_ids`、名称形成の疑いを`formation_risk`（`suspected`または`none_detected`）、判断理由を`reason`として記録する。`suspected`なら`exposure_precheck`で異なる中核的な代表説明を少なくとも二つ調べ、許容名称と詳しく照合する。`formations`は名称と代表説明の組合せごとに一件作り、対応する許容名称の添字を`name_index`、代表説明の添字を`description_index`で記録する。調べた説明案と許容名称の各組合せを照合し、一つの説明で名称を形成できても、ほかの説明で形成できなければ選択対象に残す。`status: passed`は露出がないという意味ではなく、抽選前に回避不能な露出を立証できなかったことを表す。`unavoidable_exposure`で除外するには、調べたすべての代表説明で正答名または許容別名を解答側の知識なしに形成できる必要がある。形式検査は説明の妥当性を保証しないため、候補名を言い換えただけの説明を複数並べて除外しない。
 
 ## 解答対象ごとの作業状態
 
@@ -107,7 +107,7 @@
 
 連用中止・テ形接続がない場合も、完成稿を走査した結果として「該当なし」と記録する。接続がある場合は、左右の述定をそれぞれ省略のない形に戻し、並列、継起、理由、対立、手段、条件のどの関係が成立するかと、その判断理由を一箇所ずつ記録する。
 
-構文型は問題文の質問表現から判定する。落としは作問時の予定ではなく、完成稿で核名詞句の直前に実際にある表現を記録する。核名詞は、解答対象の種類を表す上位分類とする。落としを構成する手掛かりIDと、各手掛かりが対象を直接説明するかも記録する。上位分類だけ、作品や人物の列挙だけ、付随的性質だけになっていないか、前フリと後限定を除いた文でも解答対象の直接的な説明と準一意性が成立するかを監査する。`work_state_check.py`は一部の代名詞的・メタ言語的な核名詞、文字列の位置、質問形式、手掛かりとの参照関係を検査するが、上位分類と対象の意味関係までは判定しない。
+構文型は問題文の質問表現から判定する。落としは作問時の予定ではなく、完成稿で核名詞句の直前に実際にある表現を記録する。核名詞は、解答対象の種類を表す上位分類とする。落としを構成する手掛かりIDと、各手掛かりが対象を直接説明するかも記録する。上位分類だけ、作品や人物の列挙だけ、付随的性質だけになっていないか、前フリと後限定を除いた文でも解答対象の直接的な説明と準一意性が成立するかを監査する。`work_state_check.py`は記録した文字列が問題文にあることと手掛かりとの参照関係を検査するが、構文型、落としの位置、核名詞が上位分類に当たるかは判定しない。
 
 ## 生成側の完了条件
 
@@ -124,17 +124,21 @@
 
 露出検査担当は問題文の版ごとに新しく割り当て、`execution.exposure_assignments`に版、正規ID、解答名を含まない依頼名、起動時の記録を残す。依頼名は`task_label`に記録する。`execution.assignment_log.exposure`の依頼名と成果物経路にも解答名を含めない。
 
-`answer_review`には露出検査担当が解答を見た後に行う、各回答と露出候補の正誤判定を記録する。回答ごとに同一対象か、指定は十分か、明確な誤りがあるか、名称の適用範囲が一致するかを分け、結論、引用、理由を対応させる。露出候補を正答と判断した場合は解答一覧にも追加する。
+対抗候補、露出候補、回答はIDで照合する。候補を最初に挙げた担当が、記録する時点でIDを付ける。後から候補を挙げる担当は、既存の候補と同じ対象なら既存のIDに対応付け、別の対象なら新しいIDを付ける。担当の記録にある名称を、ほかの担当や親agentが書き換えない。
+
+露出候補には`id`を付ける。問題文の意味から挙げた候補には、挙げた担当がどの回答と同じ名称かを`answer_id`（該当がなければ`null`）で対応付ける。解答を伏せて挙げた候補には`answer_id`を置かず、解答を開示した後の`answer_review`で対応付ける。
+
+`answer_review`には露出検査担当が解答を見た後に行う、各回答と露出候補の正誤判定を記録する。回答ごとに同一対象か、指定は十分か、明確な誤りがあるか、名称の適用範囲が一致するかを分け、結論、引用、理由を対応させる。露出候補の判定は`candidate_reviews`に`candidate_id`で置き、解答を伏せて挙げた候補には対応する回答の`answer_id`（該当がなければ`null`）も置く。露出候補を正答と判断した場合は解答一覧にも追加する。
 
 生成側の必要な検査単位がすべて完了するまで、監査へ渡さない。
 
 ## 監査前の反証確認
 
-生成工程の状態検査に合格した後、監査前に難易度と各手掛かりの準一意性を独立に反証する。`evidence_challenge`には現行問題文の版、問う知識、生成担当とは別の担当者を記録する。問う知識は作業状態の`asked_knowledge`と一致させる。`beginner`と`general`には開いた資料のURL、反証で見つけた事情、採用する引用IDと解決理由を置く。各手掛かりの記録は採用中の手掛かりIDに対応させ、逆引きで確認した対抗候補の名称、候補自身を扱う資料のURL、問題文の条件との照合、候補の採否と未解決の有無を置く。生成側の対抗候補をすべて照合し、独立調査で新しく見つけた有力候補も記録する。条件の相違を確認できない候補や生成側と採否が食い違う候補は、監査前に解決する。
+生成工程の状態検査に合格した後、監査前に難易度と各手掛かりの準一意性を独立に反証する。`evidence_challenge`には現行問題文の版、問う知識、生成担当とは別の担当者を記録する。問う知識は作業状態の`asked_knowledge`と一致させる。`beginner`と`general`には開いた資料のURL、反証で見つけた事情、採用する引用IDと解決理由を置く。各手掛かりの記録は採用中の手掛かりIDに対応させ、逆引きで確認した対抗候補の`id`と名称、候補自身を扱う資料のURL、問題文の条件との照合、候補の採否と未解決の有無を置く。生成側の対抗候補をすべて照合し、独立調査で新しく見つけた有力候補も記録する。条件の相違を確認できない候補や生成側と採否が食い違う候補は、監査前に解決する。
 
 ## 監査結果
 
-監査担当が解答の開示前に抽出した露出候補は、`exposure_review`へ問題文の版とSHA-256、候補の名称形成、照合した正答IDとともに記録する。候補を挙げなかった場合も理由を残す。監査候補が生成側の露出検査にない場合は、生成側の判断を更新してから再監査する。
+監査担当が解答の開示前に抽出した露出候補は、`exposure_review`へ問題文の版とSHA-256、候補の名称形成、照合した正答IDとともに記録する。解答の開示後に、各候補を生成側の露出候補の`exposure_candidate_id`と、同じ名称の回答の`answer_id`（該当がなければ`null`）に対応付ける。候補を挙げなかった場合も理由を残す。監査候補が生成側の露出検査にない場合は、生成側の判断を更新してから再監査する。
 
 監査側は各検査単位へ次のいずれかを記録する。
 
@@ -183,7 +187,7 @@ JSON manifestは、検査対象を具体的な内容へ結び付け、確定的�
 
 資料には書誌情報と逐語引用を置く。命題には問題文の対応箇所、真偽を判定する文、引用ID、引用から判断へ至る理由、推論の種類を置く。一つの命題内に複数の項・限定がある場合は、検証要素ごとにも引用ID、理由、推論の種類を置く。手掛かりには問題文中の文字列と命題IDを置き、中核性、準一意性、知名度の各判断へ結論、理由、引用IDを置く。準一意性には比較範囲、対抗候補、単独で十分に絞れること、依存する他の手掛かりがないことを置く。専門用語と解答候補は一語・一候補ごとにレコードを分ける。最終出力の必須項目も項目ごとに固定IDを使い、内容の保存先を示す。
 
-各`competitors`項目には、候補の`name`と、その候補を扱う資料の`evidence_ids`を置く。手掛かりに書かれた条件ごとの`passage`、`matches`（真偽値）、`reason`、`evidence_ids`を`conditions`に置く。候補を別対象として退けるか同一対象の別名として扱うかを`disposition`（`excluded`・`same_target`）と`reason`で示す。別対象を退ける場合だけ、相違する条件の`passage`を`exclusion_passage`へ置く。条件の引用IDは候補の引用IDへ、候補の引用IDは準一意性の引用IDへ含める。
+各`competitors`項目には、候補の`id`と`name`、その候補を扱う資料の`evidence_ids`を置く。手掛かりに書かれた条件ごとの`passage`、`matches`（真偽値）、`reason`、`evidence_ids`を`conditions`に置く。候補を別対象として退けるか同一対象の別名として扱うかを`disposition`（`excluded`・`same_target`）と`reason`で示す。別対象を退ける場合だけ、相違する条件の`passage`を`exclusion_passage`へ置く。条件の引用IDは候補の引用IDへ、候補の引用IDは準一意性の引用IDへ含める。
 
 問う知識の内容を`asked_knowledge`に記録し、難易度の独立検査は`difficulty_review`に記録する。後者の`asked_knowledge`には検査対象とした問う知識、`answer_granularity`には要求する解答知識の細かさ、`beginner`と`general`には各集団の`status`、`reason`、`evidence_ids`を置く。`reviewer_id`には難易度検査担当の正規識別子を記録し、委譲機能がない場合は`self`とする。一般層側の`other_access_paths`には、定義的な資料とは別に名称と代表情報の対応が共有され得る経路を`path`、実際に調べた内容を`search_record`、その対応への接触を確認できたかを`outcome`、調査結果を`result`、確認した資料の引用IDを`evidence_ids`として置く。`outcome`は`confirmed`または`not_confirmed`とし、前者では引用IDを必須とする。後者では引用IDを空にできるが、調べた範囲を超える不在の根拠とは扱わない。
 
@@ -193,7 +197,7 @@ JSON manifestは、検査対象を具体的な内容へ結び付け、確定的�
 
 専門用語の`term`には、現行問題文にある表記を記録する。命題理解に意味内容が必要かを`meaning_needed`に記録する。必要な場合は、語の意味を確認した引用と理由を`meaning_evidence_ids`・`meaning_reason`、想定プレイヤー層がその意味を明白に知っていると判断する引用と理由を`audience_evidence_ids`・`audience_reason`に分ける。必要ない場合は、意味内容を知らなくても問題文を理解できる理由を`understanding_without_meaning`に記録する。同じ引用を両方に使うときも、語義の確認と既習性の判断をそれぞれ説明する。
 
-`terminology_review`には、生成担当とは別の担当者の`reviewer_id`と`draft_version`を置く。独立検査の担当者は生成側の語IDを知らずに専門用語を抽出し、各語の表記と意味内容が命題理解に必要かの判断を返す。親agentは語の表記で生成側の記録と照合し、一致した各記録へ生成側の語IDを対応付ける。必要な語には語義と既習性それぞれの判定・理由・引用IDを、不要な語には意味内容を知らなくても文意が通る理由を記録する。該当語がない場合も空の`terms`を記録する。独立検査で列挙した語と必要性の判断が生成側と一致し、必要な語の両判断が合格し、生成側で採用した引用ID集合の全件を独立検査の記録に含めるまで、生成工程の状態検査を通さない。独立検査の監査結果は`terminology_review.audit`に記録し、生成工程では`pending`、監査後は`passed`とする。監査では語の抽出漏れ、意味内容の要否、語義・既習性の根拠と推論を確認する。構造検査は、問題文からの語の抽出、必要性の判断、引用が判断を実際に支えるかまでは判定しない。
+`terminology_review`には、生成担当とは別の担当者の`reviewer_id`と`draft_version`を置く。独立検査の担当者は生成側の語IDを知らずに専門用語を抽出し、各語の表記と意味内容が命題理解に必要かを判断する。その後に生成側の用語一覧を受け取り、同じ語の記録へ生成側の語IDを対応付け、生成側にない語には新しい語IDを付ける。必要な語には語義と既習性それぞれの判定・理由・引用IDを、不要な語には意味内容を知らなくても文意が通る理由を記録する。該当語がない場合も空の`terms`を記録する。独立検査で列挙した語と必要性の判断が生成側と一致し、必要な語の両判断が合格し、生成側で採用した引用ID集合の全件を独立検査の記録に含めるまで、生成工程の状態検査を通さない。独立検査の監査結果は`terminology_review.audit`に記録し、生成工程では`pending`、監査後は`passed`とする。監査では語の抽出漏れ、意味内容の要否、語義・既習性の根拠と推論を確認する。構造検査は、問題文からの語の抽出、必要性の判断、引用が判断を実際に支えるかまでは判定しない。
 
 `final_input`は監査前に確定する。`final_input.relative_clauses`には、現行問題文の各連体修飾節を`passage`、内の関係か外の関係かを`relation`（`inner`・`outer`）として置き、判断理由を`reason`として記録する。外の関係では、修飾節が表す内容と解答対象を結ぶ命題IDを`relation_proposition_ids`に置く。連体修飾節がなければ空配列とする。`work_state_check.py`は各`passage`が問題文にあって重複しないことと、外の関係だけに命題IDがあることを確認し、節の漏れ、内外関係の判断、命題が関係を表すかは監査担当が判定する。`final_input.quote_ids`には採用中の判断に用いた引用IDを過不足なく置く。`other_access_paths`の調査だけに用いた引用は含めない。
 
@@ -232,7 +236,7 @@ JSON manifestは、検査対象を具体的な内容へ結び付け、確定的�
   ],
   "candidates": [
     {"id": "K1", "label": "アンモニアソーダ法", "coverage_area_ids": ["D1"], "discovery_entry_point_ids": ["E1"], "name_use_note": "化学事典の本文で、炭酸ナトリウムの製法の名称として使われている", "facet_membership_reason": "炭酸ナトリウムを工業的に製造する方法で、化学工業のうち無機化学工業に当たる", "disposition": "eligible", "expanded": true, "expansion_searches": [{"source_or_query": "化学事典のアンモニアソーダ法の項の関連項目", "relation_checked": "炭酸ナトリウムを得る別の製法", "found_candidate_ids": []}], "exposure_screen": {"central_description": "食塩と石灰石から炭酸ナトリウムを工業的に得る製法", "source_entry_point_ids": ["E1"], "formation_risk": "none_detected", "reason": "説明にアンモニアを使うことが現れず、名称の「アンモニア」を説明から得られない"}},
-    {"id": "K2", "label": "クメン法", "coverage_area_ids": ["D2"], "discovery_entry_point_ids": ["E2"], "name_use_note": "化学事典の索引と本文で、フェノールの製法の名称として使われている", "facet_membership_reason": "フェノールとアセトンを工業的に製造する方法で、化学工業のうち有機化学工業に当たる", "disposition": "eligible", "expanded": true, "expansion_searches": [{"source_or_query": "クメン法 原料 製法", "relation_checked": "ベンゼンとプロピレンを原料とする別の製法", "found_candidate_ids": []}], "exposure_screen": {"central_description": "ベンゼンとプロピレンからクメンを経てフェノールとアセトンを得る製法", "source_entry_point_ids": ["E2"], "formation_risk": "suspected", "reason": "説明に現れる「クメン」と、製法を表す「法」から名称を作れる可能性がある"}, "exposure_precheck": {"representative_descriptions": ["ベンゼンとプロピレンからクメンを経てフェノールとアセトンを得る製法", "ベンゼンとプロピレンからフェノールとアセトンを同時に得る製法"], "accepted_names": ["クメン法"], "formations": [{"name": "クメン法", "description_index": 0, "formation_rule": "説明中の中間体の名称に、製法を表す「法」を付ける", "components": [{"form": "クメン", "source": "説明中の「クメンを経て」", "knowledge": "surface"}, {"form": "法", "source": "製法を表す接尾要素", "knowledge": "audience_known"}], "formation_requires_answer_side_knowledge": false, "standard_name_confirmation_requires_answer_side_knowledge": true}, {"name": "クメン法", "description_index": 1, "formation_rule": "中間体の名称に、製法を表す「法」を付ける", "components": [{"form": "クメン", "source": "中間体がクメンであるという知識", "knowledge": "answer_side", "answer_side_reason": "説明に中間体が現れず、中間体がクメンであることはこの製法そのものについての知識である"}, {"form": "法", "source": "製法を表す接尾要素", "knowledge": "audience_known"}], "formation_requires_answer_side_knowledge": true, "standard_name_confirmation_requires_answer_side_knowledge": true}], "status": "passed"}}
+    {"id": "K2", "label": "クメン法", "coverage_area_ids": ["D2"], "discovery_entry_point_ids": ["E2"], "name_use_note": "化学事典の索引と本文で、フェノールの製法の名称として使われている", "facet_membership_reason": "フェノールとアセトンを工業的に製造する方法で、化学工業のうち有機化学工業に当たる", "disposition": "eligible", "expanded": true, "expansion_searches": [{"source_or_query": "クメン法 原料 製法", "relation_checked": "ベンゼンとプロピレンを原料とする別の製法", "found_candidate_ids": []}], "exposure_screen": {"central_description": "ベンゼンとプロピレンからクメンを経てフェノールとアセトンを得る製法", "source_entry_point_ids": ["E2"], "formation_risk": "suspected", "reason": "説明に現れる「クメン」と、製法を表す「法」から名称を作れる可能性がある"}, "exposure_precheck": {"representative_descriptions": ["ベンゼンとプロピレンからクメンを経てフェノールとアセトンを得る製法", "ベンゼンとプロピレンからフェノールとアセトンを同時に得る製法"], "accepted_names": ["クメン法"], "formations": [{"name": "クメン法", "name_index": 0, "description_index": 0, "formation_rule": "説明中の中間体の名称に、製法を表す「法」を付ける", "components": [{"form": "クメン", "source": "説明中の「クメンを経て」", "knowledge": "surface"}, {"form": "法", "source": "製法を表す接尾要素", "knowledge": "audience_known"}], "formation_requires_answer_side_knowledge": false, "standard_name_confirmation_requires_answer_side_knowledge": true}, {"name": "クメン法", "name_index": 0, "description_index": 1, "formation_rule": "中間体の名称に、製法を表す「法」を付ける", "components": [{"form": "クメン", "source": "中間体がクメンであるという知識", "knowledge": "answer_side", "answer_side_reason": "説明に中間体が現れず、中間体がクメンであることはこの製法そのものについての知識である"}, {"form": "法", "source": "製法を表す接尾要素", "knowledge": "audience_known"}], "formation_requires_answer_side_knowledge": true, "standard_name_confirmation_requires_answer_side_knowledge": true}], "status": "passed"}}
   ],
   "independent_review": [
     {"id": "D1", "difference_from_exploration": "工場の工程を実務者が説明する記事から探す", "source_discovery_query": "無機化学工業 実務者 利用", "checked_entry_point_ids": ["E3"], "found_candidate_ids": [], "spotchecked_entry_point_ids": ["E1"], "spotcheck_result": "分類表の無機化学工業の項目とアンモニアソーダ法の記載を照合した"},

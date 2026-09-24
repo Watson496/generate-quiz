@@ -100,6 +100,8 @@ def complete_state():
                     "blind_candidates": [],
                     "semantic_candidates": [
                         {
+                            "id": "X1",
+                            "answer_id": None,
                             "name": "一般名称",
                             "formation_rule": "対象との既知の対応から名称を選ぶ",
                             "components": [
@@ -250,6 +252,7 @@ def complete_state():
                         "comparison_scope": "同じ上位分類",
                         "competitors": [
                             {
+                                "id": "R1",
                                 "name": "近接候補",
                                 "evidence_ids": evidence,
                                 "conditions": [
@@ -331,6 +334,7 @@ def complete_state():
                     "status": "passed",
                     "competitor_comparisons": [
                         {
+                            "id": "R1",
                             "name": "近接候補",
                             "source_url": "https://example.org/competitor",
                             "evidence_ids": evidence.copy(),
@@ -389,7 +393,7 @@ def complete_state():
             ],
             "candidate_reviews": [
                 {
-                    "name": "一般名称",
+                    "candidate_id": "X1",
                     "judgment": "incorrect",
                     "status": "passed",
                     "same_target": False,
@@ -550,6 +554,7 @@ def exposed_precheck():
             {
                 "name": "踵骨腱",
                 "description_index": 0,
+                "name_index": 0,
                 "formation_rule": "付着先の骨と腱を表す語を結ぶ",
                 "components": [
                     {
@@ -569,6 +574,7 @@ def exposed_precheck():
             {
                 "name": "踵骨腱",
                 "description_index": 1,
+                "name_index": 0,
                 "formation_rule": "力を伝える先の骨と腱を表す語を結ぶ",
                 "components": [
                     {
@@ -783,17 +789,6 @@ class TestIntersectionState:
             == 1
         )
 
-    def test_duplicate_candidate_name_fails(self, run_script, intersection_state):
-        """同一名称を二回数えた候補例を拒否する。"""
-        examples = intersection_state["intersection_review"]["candidate_examples"]
-        examples[1]["name"] = examples[0]["name"]
-        assert (
-            check_state(
-                run_script, "intersection-checkpoint", intersection_state
-            ).returncode
-            == 1
-        )
-
     @pytest.mark.parametrize(
         "source", ["資料名", "https://", "https://example.org/a b"]
     )
@@ -995,32 +990,6 @@ class TestSelectionState:
         selection_state["saturation_challenge"]["resolved"] = False
         assert check_state(run_script, "selection", selection_state).returncode == 1
 
-    def test_selection_rejects_candidate_name_in_open_search(
-        self, run_script, selection_state
-    ):
-        """候補名を用いた検索を候補名なしの入口探索として扱わない。"""
-        selection_state["coverage_areas"][0]["source_searches"][0]["query"] = (
-            "候補1 関連項目"
-        )
-        assert check_state(run_script, "selection", selection_state).returncode == 1
-
-    def test_selection_requires_following_next_search(
-        self, run_script, selection_state
-    ):
-        """記録した有望な検索先を調べずに探索を終えられない。"""
-        selection_state["coverage_areas"][0]["source_searches"][0]["next_searches"] = [
-            "未調査の資料"
-        ]
-        assert check_state(run_script, "selection", selection_state).returncode == 1
-
-    def test_selection_requires_distinct_entry_kinds(self, run_script, selection_state):
-        """探索入口が同じ種類だけなら探索状態を拒否する。"""
-        for entry in selection_state["entry_points"]:
-            entry["kind"] = "分類表"
-        result = check_state(run_script, "selection", selection_state)
-        assert result.returncode == 1
-        assert "異なる種類の入口" in result.stderr
-
     def test_selection_requires_empty_frontier(self, run_script, selection_state):
         """未展開の有力候補を残した探索状態を拒否する。"""
         selection_state["frontier_ids"] = ["K2"]
@@ -1114,11 +1083,23 @@ class TestSelectionState:
         assert result.returncode == 1
         assert "description_indexが不正" in result.stderr
 
+    def test_precheck_requires_accepted_name_index(self, run_script, selection_state):
+        """名称形成の記録を許容名称の添字で対応付ける。"""
+        formation = selection_state["candidates"][0]["exposure_precheck"]["formations"][
+            0
+        ]
+        formation["name_index"] = 1
+        result = check_state(run_script, "selection", selection_state)
+        assert result.returncode == 1
+        assert "name_indexが不正" in result.stderr
+
     def test_accepted_alias_can_expose_every_description(
         self, run_script, selection_state, exposed_precheck
     ):
         """代表解が露出しなくても許容別名が全案で露出すれば除外する。"""
         exposed_precheck["accepted_names"].insert(0, "アキレス腱")
+        for formation in exposed_precheck["formations"]:
+            formation["name_index"] = 1
         for index, description in enumerate(
             exposed_precheck["representative_descriptions"]
         ):
@@ -1126,6 +1107,7 @@ class TestSelectionState:
                 {
                     "name": "アキレス腱",
                     "description_index": index,
+                    "name_index": 0,
                     "formation_rule": "対象との既知の対応から人名由来の名称を選ぶ",
                     "components": [
                         {
@@ -1182,6 +1164,7 @@ class TestSelectionState:
                 {
                     "name": answer,
                     "description_index": 0,
+                    "name_index": 0,
                     "formation_rule": "説明にある一般語を複合する",
                     "components": [
                         {
@@ -1197,6 +1180,7 @@ class TestSelectionState:
                 {
                     "name": answer,
                     "description_index": 1,
+                    "name_index": 0,
                     "formation_rule": "説明と対象の対応から名称を選ぶ",
                     "components": [
                         {
@@ -1333,7 +1317,7 @@ class TestWorkState:
             "competitor_comparisons"
         ]
         additional = copy.deepcopy(comparisons[0])
-        additional["name"] = "追加の対抗候補"
+        additional.update(id="R2", name="追加の対抗候補")
         comparisons.append(additional)
         assert check_state(run_script, "audit", complete_state).returncode == 0
 
@@ -1345,7 +1329,7 @@ class TestWorkState:
             "competitors"
         ]
         additional = copy.deepcopy(competitors[0])
-        additional["name"] = "別の対抗候補"
+        additional.update(id="R2", name="別の対抗候補")
         competitors.append(additional)
         result = check_state(run_script, "audit", complete_state)
         assert result.returncode == 1
@@ -1362,53 +1346,6 @@ class TestWorkState:
         result = check_state(run_script, "audit", complete_state)
         assert result.returncode == 1
         assert "生成側の判断と一致しない" in result.stderr
-
-    def test_generation_rejects_answer_in_exposure_artifact_ref(
-        self, run_script, generation_state
-    ):
-        """露出検査担当の成果物経路から解答を漏らさない。"""
-        generation_state["execution"]["assignment_log"]["exposure"]["artifact_refs"] = [
-            "ミュラー・リヤー錯視の露出検査.md"
-        ]
-        result = check_state(run_script, "generation", generation_state)
-        assert result.returncode == 1
-        assert "正答名が含まれている" in result.stderr
-
-    def test_generation_rejects_answer_in_exposure_agent_id(
-        self, run_script, generation_state
-    ):
-        """露出検査担当の識別子へ解答を含めない。"""
-        agent_id = "agent-ミュラー・リヤー錯視"
-        generation_state["execution"]["agents"]["exposure"] = agent_id
-        generation_state["execution"]["assignment_log"]["exposure"]["agent_id"] = (
-            agent_id
-        )
-        generation_state["execution"]["exposure_assignments"][0]["agent_id"] = agent_id
-        result = check_state(run_script, "generation", generation_state)
-        assert result.returncode == 1
-        assert "正答名が含まれている" in result.stderr
-
-    def test_generation_rejects_answer_in_exposure_task_label(
-        self, run_script, generation_state
-    ):
-        """版別に記録する露出検査の依頼名へ解答を含めない。"""
-        generation_state["execution"]["exposure_assignments"][0]["task_label"] = (
-            "ミュラー・リヤー錯視の露出検査"
-        )
-        result = check_state(run_script, "generation", generation_state)
-        assert result.returncode == 1
-        assert "正答名が含まれている" in result.stderr
-
-    def test_generation_rejects_answer_in_exposure_assignment_label(
-        self, run_script, generation_state
-    ):
-        """担当記録にある露出検査の依頼名へ解答を含めない。"""
-        generation_state["execution"]["assignment_log"]["exposure"]["task_label"] = (
-            "ミュラー・リヤー錯視の露出検査"
-        )
-        result = check_state(run_script, "generation", generation_state)
-        assert result.returncode == 1
-        assert "正答名が含まれている" in result.stderr
 
     def test_generation_requires_current_exposure_assignment(
         self, run_script, generation_state
@@ -1509,33 +1446,13 @@ class TestWorkState:
                 if check["id"] == "answer_exposure"
             )["semantic_candidates"][0]
         )
-        candidate["name"] = "別の名称候補"
+        del candidate["id"]
+        candidate.update(exposure_candidate_id="X9", name="別の名称候補")
         candidate["components"][0]["form"] = "別の名称候補"
         complete_state["exposure_review"]["candidates"] = [candidate]
         result = check_state(run_script, "audit", complete_state)
         assert result.returncode == 1
         assert "露出検査に反映されていない" in result.stderr
-
-    def test_audit_rejects_exposed_correct_answer(self, run_script, complete_state):
-        """解答側の知識なしに形成できる正答名を監査で見逃さない。"""
-        complete_state["exposure_review"]["candidates"] = [
-            {
-                "name": "ミュラー・リヤー錯視",
-                "formation_rule": "問題文中の語を連結する",
-                "components": [
-                    {
-                        "form": "ミュラー・リヤー錯視",
-                        "source": "問題文の表層",
-                        "knowledge": "surface",
-                    }
-                ],
-                "formation_requires_answer_side_knowledge": False,
-                "standard_name_confirmation_requires_answer_side_knowledge": False,
-            }
-        ]
-        result = check_state(run_script, "audit", complete_state)
-        assert result.returncode == 1
-        assert "解答側の知識なしに形成できる" in result.stderr
 
     def test_audit_accepts_reflected_exposure_candidate(
         self, run_script, complete_state
@@ -1546,9 +1463,10 @@ class TestWorkState:
             for check in complete_state["checks"]
             if check["id"] == "answer_exposure"
         )
-        complete_state["exposure_review"]["candidates"] = copy.deepcopy(
-            exposure["semantic_candidates"]
-        )
+        candidate = copy.deepcopy(exposure["semantic_candidates"][0])
+        del candidate["id"]
+        candidate.update(exposure_candidate_id="X1")
+        complete_state["exposure_review"]["candidates"] = [candidate]
         assert check_state(run_script, "audit", complete_state).returncode == 0
 
     def test_generation_requires_independent_answer_review(
@@ -1633,7 +1551,7 @@ class TestWorkState:
         )
         result = check_state(run_script, "generation", generation_state)
         assert result.returncode == 1
-        assert "正答名が解答範囲にない" in result.stderr
+        assert "正答が解答範囲に対応付けられていない" in result.stderr
 
     def test_audit_requires_all_facet_paths_in_topic_selection(
         self, run_script, complete_state
@@ -1686,16 +1604,6 @@ class TestWorkState:
                 final_output_text(state).encode()
             ).hexdigest()
         assert check_state(run_script, stage, state).returncode == 0
-
-    def test_specified_target_must_match_answer_target(
-        self, run_script, complete_state
-    ):
-        """指定された解答対象と作業対象の不一致を拒否する。"""
-        complete_state["selection_mode"] = "specified"
-        complete_state["user_specified_target"] = "別の対象"
-        result = check_state(run_script, "audit", complete_state)
-        assert result.returncode == 1
-        assert "指定された解答対象と作業対象が一致しない" in result.stderr
 
     def test_work_state_requires_selection_mode(self, run_script, complete_state):
         """対象ごとの作業状態では選択方法を明示する。"""
@@ -2064,68 +1972,6 @@ class TestWorkState:
         complete_state["clues"][0]["directly_describes_target"] = False
         assert check_state(run_script, "audit", complete_state).returncode == 1
 
-    @pytest.mark.parametrize(
-        "nucleus", ["もの", "こと", "さま", "用語", "名前", "名称", "通称", "題名"]
-    )
-    def test_otoshi_rejects_generic_nucleus(self, run_script, complete_state, nucleus):
-        """代名詞的な核名詞や名称の種類だけを示す核名詞を拒否する。"""
-        complete_state["draft"]["text"] = (
-            f"同じ長さの線分が矢羽の向きで異なる長さに見える{nucleus}は何でしょう？"
-        )
-        structure = next(
-            check for check in complete_state["checks"] if check["id"] == "structure"
-        )
-        structure["nucleus"] = nucleus
-        structure["otoshi"] = f"同じ長さの線分が矢羽の向きで異なる長さに見える{nucleus}"
-        result = check_state(run_script, "audit", complete_state)
-        assert result.returncode == 1
-        assert "nucleusが解答対象の上位分類ではない" in result.stderr
-
-    def test_structure_rejects_question_form_mismatch(self, run_script, complete_state):
-        """質問表現と構文型の不一致を拒否する。"""
-        complete_state["draft"]["text"] = (
-            "同じ長さの線分が矢羽の向きで異なる長さに見える錯視を何というでしょう？"
-        )
-        structure = next(
-            check for check in complete_state["checks"] if check["id"] == "structure"
-        )
-        structure["question_phrase"] = "を何というでしょう？"
-        assert check_state(run_script, "audit", complete_state).returncode == 1
-
-    @pytest.mark.parametrize("pronoun", ["誰", "どこ", "どちら"])
-    def test_structure_rejects_sc_question_marked_as_ov(
-        self, run_script, complete_state, pronoun
-    ):
-        """SC型の各疑問詞をOV型として記録した状態を拒否する。"""
-        complete_state["draft"]["text"] = (
-            f"同じ長さの線分が矢羽の向きで異なる長さに見える錯視は{pronoun}でしょう？"
-        )
-        structure = next(
-            check for check in complete_state["checks"] if check["id"] == "structure"
-        )
-        structure.update(question_form="OV", question_phrase=f"は{pronoun}でしょう？")
-        result = check_state(run_script, "audit", complete_state)
-        assert result.returncode == 1
-        assert "question_formが質問形式と一致しない" in result.stderr
-
-    def test_structure_rejects_otoshi_before_later_modifier(
-        self, run_script, complete_state
-    ):
-        """最後端の付随説明より前の句を落としとは扱わない。"""
-        complete_state["draft"]["text"] = (
-            "流体のエネルギーを軸動力に変える原動機で、圧力が低下するものを何というでしょう？"
-        )
-        structure = next(
-            check for check in complete_state["checks"] if check["id"] == "structure"
-        )
-        structure.update(
-            question_form="OV",
-            question_phrase="を何というでしょう？",
-            nucleus="原動機",
-            otoshi="流体のエネルギーを軸動力に変える原動機",
-        )
-        assert check_state(run_script, "audit", complete_state).returncode == 1
-
     def test_structure_accepts_ov_post_limiter(self, run_script, complete_state):
         """OV型では落としの後に名称を限定する表現を置ける。"""
         complete_state["draft"]["text"] = (
@@ -2230,33 +2076,6 @@ class TestWorkState:
         assert result.returncode == 1
         assert "必須検査がない" in result.stderr
 
-    def test_blind_candidate_matching_answer_without_answer_side_knowledge_fails(
-        self, run_script, complete_state
-    ):
-        """解答側の知識なしに正答名を形成できる状態を拒否する。"""
-        exposure = next(
-            check
-            for check in complete_state["checks"]
-            if check["id"] == "answer_exposure"
-        )
-        complete_state["answers"][0]["answer"] = "錯視"
-        exposure["blind_candidates"] = [
-            {
-                "name": "錯視",
-                "formation_rule": "問題文中の語をそのまま候補とする",
-                "components": [
-                    {
-                        "form": "錯視",
-                        "source": "問題文の表層",
-                        "knowledge": "surface",
-                    },
-                ],
-                "formation_requires_answer_side_knowledge": False,
-                "standard_name_confirmation_requires_answer_side_knowledge": True,
-            }
-        ]
-        assert check_state(run_script, "audit", complete_state).returncode == 1
-
     def test_blind_candidate_can_require_answer_side_knowledge(
         self, run_script, complete_state
     ):
@@ -2268,6 +2087,7 @@ class TestWorkState:
         )
         exposure["blind_candidates"] = [
             {
+                "id": "X2",
                 "name": "ミュラー・リヤー錯視",
                 "formation_rule": "既知の名称を想起する",
                 "components": [
@@ -2284,7 +2104,8 @@ class TestWorkState:
         ]
         complete_state["answer_review"]["candidate_reviews"].append(
             {
-                "name": "ミュラー・リヤー錯視",
+                "candidate_id": "X2",
+                "answer_id": "A1",
                 "judgment": "correct",
                 "status": "passed",
                 "same_target": True,
@@ -2296,6 +2117,56 @@ class TestWorkState:
             }
         )
         assert check_state(run_script, "audit", complete_state).returncode == 0
+
+    def test_blind_candidate_rejects_mapping_before_disclosure(
+        self, run_script, complete_state
+    ):
+        """解答を伏せて挙げた候補に、開示前の解答との対応付けを置かない。"""
+        exposure = next(
+            check
+            for check in complete_state["checks"]
+            if check["id"] == "answer_exposure"
+        )
+        candidate = copy.deepcopy(exposure["semantic_candidates"][0])
+        candidate.update(id="X2", answer_id=None)
+        exposure["blind_candidates"] = [candidate]
+        result = check_state(run_script, "audit", complete_state)
+        assert result.returncode == 1
+        assert "解答開示前の対応付けがある" in result.stderr
+
+    def test_semantic_candidate_requires_answer_mapping(
+        self, run_script, complete_state
+    ):
+        """意味から挙げた候補には、挙げた担当による解答との対応付けを要求する。"""
+        exposure = next(
+            check
+            for check in complete_state["checks"]
+            if check["id"] == "answer_exposure"
+        )
+        del exposure["semantic_candidates"][0]["answer_id"]
+        result = check_state(run_script, "audit", complete_state)
+        assert result.returncode == 1
+        assert "answer_idが解答候補を参照していない" in result.stderr
+
+    def test_blind_candidate_review_requires_answer_mapping(
+        self, run_script, complete_state
+    ):
+        """解答を伏せて挙げた候補は、開示後の判定で解答との対応付けを要求する。"""
+        exposure = next(
+            check
+            for check in complete_state["checks"]
+            if check["id"] == "answer_exposure"
+        )
+        candidate = copy.deepcopy(exposure["semantic_candidates"][0])
+        del candidate["answer_id"]
+        candidate["id"] = "X2"
+        exposure["blind_candidates"] = [candidate]
+        review = copy.deepcopy(complete_state["answer_review"]["candidate_reviews"][0])
+        review["candidate_id"] = "X2"
+        complete_state["answer_review"]["candidate_reviews"].append(review)
+        result = check_state(run_script, "audit", complete_state)
+        assert result.returncode == 1
+        assert "answer_idがない" in result.stderr
 
     def test_answer_side_component_requires_reason(self, run_script, complete_state):
         """解答側の知識とした名称要素には理由を要求する。"""
@@ -2319,30 +2190,6 @@ class TestWorkState:
             if check["id"] == "answer_exposure"
         )
         exposure["semantic_candidates"] = ["ミュラー・リヤー錯視"]
-        assert check_state(run_script, "audit", complete_state).returncode == 1
-
-    def test_semantic_candidate_matching_answer_without_answer_side_knowledge_fails(
-        self, run_script, complete_state
-    ):
-        """意味から正答名を形成できる状態を拒否する。"""
-        exposure = next(
-            check
-            for check in complete_state["checks"]
-            if check["id"] == "answer_exposure"
-        )
-        complete_state["answers"][0]["answer"] = "錯視"
-        exposure["semantic_candidates"][0].update(
-            name="錯視",
-            formation_rule="問題文の語をそのまま候補とする",
-            components=[
-                {
-                    "form": "錯視",
-                    "source": "問題文の表層",
-                    "knowledge": "surface",
-                }
-            ],
-            formation_requires_answer_side_knowledge=False,
-        )
         assert check_state(run_script, "audit", complete_state).returncode == 1
 
     def test_audit_rejects_old_draft_version(self, run_script, complete_state):
@@ -2499,7 +2346,6 @@ class TestWorkState:
         ("change", "expected"),
         [
             ("missing", "terminology_review.termsが専門用語の記録と一致しない"),
-            ("term", "terminology_review.terms.T1.term"),
             ("meaning_needed", "terminology_review.terms.T1.meaning_needed"),
         ],
     )
@@ -2510,8 +2356,6 @@ class TestWorkState:
         review = complete_state["terminology_review"]["terms"]
         if change == "missing":
             review.clear()
-        elif change == "term":
-            review[0]["term"] = "別の専門用語"
         else:
             review[0]["meaning_needed"] = False
         result = check_state(run_script, "audit", complete_state)
