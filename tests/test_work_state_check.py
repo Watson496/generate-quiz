@@ -554,6 +554,7 @@ def exposed_precheck():
             {
                 "name": "踵骨腱",
                 "description_index": 0,
+                "name_index": 0,
                 "formation_rule": "付着先の骨と腱を表す語を結ぶ",
                 "components": [
                     {
@@ -573,6 +574,7 @@ def exposed_precheck():
             {
                 "name": "踵骨腱",
                 "description_index": 1,
+                "name_index": 0,
                 "formation_rule": "力を伝える先の骨と腱を表す語を結ぶ",
                 "components": [
                     {
@@ -1081,11 +1083,23 @@ class TestSelectionState:
         assert result.returncode == 1
         assert "description_indexが不正" in result.stderr
 
+    def test_precheck_requires_accepted_name_index(self, run_script, selection_state):
+        """名称形成の記録を許容名称の添字で対応付ける。"""
+        formation = selection_state["candidates"][0]["exposure_precheck"]["formations"][
+            0
+        ]
+        formation["name_index"] = 1
+        result = check_state(run_script, "selection", selection_state)
+        assert result.returncode == 1
+        assert "name_indexが不正" in result.stderr
+
     def test_accepted_alias_can_expose_every_description(
         self, run_script, selection_state, exposed_precheck
     ):
         """代表解が露出しなくても許容別名が全案で露出すれば除外する。"""
         exposed_precheck["accepted_names"].insert(0, "アキレス腱")
+        for formation in exposed_precheck["formations"]:
+            formation["name_index"] = 1
         for index, description in enumerate(
             exposed_precheck["representative_descriptions"]
         ):
@@ -1093,6 +1107,7 @@ class TestSelectionState:
                 {
                     "name": "アキレス腱",
                     "description_index": index,
+                    "name_index": 0,
                     "formation_rule": "対象との既知の対応から人名由来の名称を選ぶ",
                     "components": [
                         {
@@ -1149,6 +1164,7 @@ class TestSelectionState:
                 {
                     "name": answer,
                     "description_index": 0,
+                    "name_index": 0,
                     "formation_rule": "説明にある一般語を複合する",
                     "components": [
                         {
@@ -1164,6 +1180,7 @@ class TestSelectionState:
                 {
                     "name": answer,
                     "description_index": 1,
+                    "name_index": 0,
                     "formation_rule": "説明と対象の対応から名称を選ぶ",
                     "components": [
                         {

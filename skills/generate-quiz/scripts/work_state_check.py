@@ -20,7 +20,6 @@ import hashlib
 import json
 import re
 import sys
-import unicodedata
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -179,15 +178,6 @@ def require_stage_completion(obj, name, stage):
         require_condition(audit == "passed", f"{name}が監査に合格していない")
 
 
-def normalize_candidate_name(value):
-    normalized = unicodedata.normalize("NFKC", value).casefold()
-    return "".join(
-        char
-        for char in normalized
-        if char not in " \t\r\n・･‐‑‒–—―-_=＝()（）[]［］{}｛｝"
-    )
-
-
 def validate_name_formation(item, name):
     require_condition(isinstance(item, dict), f"{name}はオブジェクトでなければならない")
     candidate_name = required_text(item, "name", name)
@@ -243,13 +233,7 @@ def validate_exposure_precheck(item, name):
                 f"{check_name}.{key}[{index}]がない",
             )
     descriptions = precheck["representative_descriptions"]
-    require_condition(
-        len(descriptions) == len(set(descriptions)),
-        f"{check_name}.representative_descriptionsに同じ説明が重複している",
-    )
-    accepted_names = {
-        normalize_candidate_name(value) for value in precheck["accepted_names"]
-    }
+    accepted_names = precheck["accepted_names"]
     formations = required_list(
         precheck.get("formations"),
         f"{check_name}.formations",
@@ -258,7 +242,7 @@ def validate_exposure_precheck(item, name):
     examined = set()
     exposed_descriptions = set()
     for index, formation in enumerate(formations):
-        candidate_name, requires_answer_side = validate_name_formation(
+        _, requires_answer_side = validate_name_formation(
             formation, f"{check_name}.formations[{index}]"
         )
         formation_name = f"{check_name}.formations[{index}]"
@@ -267,20 +251,23 @@ def validate_exposure_precheck(item, name):
             type(position) is int and 0 <= position < len(descriptions),
             f"{formation_name}.description_indexが不正である",
         )
-        normalized_name = normalize_candidate_name(candidate_name)
-        if normalized_name in accepted_names:
-            pair = (normalized_name, position)
-            require_condition(
-                pair not in examined,
-                f"{check_name}.formationsで同じ名称と説明の組合せが重複している",
-            )
-            examined.add(pair)
-            if not requires_answer_side:
-                exposed_descriptions.add(position)
+        name_position = formation.get("name_index")
+        require_condition(
+            type(name_position) is int and 0 <= name_position < len(accepted_names),
+            f"{formation_name}.name_indexが不正である",
+        )
+        pair = (name_position, position)
+        require_condition(
+            pair not in examined,
+            f"{check_name}.formationsで同じ名称と説明の組合せが重複している",
+        )
+        examined.add(pair)
+        if not requires_answer_side:
+            exposed_descriptions.add(position)
     require_condition(
         {
-            (candidate_name, position)
-            for candidate_name in accepted_names
+            (name_position, position)
+            for name_position in range(len(accepted_names))
             for position in range(len(descriptions))
         }
         <= examined,
