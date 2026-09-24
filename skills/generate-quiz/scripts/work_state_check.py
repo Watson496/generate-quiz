@@ -113,6 +113,7 @@ STAGE_ROLES = {
         "facet_weighting",
         "facet_granularity_review",
         "facet_weight_review",
+        "facet_distribution_review",
     ),
     "intersection-checkpoint": ("intersection",),
     "discovery-progress": ("intersection", "exploration"),
@@ -476,6 +477,7 @@ def validate_facet_selection(state):
         state, "facet_level_reviews", [level["id"] for level in levels], "level_id"
     )
     validate_reviews(state, "facet_weight_reviews", sorted(descended), "level_id")
+    validate_reviews(state, "facet_distribution_reviews", sorted(descended), "level_id")
 
 
 def validate_intersection_state(state):

@@ -781,7 +781,10 @@ class TestFacetSelectionState:
         )
         assert check_state(run_script, "facet-selection", facet_state).returncode == 0
 
-    @pytest.mark.parametrize("key", ["facet_level_reviews", "facet_weight_reviews"])
+    @pytest.mark.parametrize(
+        "key",
+        ["facet_level_reviews", "facet_weight_reviews", "facet_distribution_reviews"],
+    )
     def test_requires_passed_review(self, run_script, facet_state, key):
         """各階層の判断とweightは検査担当の合格を要する。"""
         facet_state[key][0]["status"] = "failed"

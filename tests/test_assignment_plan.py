@@ -225,6 +225,7 @@ class TestSteps:
             "facet_weighting",
             "facet_granularity_review",
             "facet_weight_review",
+            "facet_distribution_review",
         ]
 
 

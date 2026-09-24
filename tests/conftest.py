@@ -105,6 +105,7 @@ def facet_state(load_script):
                         "facet_weighting",
                         "facet_granularity_review",
                         "facet_weight_review",
+                        "facet_distribution_review",
                     ),
                     1,
                 )
@@ -125,6 +126,14 @@ def facet_state(load_script):
                 "level_id": item["level_id"],
                 "status": "passed",
                 "reason": "各候補の三観点とweightの対応を確認した",
+            }
+            for item in weights
+        ],
+        "facet_distribution_reviews": [
+            {
+                "level_id": item["level_id"],
+                "status": "passed",
+                "reason": "兄弟ノード全体のweightの分布を重要度の差と照らした",
             }
             for item in weights
         ],
