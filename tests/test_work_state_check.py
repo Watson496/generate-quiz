@@ -533,61 +533,6 @@ def reviewed_state(complete_state):
     return state
 
 
-@pytest.fixture
-def exposed_precheck():
-    """異なる代表説明から解答名を形成できる露出予備検査を作る。"""
-    return {
-        "representative_descriptions": [
-            "腓腹筋とヒラメ筋を踵骨につなぐ腱",
-            "足首を底屈させる際に踵骨へ筋力を伝える腱",
-        ],
-        "accepted_names": ["踵骨腱"],
-        "formations": [
-            {
-                "name": "踵骨腱",
-                "description_index": 0,
-                "name_index": 0,
-                "formation_rule": "付着先の骨と腱を表す語を結ぶ",
-                "components": [
-                    {
-                        "form": "踵骨",
-                        "source": "腓腹筋とヒラメ筋を踵骨につなぐ腱",
-                        "knowledge": "surface",
-                    },
-                    {
-                        "form": "腱",
-                        "source": "腓腹筋とヒラメ筋を踵骨につなぐ腱",
-                        "knowledge": "surface",
-                    },
-                ],
-                "formation_requires_answer_side_knowledge": False,
-                "standard_name_confirmation_requires_answer_side_knowledge": True,
-            },
-            {
-                "name": "踵骨腱",
-                "description_index": 1,
-                "name_index": 0,
-                "formation_rule": "力を伝える先の骨と腱を表す語を結ぶ",
-                "components": [
-                    {
-                        "form": "踵骨",
-                        "source": "足首を底屈させる際に踵骨へ筋力を伝える腱",
-                        "knowledge": "surface",
-                    },
-                    {
-                        "form": "腱",
-                        "source": "足首を底屈させる際に踵骨へ筋力を伝える腱",
-                        "knowledge": "surface",
-                    },
-                ],
-                "formation_requires_answer_side_knowledge": False,
-                "standard_name_confirmation_requires_answer_side_knowledge": True,
-            },
-        ],
-        "status": "rejected",
-    }
-
-
 def check_state(run_script, stage, state):
     if stage == "final":
         with tempfile.TemporaryDirectory() as directory:
@@ -1077,45 +1022,33 @@ class TestSelectionState:
         assert check_state(run_script, "selection", selection_state).returncode == 1
 
     def test_discovery_precedes_exposure_precheck(self, run_script, selection_state):
-        """露出予備検査の前に題材探索の完了だけを検査できる。"""
-        for candidate in selection_state["candidates"]:
-            candidate.pop("exposure_precheck", None)
-            del candidate["exposure_screen"]
+        """露出予備検査の前に題材探索と所属判定だけを検査できる。"""
+        del selection_state["exposure_prechecks"]
         assert check_state(run_script, "discovery", selection_state).returncode == 0
+        assert check_state(run_script, "membership", selection_state).returncode == 0
         assert check_state(run_script, "selection", selection_state).returncode == 1
 
-    def test_selection_accepts_screen_without_detailed_precheck(
+    def test_selection_requires_precheck_of_every_member(
         self, run_script, selection_state
     ):
-        """露出の疑いがない候補には全説明案の詳細分析を要求しない。"""
-        assert "exposure_precheck" not in selection_state["candidates"][1]
-        assert check_state(run_script, "selection", selection_state).returncode == 0
-
-    def test_selection_requires_two_descriptions_for_suspected_exposure(
-        self, run_script, selection_state
-    ):
-        """露出の疑いがある候補では複数の代表説明を検査する。"""
-        precheck = selection_state["candidates"][0]["exposure_precheck"]
-        precheck["representative_descriptions"] = precheck[
-            "representative_descriptions"
-        ][:1]
-        precheck["formations"] = precheck["formations"][:1]
+        """所属する選択対象ごとに露出の予備検査を要求する。"""
+        selection_state["exposure_prechecks"].pop()
         result = check_state(run_script, "selection", selection_state)
         assert result.returncode == 1
-        assert "異なる代表説明を十分に調べていない" in result.stderr
+        assert "予備検査のない候補がある: ['K2']" in result.stderr
 
-    def test_selection_requires_screen(self, run_script, selection_state):
-        """選択対象の中心的説明と露出の疑いの記録を要求する。"""
-        del selection_state["candidates"][0]["exposure_screen"]
-        assert check_state(run_script, "selection", selection_state).returncode == 1
-
-    def test_selection_requires_detail_for_suspected_exposure(
-        self, run_script, selection_state
+    @pytest.mark.parametrize(
+        ("field", "value", "message"),
+        [("result", "unclear", "resultが不正である"), ("reason", "", "reasonがない")],
+    )
+    def test_precheck_requires_result_and_reason(
+        self, run_script, selection_state, field, value, message
     ):
-        """疑いを記録した候補は詳細な名称形成分析なしに通さない。"""
-        candidate = selection_state["candidates"][0]
-        del candidate["exposure_precheck"]
-        assert check_state(run_script, "selection", selection_state).returncode == 1
+        """予備検査は残すか除外するかと、その理由を記録する。"""
+        selection_state["exposure_prechecks"][0][field] = value
+        result = check_state(run_script, "selection", selection_state)
+        assert result.returncode == 1
+        assert message in result.stderr
 
     def test_selection_requires_opened_source(self, run_script, selection_state):
         """本文を開いていない資料を候補の発見元にできない。"""
@@ -1218,177 +1151,6 @@ class TestSelectionState:
         del candidate["name_use_note"]
         assert check_state(run_script, "discovery", selection_state).returncode == 0
         assert check_state(run_script, "selection", selection_state).returncode == 0
-
-    def test_selection_rejects_exposed_eligible_candidate(
-        self, run_script, selection_state, exposed_precheck
-    ):
-        """異なる代表説明がすべて露出する候補を採用対象にしない。"""
-        selection_state["candidates"][0]["exposure_precheck"] = exposed_precheck
-        result = check_state(run_script, "selection", selection_state)
-        assert result.returncode == 1
-        assert "選択対象にできない" in result.stderr
-
-    def test_selection_accepts_exposure_as_explicit_exclusion(
-        self, run_script, selection_state, exposed_precheck
-    ):
-        """解答露出を記録した候補を探索台帳に残して除外できる。"""
-        candidate = selection_state["candidates"][0]
-        candidate.update(disposition="excluded", exclusion_code="unavoidable_exposure")
-        candidate["exclusion_reason"] = "自然な代表説明から正答名を形成できる"
-        candidate["exposure_precheck"] = exposed_precheck
-        assert check_state(run_script, "selection", selection_state).returncode == 0
-
-    def test_precheck_requires_every_name_description_pair(
-        self, run_script, selection_state
-    ):
-        """調べた説明案と許容名称の組合せを漏らせない。"""
-        precheck = selection_state["candidates"][0]["exposure_precheck"]
-        precheck["representative_descriptions"].append("別の中心的な特徴の説明")
-        result = check_state(run_script, "selection", selection_state)
-        assert result.returncode == 1
-        assert "各説明案と正答名・別名の組合せ" in result.stderr
-
-    def test_precheck_requires_one_description_per_formation(
-        self, run_script, selection_state
-    ):
-        """名称形成の記録を複数の説明案で兼用させない。"""
-        formation = selection_state["candidates"][0]["exposure_precheck"]["formations"][
-            0
-        ]
-        formation["description_index"] = [0, 1]
-        result = check_state(run_script, "selection", selection_state)
-        assert result.returncode == 1
-        assert "description_indexが不正" in result.stderr
-
-    def test_precheck_requires_accepted_name_index(self, run_script, selection_state):
-        """名称形成の記録を許容名称の添字で対応付ける。"""
-        formation = selection_state["candidates"][0]["exposure_precheck"]["formations"][
-            0
-        ]
-        formation["name_index"] = 1
-        result = check_state(run_script, "selection", selection_state)
-        assert result.returncode == 1
-        assert "name_indexが不正" in result.stderr
-
-    def test_accepted_alias_can_expose_every_description(
-        self, run_script, selection_state, exposed_precheck
-    ):
-        """代表解が露出しなくても許容別名が全案で露出すれば除外する。"""
-        exposed_precheck["accepted_names"].insert(0, "アキレス腱")
-        for formation in exposed_precheck["formations"]:
-            formation["name_index"] = 1
-        for index, description in enumerate(
-            exposed_precheck["representative_descriptions"]
-        ):
-            exposed_precheck["formations"].append(
-                {
-                    "name": "アキレス腱",
-                    "description_index": index,
-                    "name_index": 0,
-                    "formation_rule": "対象との既知の対応から人名由来の名称を選ぶ",
-                    "components": [
-                        {
-                            "form": "アキレス",
-                            "source": "対象との既知の対応",
-                            "knowledge": "answer_side",
-                            "answer_side_reason": "人名との対応は想定プレイヤー層にとって明白に既習ではない",
-                        },
-                        {
-                            "form": "腱",
-                            "source": description,
-                            "knowledge": "surface",
-                        },
-                    ],
-                    "formation_requires_answer_side_knowledge": True,
-                    "standard_name_confirmation_requires_answer_side_knowledge": True,
-                }
-            )
-        selection_state["candidates"][0]["exposure_precheck"] = exposed_precheck
-        result = check_state(run_script, "selection", selection_state)
-        assert result.returncode == 1
-        assert "選択対象にできない" in result.stderr
-
-    def test_selection_rejects_confirmation_knowledge_as_formation_knowledge(
-        self, run_script, selection_state
-    ):
-        """標準名の確認に必要な知識で名称形成を安全扱いしない。"""
-        formation = selection_state["candidates"][0]["exposure_precheck"]["formations"][
-            0
-        ]
-        formation["components"] = [
-            {
-                "form": "候補1",
-                "source": "問題文の一般語から複合する",
-                "knowledge": "audience_known",
-            }
-        ]
-        assert check_state(run_script, "selection", selection_state).returncode == 1
-
-    def test_selection_keeps_public_project_with_alternative_description(
-        self, run_script, selection_state
-    ):
-        """説明案ごとに露出が異なる制度候補は予備検査だけでは除外しない。"""
-        precheck = selection_state["candidates"][0]["exposure_precheck"]
-        exposed_description = "土地の区画を整理する事業"
-        alternative_description = (
-            "土地所有者が減歩で公共施設用地を出し、換地を受ける都市整備事業"
-        )
-        answer = "土地区画整理事業"
-        precheck.update(
-            representative_descriptions=[exposed_description, alternative_description],
-            accepted_names=[answer],
-            formations=[
-                {
-                    "name": answer,
-                    "description_index": 0,
-                    "name_index": 0,
-                    "formation_rule": "説明にある一般語を複合する",
-                    "components": [
-                        {
-                            "form": part,
-                            "source": exposed_description,
-                            "knowledge": "audience_known",
-                        }
-                        for part in ("土地", "区画", "整理", "事業")
-                    ],
-                    "formation_requires_answer_side_knowledge": False,
-                    "standard_name_confirmation_requires_answer_side_knowledge": True,
-                },
-                {
-                    "name": answer,
-                    "description_index": 1,
-                    "name_index": 0,
-                    "formation_rule": "説明と対象の対応から名称を選ぶ",
-                    "components": [
-                        {
-                            "form": answer,
-                            "source": alternative_description,
-                            "knowledge": "answer_side",
-                            "answer_side_reason": "説明と名称の対応を知っている必要がある",
-                        }
-                    ],
-                    "formation_requires_answer_side_knowledge": True,
-                    "standard_name_confirmation_requires_answer_side_knowledge": True,
-                },
-            ],
-            status="passed",
-        )
-        assert check_state(run_script, "selection", selection_state).returncode == 0
-        selection_state["candidates"][0].update(
-            disposition="excluded",
-            exclusion_code="unavoidable_exposure",
-            exclusion_reason="第1案では名称を形成できる",
-        )
-        assert check_state(run_script, "selection", selection_state).returncode == 1
-
-    def test_selection_requires_formation_for_every_accepted_name(
-        self, run_script, selection_state
-    ):
-        """許容する各名称の形成分析を要求する。"""
-        selection_state["candidates"][0]["exposure_precheck"]["accepted_names"].append(
-            "別名"
-        )
-        assert check_state(run_script, "selection", selection_state).returncode == 1
 
 
 class TestWorkState:

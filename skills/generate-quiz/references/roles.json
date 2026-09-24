@@ -16,7 +16,7 @@
     "saturation_challenge": "探索完了の反証調査の記録",
     "memberships": "候補ごとの、選択した4軸の各ノードへの所属判定",
     "membership_reviews": "所属判定の検査結果",
-    "exposure_screen": "各選択対象の解答露出の予備検査の記録",
+    "exposure_prechecks": "所属する各選択対象の解答露出の予備検査の結果",
     "topic_weights": "題材候補の抽選用JSON",
     "answer_target": "解答対象と、抽選した場合の四軸の日本語の分類経路と履歴補正の適用結果",
     "sources": "資料の書誌情報、逐語引用、所在、周辺文脈、対象読者と日本語文化圏との関係",
@@ -182,7 +182,7 @@
           "section": "露出の予備検査",
           "specs": ["selection_and_history_spec.md", "quiz_generation_spec.md", "work_state_spec.md"],
           "inputs": [["ledger", "memberships"]],
-          "outputs": ["exposure_screen"]
+          "outputs": ["exposure_prechecks"]
         }
       ]
     },
@@ -195,7 +195,7 @@
           "side": "make",
           "section": "題材候補のweightと抽選",
           "specs": ["selection_and_history_spec.md"],
-          "inputs": [["history", "ledger", "memberships", "exposure_screen"]],
+          "inputs": [["history", "ledger", "memberships", "exposure_prechecks"]],
           "outputs": ["topic_weights"]
         }
       ]

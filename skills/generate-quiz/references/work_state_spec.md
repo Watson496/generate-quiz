@@ -34,7 +34,7 @@
 - 各選択対象の4軸の各ノードへの所属判定と、その検査結果
 - 別経路の探索で各下位領域に開いた入口、元の探索と異なる観点、得た候補、元の資料と台帳を照合した結果
 - 探索完了の反証調査で使った観点・検索語・開いた資料、得た候補と未探索経路の処理結果
-- 各選択対象の代表説明、正答名・許容別名、説明案ごとの名称形成の分析、解答露出の予備判定
+- 所属する各選択対象の解答露出の予備検査の結果
 - 探索段階で選択対象となるか、除外する場合はその理由
 - 抽選後に題材品質ゲートで棄却した場合は、満たせなかった条件
 - 新しい有力候補が増えなくなったか
@@ -47,11 +47,11 @@
 
 `independent_review`には下位領域IDごとに、最初の探索と異なる観点、候補名を含めない検索語、別経路で開いた入口IDと候補ID、照合した元の入口IDと結果を記録する。`saturation_challenge`には別の立場・用途からの検索、開いた入口ID、得た候補ID、未探索経路の処理と完了状態を残す。選択範囲の概説・入門資料が中核的に扱う対象が台帳にあるかを確かめた結果は、`core_check`に、開いた資料の入口IDを`source_entry_point_ids`、確かめた候補IDを`core_candidate_ids`、台帳になく加えた候補IDを`added_candidate_ids`、判断理由を`reason`として置く。形式検査の合格は資料の内容と記録が対応することや、探索の十分さを保証しない。
 
-所属判定は`memberships`に、候補IDを`candidate_id`、4軸ごとの判定を`axes`の`subject`・`place`・`time`・`type`として置き、それぞれに所属するかを`belongs`、理由を`reason`として記録する。検査結果は`membership_reviews`に、候補IDを`candidate_id`、判定を`status`（`passed`・`failed`）、理由を`reason`として置く。所属判定は`--stage membership`で検査する。4軸すべてに所属する選択対象だけを抽選の対象にする。
+所属判定は`memberships`に、候補IDを`candidate_id`、4軸ごとの判定を`axes`の`subject`・`place`・`time`・`type`として置き、それぞれに所属するかを`belongs`、理由を`reason`として記録する。検査結果は`membership_reviews`に、候補IDを`candidate_id`、判定を`status`（`passed`・`failed`）、理由を`reason`として置く。所属判定は`--stage membership`で検査する。
 
 `disposition`は探索段階で選択対象となるかを表す。抽選後に題材品質ゲートで棄却した候補は`eligible`のまま、満たせなかった条件を`quality_rejection_reason`へ記録する。再抽選では、この記録がある全候補のIDを`topic_pick.py --exclude`へ渡す。
 
-各選択対象と解答露出を理由に除外する候補の`exposure_screen`には、資料にある中心的説明を`central_description`、開いた資料の入口IDを`source_entry_point_ids`、名称形成の疑いを`formation_risk`（`suspected`または`none_detected`）、判断理由を`reason`として記録する。`suspected`なら`exposure_precheck`で異なる中核的な代表説明を少なくとも二つ調べ、許容名称と詳しく照合する。`formations`は名称と代表説明の組合せごとに一件作り、対応する許容名称の添字を`name_index`、代表説明の添字を`description_index`で記録する。調べた説明案と許容名称の各組合せを照合し、一つの説明で名称を形成できても、ほかの説明で形成できなければ選択対象に残す。`status: passed`は露出がないという意味ではなく、抽選前に回避不能な露出を立証できなかったことを表す。`unavoidable_exposure`で除外するには、調べたすべての代表説明で正答名または許容別名を解答側の知識なしに形成できる必要がある。形式検査は説明の妥当性を保証しないため、候補名を言い換えただけの説明を複数並べて除外しない。
+解答露出の予備検査は`exposure_prechecks`に、候補IDを`candidate_id`、残すか除外するかを`result`（`keep`・`exclude`）、判断理由を`reason`として置く。所属する選択対象のうち、`keep`とした候補だけを抽選の対象にする。
 
 ## 解答対象ごとの作業状態
 
@@ -246,8 +246,8 @@ JSON manifestは、検査対象を具体的な内容へ結び付け、確定的�
     {"id": "D2", "label": "有機化学工業", "basis": "化学事典の索引で有機工業化学の製法がまとめて挙げられている", "target_kinds": "工業技術", "explored": true, "entry_point_ids": ["E2"], "source_searches": [{"mode": "open", "query": "有機化学工業 技術", "angle": "事典索引の製法項目を探す", "result": "クメン法を発見", "entry_point_ids": ["E2"], "found_candidate_ids": ["K2"], "next_searches": []}]}
   ],
   "candidates": [
-    {"id": "K1", "label": "アンモニアソーダ法", "coverage_area_ids": ["D1"], "discovery_entry_point_ids": ["E1"], "name_use_note": "化学事典の本文で、炭酸ナトリウムの製法の名称として使われている", "disposition": "eligible", "expanded": true, "expansion_searches": [{"source_or_query": "化学事典のアンモニアソーダ法の項の関連項目", "relation_checked": "炭酸ナトリウムを得る別の製法", "found_candidate_ids": []}], "exposure_screen": {"central_description": "食塩と石灰石から炭酸ナトリウムを工業的に得る製法", "source_entry_point_ids": ["E1"], "formation_risk": "none_detected", "reason": "説明にアンモニアを使うことが現れず、名称の「アンモニア」を説明から得られない"}},
-    {"id": "K2", "label": "クメン法", "coverage_area_ids": ["D2"], "discovery_entry_point_ids": ["E2"], "name_use_note": "化学事典の索引と本文で、フェノールの製法の名称として使われている", "disposition": "eligible", "expanded": true, "expansion_searches": [{"source_or_query": "クメン法 原料 製法", "relation_checked": "ベンゼンとプロピレンを原料とする別の製法", "found_candidate_ids": []}], "exposure_screen": {"central_description": "ベンゼンとプロピレンからクメンを経てフェノールとアセトンを得る製法", "source_entry_point_ids": ["E2"], "formation_risk": "suspected", "reason": "説明に現れる「クメン」と、製法を表す「法」から名称を作れる可能性がある"}, "exposure_precheck": {"representative_descriptions": ["ベンゼンとプロピレンからクメンを経てフェノールとアセトンを得る製法", "ベンゼンとプロピレンからフェノールとアセトンを同時に得る製法"], "accepted_names": ["クメン法"], "formations": [{"name": "クメン法", "name_index": 0, "description_index": 0, "formation_rule": "説明中の中間体の名称に、製法を表す「法」を付ける", "components": [{"form": "クメン", "source": "説明中の「クメンを経て」", "knowledge": "surface"}, {"form": "法", "source": "製法を表す接尾要素", "knowledge": "audience_known"}], "formation_requires_answer_side_knowledge": false, "standard_name_confirmation_requires_answer_side_knowledge": true}, {"name": "クメン法", "name_index": 0, "description_index": 1, "formation_rule": "中間体の名称に、製法を表す「法」を付ける", "components": [{"form": "クメン", "source": "中間体がクメンであるという知識", "knowledge": "answer_side", "answer_side_reason": "説明に中間体が現れず、中間体がクメンであることはこの製法そのものについての知識である"}, {"form": "法", "source": "製法を表す接尾要素", "knowledge": "audience_known"}], "formation_requires_answer_side_knowledge": true, "standard_name_confirmation_requires_answer_side_knowledge": true}], "status": "passed"}}
+    {"id": "K1", "label": "アンモニアソーダ法", "coverage_area_ids": ["D1"], "discovery_entry_point_ids": ["E1"], "name_use_note": "化学事典の本文で、炭酸ナトリウムの製法の名称として使われている", "disposition": "eligible", "expanded": true, "expansion_searches": [{"source_or_query": "化学事典のアンモニアソーダ法の項の関連項目", "relation_checked": "炭酸ナトリウムを得る別の製法", "found_candidate_ids": []}]},
+    {"id": "K2", "label": "クメン法", "coverage_area_ids": ["D2"], "discovery_entry_point_ids": ["E2"], "name_use_note": "化学事典の索引と本文で、フェノールの製法の名称として使われている", "disposition": "eligible", "expanded": true, "expansion_searches": [{"source_or_query": "クメン法 原料 製法", "relation_checked": "ベンゼンとプロピレンを原料とする別の製法", "found_candidate_ids": []}]}
   ],
   "independent_review": [
     {"id": "D1", "difference_from_exploration": "工場の工程を実務者が説明する記事から探す", "source_discovery_query": "無機化学工業 実務者 利用", "checked_entry_point_ids": ["E3"], "found_candidate_ids": [], "spotchecked_entry_point_ids": ["E1"], "spotcheck_result": "分類表の無機化学工業の項目とアンモニアソーダ法の記載を照合した"},
@@ -261,6 +261,10 @@ JSON manifestは、検査対象を具体的な内容へ結び付け、確定的�
   "membership_reviews": [
     {"candidate_id": "K1", "status": "passed", "reason": "化学事典がアンモニアソーダ法を炭酸ナトリウムの工業的製法として扱い、名称が製法そのものを指すことを確かめた"},
     {"candidate_id": "K2", "status": "passed", "reason": "化学事典がクメン法をフェノールの工業的製法として扱い、名称が中間体クメンではなく製法を指すことを確かめた"}
+  ],
+  "exposure_prechecks": [
+    {"candidate_id": "K1", "result": "keep", "reason": "「食塩と石灰石から炭酸ナトリウムを工業的に得る製法」のように、名称の「アンモニア」を出さずに説明できる"},
+    {"candidate_id": "K2", "result": "keep", "reason": "説明に中間体を出すと「クメン」から名称を作れるが、「ベンゼンとプロピレンからフェノールとアセトンを同時に得る製法」のように中間体を出さずに説明できる"}
   ],
   "frontier_ids": [],
   "saturated": true

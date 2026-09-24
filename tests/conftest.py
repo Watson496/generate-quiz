@@ -296,21 +296,6 @@ def selection_state(intersection_state):
                         "found_candidate_ids": [],
                     }
                 ],
-                "exposure_screen": {
-                    "central_description": "対象を説明する語句",
-                    "source_entry_point_ids": ["E1"],
-                    "formation_risk": "suspected",
-                    "reason": "名称形成の可能性を詳しく調べる",
-                },
-                "exposure_precheck": {
-                    "representative_descriptions": [
-                        "対象を説明する語句",
-                        "別の中心的な特徴を説明する語句",
-                    ],
-                    "accepted_names": ["候補1"],
-                    "formations": [],
-                    "status": "passed",
-                },
             },
             {
                 "id": "K2",
@@ -327,13 +312,15 @@ def selection_state(intersection_state):
                         "found_candidate_ids": [],
                     }
                 ],
-                "exposure_screen": {
-                    "central_description": "対象を説明する語句",
-                    "source_entry_point_ids": ["E2"],
-                    "formation_risk": "none_detected",
-                    "reason": "中心的説明からは名称を形成できない",
-                },
             },
+        ],
+        "exposure_prechecks": [
+            {
+                "candidate_id": candidate_id,
+                "result": "keep",
+                "reason": f"{label}の名称を出さずに説明する書き方がある",
+            }
+            for candidate_id, label in (("K1", "候補1"), ("K2", "候補2"))
         ],
         "frontier_ids": [],
         "saturated": True,
@@ -419,25 +406,4 @@ def selection_state(intersection_state):
             ),
         ],
     }
-    candidate = state["candidates"][0]
-    name = candidate["label"]
-    candidate["exposure_precheck"]["formations"] = [
-        {
-            "name": name,
-            "description_index": index,
-            "name_index": 0,
-            "formation_rule": "対象との既知の対応から名称を選ぶ",
-            "components": [
-                {
-                    "form": name,
-                    "source": "対象との既知の対応",
-                    "knowledge": "answer_side",
-                    "answer_side_reason": "名称そのものを知っている必要がある",
-                }
-            ],
-            "formation_requires_answer_side_knowledge": True,
-            "standard_name_confirmation_requires_answer_side_knowledge": True,
-        }
-        for index in range(2)
-    ]
     return state

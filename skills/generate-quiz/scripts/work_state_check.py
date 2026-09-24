@@ -158,7 +158,6 @@ MIN_ENTRY_POINTS = 2
 MIN_COVERAGE_AREAS = 2
 MIN_EXPRESSION_ALTERNATIVES = 2
 MIN_INTERSECTION_EXAMPLES = 2
-MIN_EXPOSURE_DESCRIPTIONS = 2
 EXIT_OK, EXIT_STATE_INVALID, EXIT_USAGE = 0, 1, 2
 
 
@@ -270,74 +269,6 @@ def validate_name_formation(item, name):
         f"{name}.standard_name_confirmation_requires_answer_side_knowledgeがない",
     )
     return candidate_name, requires_answer_side
-
-
-def validate_exposure_precheck(item, name):
-    precheck = item.get("exposure_precheck")
-    require_condition(isinstance(precheck, dict), f"{name}.exposure_precheckがない")
-    check_name = f"{name}.exposure_precheck"
-    for key in ("representative_descriptions", "accepted_names"):
-        values = required_list(precheck.get(key), f"{check_name}.{key}", nonempty=True)
-        for index, value in enumerate(values):
-            require_condition(
-                isinstance(value, str) and value.strip(),
-                f"{check_name}.{key}[{index}]がない",
-            )
-    descriptions = precheck["representative_descriptions"]
-    accepted_names = precheck["accepted_names"]
-    formations = required_list(
-        precheck.get("formations"),
-        f"{check_name}.formations",
-        nonempty=True,
-    )
-    examined = set()
-    for index, formation in enumerate(formations):
-        validate_name_formation(formation, f"{check_name}.formations[{index}]")
-        formation_name = f"{check_name}.formations[{index}]"
-        position = formation.get("description_index")
-        require_condition(
-            type(position) is int and 0 <= position < len(descriptions),
-            f"{formation_name}.description_indexが不正である",
-        )
-        name_position = formation.get("name_index")
-        require_condition(
-            type(name_position) is int and 0 <= name_position < len(accepted_names),
-            f"{formation_name}.name_indexが不正である",
-        )
-        pair = (name_position, position)
-        require_condition(
-            pair not in examined,
-            f"{check_name}.formationsで同じ名称と説明の組合せが重複している",
-        )
-        examined.add(pair)
-    require_condition(
-        {
-            (name_position, position)
-            for name_position in range(len(accepted_names))
-            for position in range(len(descriptions))
-        }
-        <= examined,
-        f"{check_name}で各説明案と正答名・別名の組合せを分析していない",
-    )
-    require_condition(
-        precheck.get("status") in {"passed", "rejected"},
-        f"{check_name}.statusが不正である",
-    )
-    return precheck["status"] == "rejected"
-
-
-def validate_exposure_screen(item, entry_ids, name):
-    screen = item.get("exposure_screen")
-    require_condition(isinstance(screen, dict), f"{name}.exposure_screenがない")
-    screen_name = f"{name}.exposure_screen"
-    required_text(screen, "central_description", screen_name)
-    referenced_ids(screen, "source_entry_point_ids", entry_ids, screen_name)
-    require_condition(
-        screen.get("formation_risk") in {"suspected", "none_detected"},
-        f"{screen_name}.formation_riskが不正である",
-    )
-    required_text(screen, "reason", screen_name)
-    return screen["formation_risk"]
 
 
 def validate_reviews(state, key, expected_ids, id_field):
@@ -682,7 +613,7 @@ def candidate_discovery_index(areas, candidate_ids):
     return discovered
 
 
-def validate_selection_candidates(state, entry_ids, areas, area_ids, stage):
+def validate_selection_candidates(state, entry_ids, areas, area_ids):
     candidates, candidate_ids = records_with_ids(
         state.get("candidates"), "candidates", nonempty=True
     )
@@ -738,7 +669,6 @@ def validate_selection_candidates(state, entry_ids, areas, area_ids, stage):
                     "no_japanese_context",
                     "prohibited_format",
                     "unverified_name",
-                    "unavoidable_exposure",
                 },
                 f"{name}.exclusion_codeが不正である",
             )
@@ -748,44 +678,37 @@ def validate_selection_candidates(state, entry_ids, areas, area_ids, stage):
                 require_condition(
                     merged_into in candidate_ids, f"{name}.merged_intoが存在しない"
                 )
-            if code == "unavoidable_exposure":
-                require_condition(
-                    stage == "selection", f"{name}は露出予備検査前に除外できない"
-                )
-                require_condition(
-                    validate_exposure_screen(item, entry_ids, name) == "suspected",
-                    f"{name}は露出の疑いを記録していない",
-                )
-                require_condition(
-                    validate_exposure_precheck(item, name),
-                    f"{name}.exposure_precheckが解答露出による除外を示していない",
-                )
     return candidates, candidate_ids
 
 
-def validate_candidate_prechecks(candidates, entry_ids, members):
-    """所属する選択対象ごとに、解答露出の予備検査の記録を検査する。"""
-    for item in candidates:
-        if item["id"] not in members:
-            continue
-        name = f"candidates.{item['id']}"
-        risk = validate_exposure_screen(item, entry_ids, name)
+def validate_exposure_prechecks(state, members, known_ids):
+    """所属する選択対象ごとに予備検査の結果があることを検査し、残す候補を返す。"""
+    records = required_list(
+        state.get("exposure_prechecks"), "exposure_prechecks", nonempty=bool(members)
+    )
+    results = {}
+    for index, item in enumerate(records):
+        name = f"exposure_prechecks[{index}]"
         require_condition(
-            risk != "suspected" or item.get("exposure_precheck") is not None,
-            f"{name}は露出の疑いを詳細調査していない",
+            isinstance(item, dict), f"{name}はオブジェクトでなければならない"
         )
-        if item.get("exposure_precheck") is not None:
-            rejected = validate_exposure_precheck(item, name)
-            if risk == "suspected":
-                require_condition(
-                    len(item["exposure_precheck"]["representative_descriptions"])
-                    >= MIN_EXPOSURE_DESCRIPTIONS,
-                    f"{name}は異なる代表説明を十分に調べていない",
-                )
-            require_condition(
-                not rejected,
-                f"{name}は露出の予備検査で除外と判定しているため選択対象にできない",
-            )
+        candidate_id = required_text(item, "candidate_id", name)
+        require_condition(candidate_id in known_ids, f"{name}.candidate_idが候補にない")
+        require_condition(
+            candidate_id not in results, f"{name}.candidate_idが重複している"
+        )
+        require_condition(
+            item.get("result") in {"keep", "exclude"}, f"{name}.resultが不正である"
+        )
+        required_text(item, "reason", name)
+        results[candidate_id] = item["result"]
+    missing = sorted(set(members) - set(results))
+    require_condition(not missing, f"予備検査のない候補がある: {missing}")
+    return {
+        candidate_id
+        for candidate_id, result in results.items()
+        if result == "keep" and candidate_id in members
+    }
 
 
 def validate_memberships(state, candidate_ids, known_ids):
@@ -834,13 +757,18 @@ def eligible_candidate_ids(state):
 
 
 def pickable_candidate_ids(state):
-    """探索段階の選択対象のうち、4軸すべてに所属する候補のIDを返す。"""
+    """探索段階の選択対象のうち、4軸すべてに所属し、予備検査で残した候補のIDを返す。"""
     eligible = eligible_candidate_ids(state)
-    return {
+    members = {
         item["candidate_id"]
         for item in state["memberships"]
         if item["candidate_id"] in eligible
         and all(item["axes"][axis]["belongs"] for axis in FACET_AXES)
+    }
+    return {
+        item["candidate_id"]
+        for item in state["exposure_prechecks"]
+        if item["candidate_id"] in members and item["result"] == "keep"
     }
 
 
@@ -918,7 +846,7 @@ def validate_selection_state(state, stage):
     validate_intersection_state(state)
     _, entry_ids, areas, area_ids = validate_selection_entries_areas(state)
     candidates, candidate_ids = validate_selection_candidates(
-        state, entry_ids, areas, area_ids, stage
+        state, entry_ids, areas, area_ids
     )
     validate_selection_review(state, areas, candidates, entry_ids)
     frontier = required_id_list(state.get("frontier_ids"), "frontier_ids")
@@ -932,7 +860,7 @@ def validate_selection_state(state, stage):
     members = validate_memberships(state, eligible_candidate_ids(state), candidate_ids)
     if stage == "membership":
         return
-    validate_candidate_prechecks(candidates, entry_ids, members)
+    validate_exposure_prechecks(state, members, candidate_ids)
 
 
 def validate_selection_mode(state):
