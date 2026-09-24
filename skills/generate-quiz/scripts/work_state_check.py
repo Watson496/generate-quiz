@@ -1402,7 +1402,7 @@ def validate_final_material(state, final, active_props, cited):
     )
     require_condition(
         not re.search(
-            r"\b(?:ACCEPTANCE|DRAW|VERDICT|ACCEPT|REJECT)\b|抽選値|乱数値",
+            r"\b(?:ACCEPTANCE|DRAW|VERDICT|ACCEPT|REJECT)\b",
             material["length"],
             re.IGNORECASE,
         ),
