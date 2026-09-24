@@ -16,7 +16,9 @@
     "saturation_challenge": "探索完了の反証調査の記録",
     "memberships": "候補ごとの、選択した4軸の各ノードへの所属判定",
     "exposure_prechecks": "所属する各選択対象の解答露出の予備検査の結果",
-    "topic_weights": "題材候補の抽選用JSON",
+    "topic_groups": "題材候補のまとまりの切り方",
+    "group_weights": "まとまり同士のweightと、三観点の評価と根拠",
+    "candidate_weights": "まとまりの中の各候補のweightと、三観点の評価と根拠",
     "answer_target": "解答対象と、抽選した場合の四軸の日本語の分類経路と履歴補正の適用結果",
     "sources": "資料の書誌情報、逐語引用、所在、周辺文脈、対象読者と日本語文化圏との関係",
     "propositions": "命題",
@@ -180,13 +182,32 @@
       "name": "題材候補のweightと抽選",
       "roles": [
         {
-          "id": "topic_weighting",
-          "name": "題材候補のweight担当",
+          "id": "topic_grouping",
+          "name": "題材候補のまとまりの担当",
           "side": "make",
           "section": "題材候補のweightと抽選",
-          "specs": ["selection_and_history_spec.md"],
-          "inputs": [["history", "ledger", "memberships", "exposure_prechecks"]],
-          "outputs": ["topic_weights"]
+          "specs": ["selection_and_history_spec.md", "work_state_spec.md"],
+          "inputs": [["coverage_areas", "ledger", "memberships", "exposure_prechecks"]],
+          "outputs": ["topic_groups"]
+        },
+        {
+          "id": "group_weighting",
+          "name": "まとまり同士のweight担当",
+          "side": "make",
+          "section": "題材候補のweightと抽選",
+          "specs": ["selection_and_history_spec.md", "work_state_spec.md"],
+          "inputs": [["history", "ledger", "topic_groups"]],
+          "outputs": ["group_weights"]
+        },
+        {
+          "id": "topic_weighting",
+          "name": "まとまりの中のweight担当",
+          "side": "make",
+          "section": "題材候補のweightと抽選",
+          "specs": ["selection_and_history_spec.md", "work_state_spec.md"],
+          "inputs": [["history", "ledger", "topic_groups"]],
+          "outputs": ["candidate_weights"],
+          "split_size": 1
         }
       ]
     },
