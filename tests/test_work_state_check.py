@@ -58,6 +58,10 @@ def complete_state():
         "difficulty_assessment",
         "beginner_difficulty_review",
         "general_difficulty_review",
+        "structure_review",
+        "clue_order_review",
+        "naturalness_review",
+        "incremental_comprehension_review",
         "term_listing",
         "term_necessity_review",
         "term_sense_review",
@@ -395,6 +399,28 @@ def complete_state():
                 "audience_evidence_ids": evidence.copy(),
             }
         ],
+        "structure_review": {
+            "draft_version": 2,
+            "question_form": "SC",
+            "otoshi_clue_ids": ["C1"],
+            "status": "passed",
+            "reason": "核名詞句の直前にある落としが対象を直接説明する",
+        },
+        "clue_order_review": {
+            "draft_version": 2,
+            "status": "passed",
+            "reason": "手掛かりが一つなので順序の問題はない",
+        },
+        "naturalness_review": {
+            "draft_version": 2,
+            "status": "passed",
+            "reason": "語順と修飾関係に不自然な点がない",
+        },
+        "incremental_comprehension_review": {
+            "draft_version": 2,
+            "status": "passed",
+            "reason": "前から読んで途中で解釈が変わる箇所がない",
+        },
         "term_listing": {"draft_version": 2, "terms": [{"id": "T1", "term": "矢羽"}]},
         "term_necessity_reviews": [
             {
@@ -1550,6 +1576,38 @@ class TestWorkState:
         assert result.returncode == 1
         assert "clue_centrality[0].clue_idが手掛かりにない" in result.stderr
 
+    @pytest.mark.parametrize(
+        "key",
+        [
+            "structure_review",
+            "clue_order_review",
+            "naturalness_review",
+            "incremental_comprehension_review",
+        ],
+    )
+    def test_expression_requires_passed_review(self, run_script, complete_state, key):
+        """構造、順序、自然さ、理解しやすさは、それぞれ検査担当の合格を要する。"""
+        complete_state[key]["status"] = "failed"
+        result = check_state(run_script, "audit", complete_state)
+        assert result.returncode == 1
+        assert f"{key}が合格していない" in result.stderr
+
+    @pytest.mark.parametrize(
+        ("field", "value", "message"),
+        [
+            ("question_form", "OV", "question_formが生成側の区分と一致しない"),
+            ("otoshi_clue_ids", [], "otoshi_clue_idsが空である"),
+        ],
+    )
+    def test_structure_review_must_agree_with_writer(
+        self, run_script, complete_state, field, value, message
+    ):
+        """独立に取り出した構文型と落としが生成側の区分と食い違えば合格させない。"""
+        complete_state["structure_review"][field] = value
+        result = check_state(run_script, "audit", complete_state)
+        assert result.returncode == 1
+        assert message in result.stderr
+
     def test_familiarity_requires_passed_review(self, run_script, complete_state):
         """各手掛かりの知名度は検査担当の合格を要する。"""
         complete_state["familiarity_reviews"][0]["status"] = "failed"
@@ -2179,6 +2237,7 @@ class TestWorkState:
             check for check in complete_state["checks"] if check["id"] == "structure"
         )
         structure.update(question_form="OV", question_phrase="何というでしょう？")
+        complete_state["structure_review"]["question_form"] = "OV"
         complete_state["final_input"]["material"]["problem"] = complete_state["draft"][
             "text"
         ]

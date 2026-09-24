@@ -62,6 +62,10 @@
     "term_necessity_reviews": "専門用語の意味内容の要否の検査結果",
     "term_sense_reviews": "専門用語の語義と引用の文脈の一致の検査結果",
     "term_audience_reviews": "専門用語の想定層にとっての既習性の検査結果",
+    "structure_review": "構文型、手掛かり単位の境界、落とし、前フリの検査結果",
+    "clue_order_review": "手掛かりの順序の検査結果",
+    "naturalness_review": "日本語としての自然さの検査結果",
+    "incremental_comprehension_review": "前から読んだときの理解しやすさの検査結果",
     "blind_candidates": "解答を伏せて挙げた名称候補",
     "exposure_candidates": "生成担当が問題文の意味から挙げた名称候補",
     "exposure_analysis": "名称候補ごとの露出の分析",
@@ -440,6 +444,42 @@
       "name": "検査",
       "roles": [
         {
+          "id": "structure_review",
+          "name": "構造の検査担当",
+          "side": "check",
+          "section": "構造と表現",
+          "specs": ["quiz_generation_spec.md", "work_state_spec.md"],
+          "inputs": [["answer_target", "draft", "clues"]],
+          "outputs": ["structure_review"]
+        },
+        {
+          "id": "clue_order_review",
+          "name": "手掛かりの順序の検査担当",
+          "side": "check",
+          "section": "構造と表現",
+          "specs": ["quiz_generation_spec.md", "output_structure_spec.md", "work_state_spec.md"],
+          "inputs": [["answer_target", "draft", "clues", "sources"]],
+          "outputs": ["clue_order_review"]
+        },
+        {
+          "id": "naturalness_review",
+          "name": "日本語の自然さの検査担当",
+          "side": "check",
+          "section": "構造と表現",
+          "specs": ["quiz_generation_spec.md", "work_state_spec.md"],
+          "inputs": [["draft"]],
+          "outputs": ["naturalness_review"]
+        },
+        {
+          "id": "incremental_comprehension_review",
+          "name": "前から読んだときの理解しやすさの検査担当",
+          "side": "check",
+          "section": "構造と表現",
+          "specs": ["quiz_generation_spec.md", "work_state_spec.md"],
+          "inputs": [["user_conditions", "draft"]],
+          "outputs": ["incremental_comprehension_review"]
+        },
+        {
           "id": "term_listing",
           "name": "専門用語の列挙担当",
           "side": "check",
@@ -610,7 +650,7 @@
           "specs": ["quiz_generation_spec.md", "verification_and_judging_spec.md", "selection_and_history_spec.md", "output_structure_spec.md", "work_state_spec.md"],
           "inputs": [
             ["draft", "answer_target"],
-            ["user_conditions", "sources", "propositions", "clues", "competitors", "competitor_comparisons", "asked_knowledge", "terms", "answers", "generation_checks", "final_input", "difficulty_assessment", "term_listing", "term_necessity_reviews", "term_sense_reviews", "term_audience_reviews", "blind_candidates", "exposure_analysis", "answer_review", "beginner_difficulty_review", "general_difficulty_review"]
+            ["user_conditions", "sources", "propositions", "clues", "competitors", "competitor_comparisons", "asked_knowledge", "terms", "answers", "generation_checks", "final_input", "difficulty_assessment", "term_listing", "term_necessity_reviews", "term_sense_reviews", "term_audience_reviews", "structure_review", "clue_order_review", "naturalness_review", "incremental_comprehension_review", "blind_candidates", "exposure_analysis", "answer_review", "beginner_difficulty_review", "general_difficulty_review"]
           ],
           "outputs": ["audit_results"]
         }

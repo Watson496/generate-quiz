@@ -193,6 +193,10 @@ STAGE_ROLES = {
         "term_necessity_review",
         "term_sense_review",
         "term_audience_review",
+        "structure_review",
+        "clue_order_review",
+        "naturalness_review",
+        "incremental_comprehension_review",
         "exposure",
         "exposure_analysis",
         "beginner_difficulty_review",
@@ -225,6 +229,10 @@ STAGE_ROLES = {
         "term_necessity_review",
         "term_sense_review",
         "term_audience_review",
+        "structure_review",
+        "clue_order_review",
+        "naturalness_review",
+        "incremental_comprehension_review",
         "exposure",
         "exposure_analysis",
         "beginner_difficulty_review",
@@ -1720,6 +1728,40 @@ def validate_difficulty_reviews(state, quote_ids, version):
         validate_challenge_item(review, key, quote_ids)
 
 
+def validate_expression_reviews(state, checks, active_clues, version):
+    """構造、手掛かりの順序、自然さ、前から読んだときの理解しやすさの検査を確認する。"""
+    for key in (
+        "structure_review",
+        "clue_order_review",
+        "naturalness_review",
+        "incremental_comprehension_review",
+    ):
+        review = state.get(key)
+        require_condition(isinstance(review, dict), f"{key}がない")
+        require_condition(
+            review.get("draft_version") == version,
+            f"{key}.draft_versionが問題文と一致しない",
+        )
+        required_text(review, "reason", key)
+        require_condition(review.get("status") == "passed", f"{key}が合格していない")
+    structure = next(item for item in checks if item["id"] == "structure")
+    review = state["structure_review"]
+    require_condition(
+        review.get("question_form") == structure["question_form"],
+        "structure_review.question_formが生成側の区分と一致しない",
+    )
+    otoshi = referenced_ids(
+        review,
+        "otoshi_clue_ids",
+        {clue["id"] for clue in active_clues},
+        "structure_review",
+    )
+    require_condition(
+        set(otoshi) == set(structure["otoshi_clue_ids"]),
+        "structure_review.otoshi_clue_idsが生成側の区分と一致しない",
+    )
+
+
 def validate_structure_check(item, name, draft_text, active_clues):
     form = required_text(item, "question_form", name)
     require_condition(form in {"SC", "OV"}, f"{name}.question_formが不正である")
@@ -2417,6 +2459,7 @@ def validate_work_state(state, stage):
             referenced_ids(item, "evidence_ids", quote_ids, name)
         require_stage_completion(item, name, stage)
     if stage in {"audit", "final"}:
+        validate_expression_reviews(state, checks, active_clues, version)
         validate_exposure_analysis(state, checks, version)
         validate_answer_review(state, answers, checks, quote_ids, version)
         validate_final_input(
