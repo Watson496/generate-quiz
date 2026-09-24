@@ -51,6 +51,9 @@ def complete_state():
     """全工程を通過できる一問分の作業状態を作る。"""
     evidence = ["Q1"]
     roles = (
+        "name_research",
+        "answer_range",
+        "answer_judging",
         "generation",
         "difficulty_review",
         "evidence_challenge",
@@ -420,11 +423,22 @@ def complete_state():
             {
                 "id": "A1",
                 "answer": "ミュラー・リヤー錯視",
+            }
+        ],
+        "answer_judgments": [
+            {
+                "answer_id": "A1",
                 "judgment": "correct",
                 "reason": "標準名称である",
-                "evidence_ids": evidence,
-                "generation": "complete",
-                "audit": "passed",
+                "evidence_ids": evidence.copy(),
+            }
+        ],
+        "names": [
+            {
+                "id": "N1",
+                "name": "ミュラー・リヤー錯視",
+                "usage": "教材が錯視の標準名称として使う",
+                "evidence_ids": evidence.copy(),
             }
         ],
         "exposure_review": {
@@ -630,7 +644,7 @@ def generation_state(complete_state):
     drop_assignment(state, "evidence_challenge")
     state["difficulty_review"]["audit"] = "pending"
     state["terminology_review"]["audit"] = "pending"
-    for group in ("terms", "answers", "checks"):
+    for group in ("terms", "checks"):
         for item in state[group]:
             item["audit"] = "pending"
     for check in state["clues"][0]["checks"].values():
@@ -1778,12 +1792,10 @@ class TestWorkState:
         complete_state["exposure_review"]["candidates"] = [candidate]
         assert check_state(run_script, "audit", complete_state).returncode == 0
 
-    def test_generation_requires_independent_answer_review(
-        self, run_script, generation_state
-    ):
+    def test_audit_requires_independent_answer_review(self, run_script, complete_state):
         """解答候補ごとの独立した判定を省けない。"""
-        del generation_state["answer_review"]
-        result = check_state(run_script, "generation", generation_state)
+        del complete_state["answer_review"]
+        result = check_state(run_script, "audit", complete_state)
         assert result.returncode == 1
         assert "answer_reviewがない" in result.stderr
 
@@ -1793,19 +1805,19 @@ class TestWorkState:
             ("draft_version", 1, "問題文と一致しない"),
         ],
     )
-    def test_generation_rejects_invalid_answer_review(
-        self, run_script, generation_state, field, value, message
+    def test_audit_rejects_invalid_answer_review(
+        self, run_script, complete_state, field, value, message
     ):
         """正誤判定を現行問題へ対応させる。"""
-        generation_state["answer_review"][field] = value
-        result = check_state(run_script, "generation", generation_state)
+        complete_state["answer_review"][field] = value
+        result = check_state(run_script, "audit", complete_state)
         assert result.returncode == 1
         assert message in result.stderr
 
-    def test_generation_requires_all_answer_reviews(self, run_script, generation_state):
+    def test_audit_requires_all_answer_reviews(self, run_script, complete_state):
         """採用した解答候補を一名称ずつ判定する。"""
-        generation_state["answer_review"]["answers"] = []
-        result = check_state(run_script, "generation", generation_state)
+        complete_state["answer_review"]["answers"] = []
+        result = check_state(run_script, "audit", complete_state)
         assert result.returncode == 1
         assert "answer_review.answersが空である" in result.stderr
 
@@ -1818,46 +1830,46 @@ class TestWorkState:
             ("scope_matches", False, "正答判定と対象・指定・適用範囲が一致しない"),
         ],
     )
-    def test_generation_rejects_inconsistent_correct_answer_review(
-        self, run_script, generation_state, field, value, message
+    def test_audit_rejects_inconsistent_correct_answer_review(
+        self, run_script, complete_state, field, value, message
     ):
         """正答判定を対象・指定・誤り・適用範囲の判断と一致させる。"""
-        generation_state["answer_review"]["answers"][0][field] = value
-        result = check_state(run_script, "generation", generation_state)
+        complete_state["answer_review"]["answers"][0][field] = value
+        result = check_state(run_script, "audit", complete_state)
         assert result.returncode == 1
         assert message in result.stderr
 
     def test_generation_requires_exposure_candidate_judgment(
-        self, run_script, generation_state
+        self, run_script, complete_state
     ):
         """露出検査で挙がった名称候補の正誤判定を要求する。"""
-        generation_state["answer_review"]["candidate_reviews"] = []
-        result = check_state(run_script, "generation", generation_state)
+        complete_state["answer_review"]["candidate_reviews"] = []
+        result = check_state(run_script, "audit", complete_state)
         assert result.returncode == 1
         assert "candidate_reviewsが露出候補と一致しない" in result.stderr
 
     def test_generation_rejects_inconsistent_exposure_candidate_judgment(
-        self, run_script, generation_state
+        self, run_script, complete_state
     ):
         """露出候補の誤答判定を対象・誤り・適用範囲の判断と一致させる。"""
-        candidate = generation_state["answer_review"]["candidate_reviews"][0]
+        candidate = complete_state["answer_review"]["candidate_reviews"][0]
         candidate.update(same_target=True, scope_matches=True)
-        result = check_state(run_script, "generation", generation_state)
+        result = check_state(run_script, "audit", complete_state)
         assert result.returncode == 1
         assert "誤答判定に対象・適用範囲の相違がない" in result.stderr
 
-    def test_generation_requires_correct_exposure_candidate_in_answer_range(
-        self, run_script, generation_state
+    def test_audit_requires_correct_exposure_candidate_in_answer_range(
+        self, run_script, complete_state
     ):
         """正答と判定した露出候補を解答範囲へ追加する。"""
-        candidate = generation_state["answer_review"]["candidate_reviews"][0]
+        candidate = complete_state["answer_review"]["candidate_reviews"][0]
         candidate.update(
             judgment="correct",
             same_target=True,
             specified_enough=True,
             scope_matches=True,
         )
-        result = check_state(run_script, "generation", generation_state)
+        result = check_state(run_script, "audit", complete_state)
         assert result.returncode == 1
         assert "正答が解答範囲に対応付けられていない" in result.stderr
 
@@ -2729,13 +2741,6 @@ class TestWorkState:
         assert result.returncode == 1
         assert expected in result.stderr
 
-    def test_audit_requires_passed_answer(self, run_script, complete_state):
-        """未合格の解答候補を含む状態を監査で拒否する。"""
-        complete_state["answers"][0]["audit"] = "missing"
-        result = check_state(run_script, "audit", complete_state)
-        assert result.returncode == 1
-        assert "answers.A1が監査に合格していない" in result.stderr
-
     def test_audit_requires_verbatim_quote(self, run_script, complete_state):
         """引用本文を欠く資料を監査で拒否する。"""
         del complete_state["sources"][0]["quotes"][0]["text"]
@@ -3051,15 +3056,13 @@ class TestWorkState:
 
     def test_final_requires_all_checked_answers(self, run_script, reviewed_state):
         """最終入力が監査済みの別解を欠けば出力を拒否する。"""
-        reviewed_state["answers"].append(
+        reviewed_state["answers"].append({"id": "A2", "answer": "別解"})
+        reviewed_state["answer_judgments"].append(
             {
-                "id": "A2",
-                "answer": "別解",
+                "answer_id": "A2",
                 "judgment": "prompt",
                 "reason": "別名である",
                 "evidence_ids": ["Q1"],
-                "generation": "complete",
-                "audit": "passed",
             }
         )
         reviewed_state["answer_review"]["answers"].append(

@@ -158,6 +158,8 @@ STAGE_ROLES = {
     "generation-start": ("generation",),
     "difficulty": ("generation", "difficulty_review"),
     "generation": (
+        "name_research",
+        "answer_range",
         "generation",
         "source_reliability",
         "clue_centrality",
@@ -168,6 +170,9 @@ STAGE_ROLES = {
         "exposure",
     ),
     "audit": (
+        "name_research",
+        "answer_range",
+        "answer_judging",
         "generation",
         "source_reliability",
         "source_reliability_review",
@@ -186,6 +191,9 @@ STAGE_ROLES = {
         "audit",
     ),
     "final": (
+        "name_research",
+        "answer_range",
+        "answer_judging",
         "generation",
         "source_reliability",
         "source_reliability_review",
@@ -1744,7 +1752,7 @@ def adopted_quote_ids(state, active_props, active_clues, difficulty_review):
     for item in state["clue_centrality"]:
         if item["clue_id"] in {clue["id"] for clue in active_clues}:
             cited.update(item["evidence_ids"])
-    for key in ("answers", "checks"):
+    for key in ("answer_judgments", "checks"):
         for item in state[key]:
             cited.update(item.get("evidence_ids", []))
     for key in ("answers", "candidate_reviews"):
@@ -2158,23 +2166,43 @@ def validate_exposure_review(state, checks, answers, version):
         )
 
 
-def validate_answers(state, quote_ids, stage):
-    answers, _ = records_with_ids(state.get("answers"), "answers", nonempty=True)
+def validate_answers(state, quote_ids):
+    """解答候補と正誤判定の案を検査し、候補ごとに判定の案を合わせて返す。"""
+    answers, answer_ids = records_with_ids(
+        state.get("answers"), "answers", nonempty=True
+    )
     seen = set()
     for item in answers:
-        name = f"answers.{item['id']}"
-        value = required_text(item, "answer", name)
-        judgment = item.get("judgment")
+        value = required_text(item, "answer", f"answers.{item['id']}")
+        require_condition(value not in seen, "同じ解答候補が重複している")
+        seen.add(value)
+    judgments = {}
+    for index, item in enumerate(
+        required_list(state.get("answer_judgments"), "answer_judgments", nonempty=True)
+    ):
+        name = f"answer_judgments[{index}]"
         require_condition(
-            judgment in {"correct", "prompt", "incorrect"},
+            isinstance(item, dict), f"{name}はオブジェクトでなければならない"
+        )
+        answer_id = required_text(item, "answer_id", name)
+        require_condition(answer_id in answer_ids, f"{name}.answer_idが解答候補にない")
+        require_condition(answer_id not in judgments, f"{name}.answer_idが重複している")
+        require_condition(
+            item.get("judgment") in {"correct", "prompt", "incorrect"},
             f"{name}.judgmentが不正である",
         )
-        require_condition((value, judgment) not in seen, "同じ解答候補が重複している")
-        seen.add((value, judgment))
         required_text(item, "reason", name)
         referenced_ids(item, "evidence_ids", quote_ids, name)
-        require_stage_completion(item, name, stage)
-    return answers
+        judgments[answer_id] = item
+    missing = sorted(answer_ids - set(judgments))
+    require_condition(not missing, f"正誤判定の案のない解答候補がある: {missing}")
+    names, _ = records_with_ids(state.get("names"), "names", nonempty=True)
+    for item in names:
+        name = f"names.{item['id']}"
+        required_text(item, "name", name)
+        required_text(item, "usage", name)
+        referenced_ids(item, "evidence_ids", quote_ids, name)
+    return [{**item, "judgment": judgments[item["id"]]["judgment"]} for item in answers]
 
 
 def validate_reviewed_answer(item, name, quote_ids):
@@ -2313,7 +2341,7 @@ def validate_work_state(state, stage):
     if stage in {"audit", "final"}:
         validate_evidence_challenge(state, quote_ids, active_clues, version)
     validate_terminology(state, quote_ids, version, stage, draft["text"])
-    answers = validate_answers(state, quote_ids, stage)
+    answers = validate_answers(state, quote_ids)
     checks, check_ids = records_with_ids(state.get("checks"), "checks", nonempty=True)
     require_condition(
         not (REQUIRED_CHECK_IDS - check_ids),
@@ -2377,7 +2405,8 @@ def validate_work_state(state, stage):
         if item["id"] != "expression.naturalness":
             referenced_ids(item, "evidence_ids", quote_ids, name)
         require_stage_completion(item, name, stage)
-    validate_answer_review(state, answers, checks, quote_ids, version)
+    if stage in {"audit", "final"}:
+        validate_answer_review(state, answers, checks, quote_ids, version)
     if stage in {"audit", "final"}:
         validate_exposure_review(state, checks, answers, version)
     if stage in {"audit", "final"}:

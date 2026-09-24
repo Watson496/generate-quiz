@@ -47,7 +47,9 @@
     "asked_knowledge": "問う知識と、要求する解答知識の粒度",
     "draft": "現行版の問題文",
     "terms": "生成側の専門用語の一覧と語ID",
+    "names": "解答対象の正式な名称と別名、それぞれが使われている箇所",
     "answers": "解答・別解の候補のIDと名称",
+    "answer_judgments": "解答・別解の候補ごとの正誤判定の案",
     "generation_checks": "生成側の検査単位の判断と理由",
     "final_input": "最終出力用の限定入力",
     "difficulty_review": "難易度の独立検査の記録",
@@ -322,13 +324,31 @@
       "name": "作問",
       "roles": [
         {
+          "id": "name_research",
+          "name": "名称の調査担当",
+          "side": "make",
+          "section": "名称と正答範囲",
+          "specs": ["verification_and_judging_spec.md", "work_state_spec.md"],
+          "inputs": [["answer_target"]],
+          "outputs": ["sources", "names"]
+        },
+        {
+          "id": "answer_range",
+          "name": "正答範囲の担当",
+          "side": "make",
+          "section": "名称と正答範囲",
+          "specs": ["verification_and_judging_spec.md", "work_state_spec.md"],
+          "inputs": [["answer_target", "sources", "names"]],
+          "outputs": ["answers", "answer_judgments"]
+        },
+        {
           "id": "generation",
           "name": "生成担当",
           "side": "make",
           "section": "生成",
           "specs": ["quiz_generation_spec.md", "verification_and_judging_spec.md", "selection_and_history_spec.md", "work_state_spec.md"],
-          "inputs": [["user_conditions", "history", "answer_target"]],
-          "outputs": ["sources", "propositions", "clues", "competitors", "asked_knowledge", "draft", "terms", "answers", "generation_checks", "final_input"]
+          "inputs": [["user_conditions", "history", "answer_target", "names", "answers", "answer_judgments"]],
+          "outputs": ["sources", "propositions", "clues", "competitors", "asked_knowledge", "draft", "terms", "generation_checks", "final_input"]
         },
         {
           "id": "source_reliability",
@@ -391,14 +411,23 @@
           "side": "check",
           "section": "解答を伏せた露出検査",
           "specs": ["quiz_generation_spec.md", "verification_and_judging_spec.md", "work_state_spec.md"],
-          "inputs": [["draft"], ["answer_target", "sources", "answers"]],
-          "outputs": ["blind_candidates", "answer_review"]
+          "inputs": [["draft"]],
+          "outputs": ["blind_candidates"]
         }
       ]
     },
     {
       "name": "検査",
       "roles": [
+        {
+          "id": "answer_judging",
+          "name": "正答範囲の検査担当",
+          "side": "check",
+          "section": "名称と正答範囲",
+          "specs": ["verification_and_judging_spec.md", "work_state_spec.md"],
+          "inputs": [["draft", "answer_target", "sources", "names", "answers", "blind_candidates", "generation_checks"]],
+          "outputs": ["answer_review"]
+        },
         {
           "id": "source_reliability_review",
           "name": "資料の信頼性の検査担当",
