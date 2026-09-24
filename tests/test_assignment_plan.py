@@ -111,19 +111,13 @@ class TestBundledTable:
             assert find_role(table, role_id)["inputs"][0] == ["draft"]
 
     def test_generation_change_reruns_later_checks(self, load_script):
-        """生成担当の成果物が変わると、後の検査と最終出力を再実行する。"""
+        """生成担当の成果物が変わると、後にある担当をすべて再実行する。"""
         module = load_script("generate-quiz", "assignment_plan.py")
-        plan = module.rerun_plan(module.load_table(), "generation")
+        table = module.load_table()
+        order = [role["id"] for _, role in module.ordered_roles(table)]
+        plan = module.rerun_plan(table, "generation")
         roles = [role for step in plan for role in step["roles"]]
-        assert roles == [
-            "difficulty_review",
-            "terminology_review",
-            "exposure",
-            "evidence_challenge",
-            "audit",
-            "finalization",
-            "final_review",
-        ]
+        assert roles == order[order.index("generation") + 1 :]
 
     def test_exploration_change_stays_in_topic_selection(self, load_script):
         """探索台帳が変わっても、解答対象ごとの担当は再実行しない。"""
