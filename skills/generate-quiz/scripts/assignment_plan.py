@@ -2,7 +2,7 @@
 """担当表から、ステップの構成、担当の割り当てと依頼文、再実行する担当を決める。
 
 担当表は references/roles.json に置く。各担当の入力は段階ごとのデータの一覧で、
-表の順で前にある担当の成果物か、親や統括役が渡すデータだけを参照できる。
+表の順で前にある担当や自分の成果物か、親や統括役が渡すデータだけを参照できる。
 
 サブコマンド:
     steps              ステップごとの担当と、統括役を置くかを出力する
@@ -62,6 +62,13 @@ def validate_role(role, data, available, seen):
     )
     missing = [spec for spec in specs if not (REF_DIR / spec).is_file()]
     require(not missing, f"担当{role_id}のspecsに存在しない仕様がある: {missing}")
+    outputs = role.get("outputs")
+    require(
+        isinstance(outputs, list) and outputs,
+        f"担当{role_id}のoutputsがない",
+    )
+    unknown = [item for item in outputs if item not in data]
+    require(not unknown, f"担当{role_id}の成果物に未定義のデータがある: {unknown}")
     phases = role.get("inputs")
     require(
         isinstance(phases, list)
@@ -72,18 +79,13 @@ def validate_role(role, data, available, seen):
     for phase in phases:
         unknown = [item for item in phase if item not in data]
         require(not unknown, f"担当{role_id}の入力に未定義のデータがある: {unknown}")
-        unavailable = [item for item in phase if item not in available]
+        unavailable = [
+            item for item in phase if item not in available and item not in outputs
+        ]
         require(
             not unavailable,
-            f"担当{role_id}の入力に、前の担当の成果物でも親や統括役が渡すデータでもないものがある: {unavailable}",
+            f"担当{role_id}の入力に、前の担当や自分の成果物でも親や統括役が渡すデータでもないものがある: {unavailable}",
         )
-    outputs = role.get("outputs")
-    require(
-        isinstance(outputs, list) and outputs,
-        f"担当{role_id}のoutputsがない",
-    )
-    unknown = [item for item in outputs if item not in data]
-    require(not unknown, f"担当{role_id}の成果物に未定義のデータがある: {unknown}")
     if "split_size" in role:
         size = role["split_size"]
         require(
@@ -93,7 +95,7 @@ def validate_role(role, data, available, seen):
 
 
 def validate_table(table):
-    """担当表の形と、入力が前の担当の成果物か親や統括役が渡すデータであることを検査する。"""
+    """担当表の形と、入力が前の担当や自分の成果物か親や統括役が渡すデータであることを検査する。"""
     require(isinstance(table, dict), "担当表はオブジェクトでなければならない")
     data = table.get("data")
     require(

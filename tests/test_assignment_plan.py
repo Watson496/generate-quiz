@@ -140,6 +140,13 @@ class TestTableValidation:
         module = load_script("generate-quiz", "assignment_plan.py")
         assert module.validate_table(small_table())
 
+    def test_role_can_read_own_output(self, load_script):
+        """書き足していく記録は、同じ担当の入力にできる。"""
+        module = load_script("generate-quiz", "assignment_plan.py")
+        table = small_table()
+        table["steps"][0]["roles"][0]["inputs"][0].append("items")
+        assert module.validate_table(table)
+
     @pytest.mark.parametrize(
         ("change", "message"),
         [
@@ -147,7 +154,7 @@ class TestTableValidation:
                 lambda table: table["steps"][0]["roles"][0]["inputs"][0].append(
                     "draft"
                 ),
-                "前の担当の成果物でも親や統括役が渡すデータでもない",
+                "前の担当や自分の成果物でも親や統括役が渡すデータでもない",
             ),
             (
                 lambda table: table["steps"][0]["roles"][0]["inputs"][0].append(
