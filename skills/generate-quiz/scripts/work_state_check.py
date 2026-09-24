@@ -157,9 +157,17 @@ STAGE_ROLES = {
     ),
     "generation-start": ("generation",),
     "difficulty": ("generation", "difficulty_review"),
-    "generation": ("generation", "difficulty_review", "terminology_review", "exposure"),
+    "generation": (
+        "generation",
+        "source_reliability",
+        "difficulty_review",
+        "terminology_review",
+        "exposure",
+    ),
     "audit": (
         "generation",
+        "source_reliability",
+        "source_reliability_review",
         "difficulty_review",
         "terminology_review",
         "exposure",
@@ -168,6 +176,8 @@ STAGE_ROLES = {
     ),
     "final": (
         "generation",
+        "source_reliability",
+        "source_reliability_review",
         "difficulty_review",
         "terminology_review",
         "exposure",
@@ -1279,6 +1289,60 @@ def validate_sources_propositions_and_clues(state, version, stage):
     return quote_ids, active_props, active_clues
 
 
+def validate_source_assessments(state, active_props, stage):
+    """資料ごとの信頼性の評価と、事実の根拠に使える資料だけを命題の根拠にしたことを検査する。"""
+    source_ids = [source["id"] for source in state["sources"]]
+    assessments = {}
+    for index, item in enumerate(
+        required_list(
+            state.get("source_assessments"), "source_assessments", nonempty=True
+        )
+    ):
+        name = f"source_assessments[{index}]"
+        require_condition(
+            isinstance(item, dict), f"{name}はオブジェクトでなければならない"
+        )
+        source_id = required_text(item, "source_id", name)
+        require_condition(source_id in source_ids, f"{name}.source_idが資料にない")
+        required_text(item, "level", name)
+        errors = required_list(item.get("clear_errors"), f"{name}.clear_errors")
+        require_condition(
+            all(isinstance(error, str) and error.strip() for error in errors),
+            f"{name}.clear_errorsは誤りの説明の配列でなければならない",
+        )
+        uses = required_list(item.get("uses"), f"{name}.uses", nonempty=True)
+        require_condition(
+            set(uses) <= {"fact", "usage_example"} and len(uses) == len(set(uses)),
+            f"{name}.usesが不正である",
+        )
+        required_text(item, "reason", name)
+        assessments[source_id] = set(uses)
+    missing = sorted(set(source_ids) - set(assessments))
+    require_condition(not missing, f"信頼性の評価のない資料がある: {missing}")
+    source_of_quote = {
+        quote["id"]: source["id"]
+        for source in state["sources"]
+        for quote in source["quotes"]
+    }
+    for item in active_props:
+        cited = set(item["evidence_ids"])
+        for element in item.get("verification_elements", []):
+            cited.update(element["evidence_ids"])
+        usage_only = sorted(
+            quote_id
+            for quote_id in cited
+            if "fact" not in assessments[source_of_quote[quote_id]]
+        )
+        require_condition(
+            not usage_only,
+            f"propositions.{item['id']}が事実の根拠に使えない資料の引用を根拠にしている: {usage_only}",
+        )
+    require_items_assigned(state, "source_reliability", source_ids)
+    if stage in {"audit", "final"}:
+        validate_reviews(state, "source_reliability_reviews", source_ids, "source_id")
+        require_items_assigned(state, "source_reliability_review", source_ids)
+
+
 def validate_difficulty_review(state, quote_ids, stage):
     review = state.get("difficulty_review")
     require_condition(isinstance(review, dict), "difficulty_reviewがない")
@@ -2105,6 +2169,7 @@ def validate_work_state(state, stage):
     quote_ids, active_props, active_clues = validate_sources_propositions_and_clues(
         state, version, stage
     )
+    validate_source_assessments(state, active_props, stage)
     difficulty_review = validate_difficulty_review(state, quote_ids, stage)
     if stage in {"audit", "final"}:
         validate_evidence_challenge(state, quote_ids, active_clues, version)

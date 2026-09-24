@@ -144,6 +144,15 @@ def complete_state():
         }
         for role, agent in agents.items()
     ]
+    assignments.extend(
+        {
+            "role": role,
+            "agent_id": f"agent-{role}",
+            "artifact_refs": [f"{role}.json"],
+            "items": ["S1"],
+        }
+        for role in ("source_reliability", "source_reliability_review")
+    )
     state = {
         "selection_mode": "random",
         "facet_nodes": {
@@ -206,6 +215,22 @@ def complete_state():
                         "location": "第一節",
                     }
                 ],
+            }
+        ],
+        "source_assessments": [
+            {
+                "source_id": "S1",
+                "level": "専門家が編集した事典で、記述の出所を確認できる",
+                "clear_errors": [],
+                "uses": ["fact", "usage_example"],
+                "reason": "編集体制と改訂履歴を確認した",
+            }
+        ],
+        "source_reliability_reviews": [
+            {
+                "source_id": "S1",
+                "status": "passed",
+                "reason": "編集体制と記述の出所を確かめた",
             }
         ],
         "propositions": [
@@ -474,6 +499,26 @@ def refresh_material_quotes(state):
         for quote in source["quotes"]
         if quote["id"] in adopted
     )
+
+
+def add_source(state, source):
+    """資料を加え、その信頼性の評価、検査、担当の受け持ちも加える。"""
+    state["sources"].append(source)
+    state["source_assessments"].append(
+        {
+            "source_id": source["id"],
+            "level": f"{source['citation']}の編集体制を確認できる",
+            "clear_errors": [],
+            "uses": ["fact"],
+            "reason": f"{source['citation']}の作成主体を確認した",
+        }
+    )
+    state.setdefault("source_reliability_reviews", []).append(
+        {"source_id": source["id"], "status": "passed", "reason": "評価を確かめた"}
+    )
+    for item in state["execution"]["assignments"]:
+        if item["role"] in {"source_reliability", "source_reliability_review"}:
+            item["items"] = [*item["items"], source["id"]]
 
 
 def drop_assignment(state, role):
@@ -1337,6 +1382,29 @@ class TestPrejudgmentState:
 class TestWorkState:
     """生成・監査・最終出力の作業状態を検査する。"""
 
+    def test_every_source_needs_assessment(self, run_script, generation_state):
+        """資料ごとに信頼性の評価を要する。"""
+        generation_state["source_assessments"] = []
+        result = check_state(run_script, "generation", generation_state)
+        assert result.returncode == 1
+        assert "source_assessmentsが空である" in result.stderr
+
+    def test_usage_only_source_cannot_support_proposition(
+        self, run_script, generation_state
+    ):
+        """用例にしか使えない資料の引用を命題の根拠にしない。"""
+        generation_state["source_assessments"][0]["uses"] = ["usage_example"]
+        result = check_state(run_script, "generation", generation_state)
+        assert result.returncode == 1
+        assert "事実の根拠に使えない資料の引用を根拠にしている: ['Q1']" in result.stderr
+
+    def test_source_assessment_requires_passed_review(self, run_script, complete_state):
+        """資料の信頼性の評価は検査担当の合格を要する。"""
+        complete_state["source_reliability_reviews"][0]["status"] = "failed"
+        result = check_state(run_script, "audit", complete_state)
+        assert result.returncode == 1
+        assert "source_reliability_reviewsに不合格の項目がある: ['S1']" in result.stderr
+
     def test_generation_start_accepts_target_state(self, run_script, complete_state):
         """生成担当の起動後に解答対象だけの状態を検査できる。"""
         assert (
@@ -1820,7 +1888,8 @@ class TestWorkState:
             "矢羽は線分の端に付く斜線である。"
             "同じ長さの線分が矢羽の向きで異なる長さに見える錯視は入門教材で扱う"
         )
-        complete_state["sources"].append(
+        add_source(
+            complete_state,
             {
                 "id": "S2",
                 "citation": "基礎資料",
@@ -1831,7 +1900,7 @@ class TestWorkState:
                         "location": "第二節",
                     }
                 ],
-            }
+            },
         )
         beginner = complete_state["difficulty_review"]["beginner"]
         beginner["evidence_ids"] = ["Q1", "Q2"]

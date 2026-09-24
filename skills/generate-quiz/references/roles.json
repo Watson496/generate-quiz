@@ -31,6 +31,8 @@
     "picked_candidate": "抽選した候補",
     "answer_target": "解答対象と、抽選した場合の四軸の日本語の分類経路と履歴補正の適用結果",
     "sources": "資料の書誌情報、逐語引用、所在、周辺文脈、対象読者と日本語文化圏との関係",
+    "source_assessments": "資料ごとの信頼性の水準、明白な誤り、使ってよい用途",
+    "source_reliability_reviews": "資料の信頼性の評価の検査結果",
     "propositions": "命題",
     "clues": "手掛かりの問題文中の文字列と命題ID",
     "competitors": "生成側が挙げた対抗候補のIDと名称",
@@ -321,6 +323,16 @@
           "outputs": ["sources", "propositions", "clues", "competitors", "asked_knowledge", "draft", "terms", "answers", "generation_checks", "final_input"]
         },
         {
+          "id": "source_reliability",
+          "name": "資料の信頼性担当",
+          "side": "make",
+          "section": "資料の信頼性",
+          "specs": ["verification_and_judging_spec.md", "work_state_spec.md"],
+          "inputs": [["answer_target", "sources"]],
+          "outputs": ["source_assessments"],
+          "split_size": 5
+        },
+        {
           "id": "difficulty_review",
           "name": "難易度検査担当",
           "side": "check",
@@ -350,8 +362,18 @@
       ]
     },
     {
-      "name": "監査",
+      "name": "検査",
       "roles": [
+        {
+          "id": "source_reliability_review",
+          "name": "資料の信頼性の検査担当",
+          "side": "check",
+          "section": "資料の信頼性",
+          "specs": ["verification_and_judging_spec.md", "work_state_spec.md"],
+          "inputs": [["answer_target", "sources", "source_assessments"]],
+          "outputs": ["source_reliability_reviews"],
+          "split_size": 5
+        },
         {
           "id": "evidence_challenge",
           "name": "反証確認担当",
