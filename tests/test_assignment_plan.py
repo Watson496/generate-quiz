@@ -44,6 +44,7 @@ def small_table():
                         "specs": ["work_state_spec.md"],
                         "inputs": [["items"]],
                         "outputs": ["item_review"],
+                        "split_size": 2,
                     },
                 ],
             },
@@ -153,6 +154,10 @@ class TestTableValidation:
                 ),
                 "存在しない仕様",
             ),
+            (
+                lambda table: table["steps"][0]["roles"][1].update(split_size=0),
+                "split_sizeは1以上の整数",
+            ),
         ],
     )
     def test_invalid_table(self, load_script, change, message):
@@ -200,6 +205,25 @@ class TestSteps:
 class TestRequests:
     """担当への依頼文を確認する。"""
 
+    def test_split_items_by_size(self, load_script):
+        """分割する担当は、件数ごとに項目を分けて割り当てる。"""
+        module = load_script("generate-quiz", "assignment_plan.py")
+        result = module.assignments(
+            small_table(), "item_checker", ["K1", "K2", "K3", "K4", "K5"]
+        )
+        assert [item["items"] for item in result] == [
+            ["K1", "K2"],
+            ["K3", "K4"],
+            ["K5"],
+        ]
+        assert "担当する項目：K5" in result[2]["request"]
+
+    def test_split_role_requires_items(self, load_script):
+        """分割する担当に項目を渡さなければ拒否する。"""
+        module = load_script("generate-quiz", "assignment_plan.py")
+        with pytest.raises(module.TableError, match="項目IDが必要"):
+            module.assignments(small_table(), "item_checker")
+
     def test_request_lists_phases_and_outputs(self, load_script):
         """依頼文は段階ごとの入力と成果物を示す。"""
         module = load_script("generate-quiz", "assignment_plan.py")
@@ -209,10 +233,16 @@ class TestRequests:
         assert "成果物（指定されたファイルに書く）：\n- 問題文の検査記録" in request
 
     @pytest.mark.parametrize(
-        "args", [("assign", "unknown_role"), ("coordinate", "1"), ("coordinate", "99")]
+        "args",
+        [
+            ("assign", "unknown_role"),
+            ("assign", "exposure", "--items", "K1"),
+            ("coordinate", "1"),
+            ("coordinate", "99"),
+        ],
     )
     def test_usage_errors(self, run_script, args):
-        """存在しない担当や統括役を置かないステップは呼出しの不備とする。"""
+        """存在しない担当や分割しない担当への項目指定は呼出しの不備とする。"""
         result = run_script("assignment_plan.py", *args)
         assert result.returncode == 2
         assert "入力エラー" in result.stderr

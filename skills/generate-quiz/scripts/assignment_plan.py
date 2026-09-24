@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""担当表から、ステップの構成と、統括役・担当への依頼文を決める。
+"""担当表から、ステップの構成、担当の割り当て、統括役・担当への依頼文を決める。
 
 担当表は references/roles.json に置く。各担当の入力は段階ごとのデータの一覧で、
 表の順で前にある担当の成果物か、親が渡すデータだけを参照できる。
@@ -7,11 +7,12 @@
 サブコマンド:
     steps              ステップごとの担当と、統括役を置くかを出力する
     coordinate STEP    統括役への依頼文を出力する
-    assign ROLE        担当の割り当てと依頼文を出力する
+    assign ROLE        担当の割り当てと依頼文を出力する。分割する担当には
+                       --itemsで項目IDを渡す
 
 終了コード:
     0  結果を出力した
-    2  担当表の不備、存在しない担当など、入力や呼出しの不備
+    2  担当表の不備、存在しない担当、項目IDの不備など、入力や呼出しの不備
 
 使用例:
     python3 assignment_plan.py steps
@@ -80,6 +81,12 @@ def validate_role(role, data, available, seen):
     )
     unknown = [item for item in outputs if item not in data]
     require(not unknown, f"担当{role_id}の成果物に未定義のデータがある: {unknown}")
+    if "split_size" in role:
+        size = role["split_size"]
+        require(
+            type(size) is int and size >= 1,
+            f"担当{role_id}のsplit_sizeは1以上の整数でなければならない",
+        )
 
 
 def validate_table(table):
@@ -176,7 +183,7 @@ def coordinator_request(table, number):
     return {"step": number, "request": "\n".join(lines)}
 
 
-def request_text(table, role):
+def request_text(table, role, items):
     specs = "、".join(f"`{REF_DIR / spec}`" for spec in role["specs"])
     skill = REF_DIR.parent / "SKILL.md"
     workflow = REF_DIR / "workflow_spec.md"
@@ -192,15 +199,28 @@ def request_text(table, role):
     for index, phase in enumerate(phases, 1):
         lines.append(f"入力（第{index}段階）：" if len(phases) > 1 else "入力：")
         lines.extend(f"- {table['data'][item]}" for item in phase)
+    if items is not None:
+        lines.append("担当する項目：" + "、".join(items))
     lines.append("成果物（指定されたファイルに書く）：")
     lines.extend(f"- {table['data'][item]}" for item in role["outputs"])
     return "\n".join(lines)
 
 
-def assignments(table, role_id):
-    """担当の割り当てと依頼文を返す。"""
+def assignments(table, role_id, items=None):
+    """担当の割り当てを返す。分割する担当は項目を件数ごとに分ける。"""
     role = find_role(table, role_id)
-    return [{"role": role_id, "request": request_text(table, role)}]
+    size = role.get("split_size")
+    if size is None:
+        require(items is None, f"担当{role_id}は項目で分割しない")
+        chunks = [None]
+    else:
+        require(bool(items), f"担当{role_id}には項目IDが必要である")
+        require(len(items) == len(set(items)), "項目IDが重複している")
+        chunks = [items[start : start + size] for start in range(0, len(items), size)]
+    return [
+        {"role": role_id, "items": chunk, "request": request_text(table, role, chunk)}
+        for chunk in chunks
+    ]
 
 
 def main():
@@ -213,6 +233,7 @@ def main():
     coordinate.add_argument("step", type=int)
     assign = commands.add_parser("assign")
     assign.add_argument("role")
+    assign.add_argument("--items", nargs="+")
     args = parser.parse_args()
     try:
         table = load_table()
@@ -221,7 +242,7 @@ def main():
         elif args.command == "coordinate":
             result = coordinator_request(table, args.step)
         else:
-            result = assignments(table, args.role)
+            result = assignments(table, args.role, args.items)
     except (OSError, json.JSONDecodeError, TableError) as error:
         print(f"入力エラー: {error}", file=sys.stderr)
         return EXIT_USAGE
