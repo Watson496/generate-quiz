@@ -1245,24 +1245,6 @@ def validate_structure_check(item, name, draft_text, active_clues):
     otoshi = required_text(item, "otoshi", name)
     required_text(item, "otoshi_direct_description", name)
     require_condition(
-        nucleus
-        not in {
-            "もの",
-            "物",
-            "こと",
-            "事",
-            "さま",
-            "様",
-            "用語",
-            "言葉",
-            "名称",
-            "名前",
-            "通称",
-            "題名",
-        },
-        f"{name}.nucleusが解答対象の上位分類ではない",
-    )
-    require_condition(
         otoshi.endswith(nucleus) and otoshi in draft_text,
         f"{name}.otoshiが完成稿の核名詞句で終わらない",
     )

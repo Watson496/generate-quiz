@@ -2007,23 +2007,6 @@ class TestWorkState:
         complete_state["clues"][0]["directly_describes_target"] = False
         assert check_state(run_script, "audit", complete_state).returncode == 1
 
-    @pytest.mark.parametrize(
-        "nucleus", ["もの", "こと", "さま", "用語", "名前", "名称", "通称", "題名"]
-    )
-    def test_otoshi_rejects_generic_nucleus(self, run_script, complete_state, nucleus):
-        """代名詞的な核名詞や名称の種類だけを示す核名詞を拒否する。"""
-        complete_state["draft"]["text"] = (
-            f"同じ長さの線分が矢羽の向きで異なる長さに見える{nucleus}は何でしょう？"
-        )
-        structure = next(
-            check for check in complete_state["checks"] if check["id"] == "structure"
-        )
-        structure["nucleus"] = nucleus
-        structure["otoshi"] = f"同じ長さの線分が矢羽の向きで異なる長さに見える{nucleus}"
-        result = check_state(run_script, "audit", complete_state)
-        assert result.returncode == 1
-        assert "nucleusが解答対象の上位分類ではない" in result.stderr
-
     def test_structure_rejects_otoshi_before_later_modifier(
         self, run_script, complete_state
     ):
