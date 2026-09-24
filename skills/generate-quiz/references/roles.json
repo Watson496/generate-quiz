@@ -78,7 +78,8 @@
     "beginner_difficulty_review": "初学者側の難易度の検査結果",
     "general_difficulty_review": "一般層側の難易度の検査結果",
     "final_output": "完成稿",
-    "final_review": "最終照合の記録"
+    "final_reflection_review": "完成稿への反映の照合結果",
+    "final_contamination_review": "完成稿への作業用記録の混入の検査結果"
   },
   "given_data": ["user_conditions", "history", "facet_picks", "picked_candidate", "answer_target", "research_requests"],
   "steps": [
@@ -684,13 +685,22 @@
           "outputs": ["final_output"]
         },
         {
-          "id": "final_review",
-          "name": "最終照合担当",
+          "id": "final_reflection_review",
+          "name": "完成稿への反映の照合担当",
           "side": "check",
           "section": "最終出力",
           "specs": ["output_structure_spec.md", "verification_and_judging_spec.md", "work_state_spec.md"],
           "inputs": [["final_output", "final_input", "sources"]],
-          "outputs": ["final_review"]
+          "outputs": ["final_reflection_review"]
+        },
+        {
+          "id": "final_contamination_review",
+          "name": "作業用記録の混入の検査担当",
+          "side": "check",
+          "section": "最終出力",
+          "specs": ["output_structure_spec.md", "work_state_spec.md"],
+          "inputs": [["final_output"]],
+          "outputs": ["final_contamination_review"]
         }
       ]
     }

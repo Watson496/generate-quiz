@@ -70,7 +70,6 @@ def complete_state():
         "exposure",
         "material_writer",
         "finalization",
-        "final_review",
     )
     agents = {role: f"agent-{index}" for index, role in enumerate(roles, 1)}
     checks = [
@@ -619,6 +618,17 @@ def final_output_sections(state):
     }
 
 
+FINAL_REVIEW_ROLES = ("final_reflection_review", "final_contamination_review")
+
+
+def set_reviewed_output(state, text):
+    """完成稿の照合結果と照合担当の起動の記録を、指定した完成稿に対応させる。"""
+    digest = hashlib.sha256(text.encode("utf-8")).hexdigest()
+    for role in FINAL_REVIEW_ROLES:
+        state[role]["output_sha256"] = digest
+        assignment_of(state, role)["output_sha256"] = digest
+
+
 def final_output_text(state):
     """最終段階の構造検査に使う完成稿本文を組み立てる。"""
     return "\n\n".join(
@@ -715,28 +725,24 @@ def writing_state(complete_state):
 
 @pytest.fixture
 def reviewed_state(complete_state):
-    """完成稿を最終照合担当が照合した最終段階の作業状態を作る。"""
+    """完成稿を二つの照合担当が照合した最終段階の作業状態を作る。"""
     state = copy.deepcopy(complete_state)
-    state["final_review"] = {
+    state["final_reflection_review"] = {
         "status": "passed",
-        "checks": dict.fromkeys(
-            (
-                "current_draft",
-                "evidence_and_inference",
-                "difficulty",
-                "competitors",
-                "answer_judging",
-                "exposure",
-            ),
-            "passed",
-        ),
+        "reason": "各節の本文と引用が限定入力と一致する",
         "quote_ids": state["final_input"]["quote_ids"].copy(),
         "answer_ids": state["final_input"]["answer_ids"].copy(),
         "clue_ids": state["final_input"]["clue_ids"].copy(),
-        "output_sha256": hashlib.sha256(
-            final_output_text(state).encode("utf-8")
-        ).hexdigest(),
     }
+    state["final_contamination_review"] = {
+        "status": "passed",
+        "reason": "検索過程や担当IDなどの作業用記録がない",
+    }
+    state["execution"]["assignments"].extend(
+        {"role": role, "agent_id": f"agent-{role}", "artifact_refs": [f"{role}.json"]}
+        for role in FINAL_REVIEW_ROLES
+    )
+    set_reviewed_output(state, final_output_text(state))
     return state
 
 
@@ -1919,9 +1925,7 @@ class TestWorkState:
             f"ユーザー指定の解答対象：{state['answer_target']}。履歴補正なし。"
         )
         if stage == "final":
-            state["final_review"]["output_sha256"] = hashlib.sha256(
-                final_output_text(state).encode()
-            ).hexdigest()
+            set_reviewed_output(state, final_output_text(state))
         assert check_state(run_script, stage, state).returncode == 0
 
     def test_work_state_requires_selection_mode(self, run_script, complete_state):
@@ -2882,55 +2886,69 @@ class TestWorkState:
         assert result.returncode == 1
         assert "問題文が現行版と一致しない" in result.stderr
 
+    @pytest.mark.parametrize("key", FINAL_REVIEW_ROLES)
     @pytest.mark.parametrize(
-        ("field", "value", "message"),
+        ("change", "message"),
         [
-            ("status", "pending", "final_review.statusが合格していない"),
-            (
-                "output_sha256",
-                "0" * 64,
-                "final_review.output_sha256が完成稿と一致しない",
-            ),
+            ({"status": "failed"}, ".statusが合格していない"),
+            ({"output_sha256": "0" * 64}, ".output_sha256が完成稿と一致しない"),
         ],
     )
     def test_final_requires_review_of_current_output(
-        self, run_script, reviewed_state, field, value, message
+        self, run_script, reviewed_state, key, change, message
     ):
         """完成稿の照合結果は現行ファイルに対応する。"""
-        reviewed_state["final_review"][field] = value
+        reviewed_state[key].update(change)
         result = check_state(run_script, "final", reviewed_state)
         assert result.returncode == 1
-        assert message in result.stderr
+        assert key + message in result.stderr
 
-    def test_final_requires_review_record(self, run_script, reviewed_state):
-        """照合記録がない完成稿は確定しない。"""
-        del reviewed_state["final_review"]
+    @pytest.mark.parametrize("key", FINAL_REVIEW_ROLES)
+    def test_final_requires_review_record(self, run_script, reviewed_state, key):
+        """反映の照合と混入の検査のどちらかがない完成稿は確定しない。"""
+        del reviewed_state[key]
         result = check_state(run_script, "final", reviewed_state)
         assert result.returncode == 1
-        assert "final_reviewがない" in result.stderr
+        assert f"{key}がない" in result.stderr
+
+    @pytest.mark.parametrize("key", FINAL_REVIEW_ROLES)
+    def test_final_requires_reviewer_of_current_output(
+        self, run_script, reviewed_state, key
+    ):
+        """現行の完成稿について起動した担当の記録を要する。"""
+        assignment_of(reviewed_state, key)["output_sha256"] = "0" * 64
+        result = check_state(run_script, "final", reviewed_state)
+        assert result.returncode == 1
+        assert f"{key}の担当が現行の完成稿について起動されていない" in result.stderr
 
     def test_final_requires_independent_reviewer(self, run_script, reviewed_state):
-        """最終照合担当を作文担当と兼任させない。"""
-        assignment_of(reviewed_state, "final_review")["agent_id"] = assignment_of(
-            reviewed_state, "writer"
-        )["agent_id"]
+        """完成稿の照合担当を作文担当と兼任させない。"""
+        assignment_of(reviewed_state, "final_reflection_review")["agent_id"] = (
+            assignment_of(reviewed_state, "writer")["agent_id"]
+        )
         result = check_state(run_script, "final", reviewed_state)
         assert result.returncode == 1
         assert "agent_idを別の役割にも割り当てている" in result.stderr
 
-    def test_final_requires_all_review_checks(self, run_script, reviewed_state):
-        """完成稿の照合で未合格の判断を残さない。"""
-        reviewed_state["final_review"]["checks"]["exposure"] = "pending"
+    def test_final_rejects_reviewer_reused_for_other_output(
+        self, run_script, reviewed_state
+    ):
+        """組み直した完成稿を前の完成稿の照合担当に照合させない。"""
+        previous = dict(assignment_of(reviewed_state, "final_contamination_review"))
+        previous["output_sha256"] = "0" * 64
+        reviewed_state["execution"]["assignments"].insert(0, previous)
         result = check_state(run_script, "final", reviewed_state)
         assert result.returncode == 1
-        assert "final_review.checksに未合格の項目がある" in result.stderr
+        assert "agent_idを別の完成稿の照合に再利用している" in result.stderr
 
     def test_final_rejects_duplicate_reviewed_quote(self, run_script, reviewed_state):
-        """最終照合の対象引用を重複させない。"""
-        reviewed_state["final_review"]["quote_ids"].append("Q1")
+        """反映の照合の対象引用を重複させない。"""
+        reviewed_state["final_reflection_review"]["quote_ids"].append("Q1")
         result = check_state(run_script, "final", reviewed_state)
         assert result.returncode == 1
-        assert "final_review.quote_idsが最終入力と一致しない" in result.stderr
+        assert (
+            "final_reflection_review.quote_idsが最終入力と一致しない" in result.stderr
+        )
 
     def test_final_accepts_state_without_delegation(self, run_script, reviewed_state):
         """委譲できない環境では起動の記録なしで確定できる。"""
@@ -2956,7 +2974,9 @@ class TestWorkState:
             stdin=json.dumps(reviewed_state, ensure_ascii=False),
         )
         assert result.returncode == 1
-        assert "final_review.output_sha256が完成稿と一致しない" in result.stderr
+        assert (
+            "final_reflection_review.output_sha256が完成稿と一致しない" in result.stderr
+        )
 
     def test_final_requires_all_checked_answers(self, run_script, reviewed_state):
         """最終入力が検査済みの別解を欠けば出力を拒否する。"""

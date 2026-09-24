@@ -115,7 +115,12 @@ class TestBundledTable:
         module = load_script("generate-quiz", "assignment_plan.py")
         plan = module.rerun_plan(module.load_table(), "writer")
         roles = {role for step in plan for role in step["roles"]}
-        assert {"structure_review", "exposure", "finalization", "final_review"} <= roles
+        assert {
+            "structure_review",
+            "exposure",
+            "finalization",
+            "final_reflection_review",
+        } <= roles
         assert not roles & {"source_reliability_review", "corroboration_review"}
 
     def test_exploration_change_stays_in_topic_selection(self, load_script):

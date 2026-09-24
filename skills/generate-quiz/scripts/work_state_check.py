@@ -115,6 +115,7 @@ def step_roles(*names):
 
 
 REVIEWED_STAGES = {"review", "material", "final"}
+FINAL_REVIEW_ROLES = ("final_reflection_review", "final_contamination_review")
 FACET_AXES = ("subject", "place", "time", "type")
 FACET_VIEWPOINTS = ("sharing", "communication", "background")
 PREJUDGMENT_KEYS = (
@@ -1002,6 +1003,7 @@ def validate_execution_assignments(state, stage):
     )
     roles_by_agent = {}
     exposure_versions = {}
+    reviewed_outputs = {}
     for index, record in enumerate(records):
         name = f"execution.assignments[{index}]"
         require_condition(
@@ -1028,6 +1030,16 @@ def validate_execution_assignments(state, stage):
             )
             require_condition(
                 len(items) <= size, f"{name}.itemsが担当表の件数を超えている"
+            )
+        if role in FINAL_REVIEW_ROLES:
+            digest = required_text(record, "output_sha256", name)
+            require_condition(
+                re.fullmatch(r"[0-9a-f]{64}", digest) is not None,
+                f"{name}.output_sha256が不正である",
+            )
+            require_condition(
+                reviewed_outputs.setdefault(agent_id, digest) == digest,
+                f"{name}.agent_idを別の完成稿の照合に再利用している",
             )
         if role == "exposure":
             version = record.get("draft_version")
@@ -2089,39 +2101,35 @@ def validate_final_source_urls(output, state):
     )
 
 
-def validate_final_review(state, output_bytes):
-    review = state.get("final_review")
-    require_condition(isinstance(review, dict), "final_reviewがない")
-    require_condition(
-        review.get("status") == "passed", "final_review.statusが合格していない"
-    )
-    expected_checks = {
-        "current_draft",
-        "evidence_and_inference",
-        "difficulty",
-        "competitors",
-        "answer_judging",
-        "exposure",
-    }
-    checks = review.get("checks")
-    require_condition(isinstance(checks, dict), "final_review.checksがない")
-    require_condition(
-        set(checks) == expected_checks, "final_review.checksの項目が一致しない"
-    )
-    require_condition(
-        all(value == "passed" for value in checks.values()),
-        "final_review.checksに未合格の項目がある",
-    )
+def validate_final_reviews(state, output_bytes):
+    """現行の完成稿の全体を、反映の照合担当と混入の検査担当が新しく照合したことを検査する。"""
+    digest = hashlib.sha256(output_bytes).hexdigest()
+    for key in FINAL_REVIEW_ROLES:
+        review = state.get(key)
+        require_condition(isinstance(review, dict), f"{key}がない")
+        require_condition(
+            review.get("status") == "passed", f"{key}.statusが合格していない"
+        )
+        required_text(review, "reason", key)
+        require_condition(
+            review.get("output_sha256") == digest,
+            f"{key}.output_sha256が完成稿と一致しない",
+        )
+        if state["execution"]["delegation_available"]:
+            require_condition(
+                any(
+                    record["role"] == key and record["output_sha256"] == digest
+                    for record in state["execution"]["assignments"]
+                ),
+                f"{key}の担当が現行の完成稿について起動されていない",
+            )
+    review = state["final_reflection_review"]
     for key in ("quote_ids", "answer_ids", "clue_ids"):
-        refs = required_id_list(review.get(key), f"final_review.{key}")
+        refs = required_id_list(review.get(key), f"final_reflection_review.{key}")
         require_condition(
             len(refs) == len(set(refs)) and set(refs) == set(state["final_input"][key]),
-            f"final_review.{key}が最終入力と一致しない",
+            f"final_reflection_review.{key}が最終入力と一致しない",
         )
-    require_condition(
-        review.get("output_sha256") == hashlib.sha256(output_bytes).hexdigest(),
-        "final_review.output_sha256が完成稿と一致しない",
-    )
 
 
 def validate_terminology(state, quote_ids, version, stage, draft_text):
@@ -2535,7 +2543,7 @@ def main():
                         )
             validate_final_sections(output, state)
             validate_final_source_urls(output, state)
-            validate_final_review(state, output_bytes)
+            validate_final_reviews(state, output_bytes)
         else:
             validate_work_state(state, args.stage)
     except (OSError, UnicodeError) as error:
