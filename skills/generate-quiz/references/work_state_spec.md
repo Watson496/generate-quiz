@@ -6,9 +6,15 @@
 
 引用、推論、候補比較はMarkdownで保持する。ID、問題文の版、採否、完了状態、参照関係はJSON manifestでも保持し、`scripts/work_state_check.py`で確定的に検査する。JSON manifestだけを判断根拠にせず、対応するMarkdownの内容を生成担当と監査担当が評価する。
 
+## 担当の起動の記録
+
+委譲機能の有無を`execution.delegation_available`に記録する。利用できない場合は、その理由を`execution.unavailable_reason`に記録する。
+
+利用できる場合は、担当を起動するたびに`execution.assignments`へ一件を加える。担当表の役割を`role`、起動toolが返した正規IDを`agent_id`、回収した成果物の場所を`artifact_refs`に置く。露出検査担当の記録には、対象とした問題文の版を`draft_version`に置く。一つのagentを複数の役割に使わない。露出検査担当は版ごとに別のagentとし、同じ版を新しい担当が再検査した場合も一件を加える。解答対象を替えた後も、既存の記録を消したり、別の担当の記録へ書き換えたりしない。
+
 ## ファセットの交差領域
 
-ファセット選択後、題材探索前に4軸の正規ノードキーと交差領域の確認記録をJSONへ保存し、`work_state_check.py --stage intersection-checkpoint`で検査する。確認記録には、開いた資料のURL、交差領域の広さを判断した理由、資料中に実名がある異なる候補二つ以上と各資料のURL、うち一件以上の初級学習資料と扱いの根拠、成立の判定を含める。広さの理由には、選択範囲に入る大区分と、異なる用途の資料で確かめた対象の種類・下位領域を対応させ、候補探索の経路を設けられるかを記す。委譲機能の有無は`execution.delegation_available`に記録する。別agentが確認する場合は、その正規IDと起動時の記録を`execution.agents`と`execution.assignment_log`へ保存する。委譲機能がない場合は、利用できない理由を記録して親agentが確認する。形式検査は資料の独立性や判断の妥当性を保証しない。
+ファセット選択後、題材探索前に4軸の正規ノードキーと交差領域の確認記録をJSONへ保存し、`work_state_check.py --stage intersection-checkpoint`で検査する。確認記録には、開いた資料のURL、交差領域の広さを判断した理由、資料中に実名がある異なる候補二つ以上と各資料のURL、うち一件以上の初級学習資料と扱いの根拠、成立の判定を含める。広さの理由には、選択範囲に入る大区分と、異なる用途の資料で確かめた対象の種類・下位領域を対応させ、候補探索の経路を設けられるかを記す。担当の起動は「担当の起動の記録」節に従って記録する。形式検査は資料の独立性や判断の妥当性を保証しない。
 
 ## 題材候補の探索状態
 
@@ -28,7 +34,7 @@
 
 一つの解答対象を棄却しても、この状態は同じ問題番号で題材を再選定するために保持する。棄却した対象に固有の引用、推論、問題文、監査履歴は、新しい解答対象の作業状態へ渡さない。
 
-題材候補の探索状態は最終出力へ含めない。探索が飽和したら露出予備検査の前に`work_state_check.py --stage discovery`で検査する。抽選に使う探索状態は`--stage selection`で確認する。解答対象を決めた後は探索台帳を含まない作問状態を別に作り、生成担当の起動時記録とともに`--stage generation-start`で確認する。
+題材候補の探索状態は最終出力へ含めない。探索が飽和したら露出予備検査の前に`work_state_check.py --stage discovery`で検査する。抽選に使う探索状態は`--stage selection`で確認する。解答対象を決めた後は探索台帳を含まない作問状態を別に作り、生成担当の起動の記録とともに`--stage generation-start`で確認する。
 
 探索状態は、題材を抽選する前に `topic_pick.py` へ渡す。入口には本文を開いたURL、`opened: true`、確認箇所を`access_note`として記録する。下位領域の`source_searches`には、候補名を含めない入口探しを`mode: open`、既知候補からの近接探索を`mode: nearby`として記録する。候補の`discovery_entry_point_ids`と`coverage_area_ids`は、同じ`source_searches`の`entry_point_ids`と`found_candidate_ids`に対応させる。最初の候補を記録した時点と入口・候補を追加した節目に`--stage discovery-progress`でこの対応を検査する。内部知識から挙げ、まだ資料で確認していない候補は、途中状態では`discovery_entry_point_ids`を空配列にできる。資料の探索記録にその候補を加えたら発見元も記録し、`--stage discovery`までに対応を確定する。途中検査では探索の完了や露出予備検査の記録を要求しない。資料で名称を確認できず除外する候補を除き、`name_use_note`には名称の使用箇所を記す。`facet_membership_reason`には四軸の範囲に属すると判断した理由を記す。選択対象の`expansion_searches`には近接探索の検索先・調べた関係・得た候補IDを残す。検査を通った後で候補を追加した場合は、その候補からも探索を展開し、再度検査する。
 
@@ -40,7 +46,7 @@
 
 ## 解答対象ごとの作業状態
 
-ユーザーが解答対象を直接指定した場合は`selection_mode: specified`と`user_specified_target`を記録し、題材探索担当の割当記録を要求しない。ファセットから抽選した場合は`selection_mode: random`とし、探索担当の割当記録を保持する。どちらの場合も、決まった解答対象について生成以降の検査を省かない。
+ユーザーが解答対象を直接指定した場合は`selection_mode: specified`と`user_specified_target`を記録し、題材探索担当の起動の記録を要求しない。ファセットから抽選した場合は`selection_mode: random`とし、探索担当の起動の記録を保持する。どちらの場合も、決まった解答対象について生成以降の検査を省かない。
 
 解答対象が決まったら、その対象だけに属する作業状態を新しく作る。次を互いに識別できる形で保持する。
 
@@ -122,8 +128,6 @@
 
 日本語としての自然さなど、通常は外部資料を必要としない項目では、資料中の情報に代えて、実際に比較した二つ以上の問題文案と判断理由を記録する。解答露出では、解答を伏せた検査で挙がった候補と、問題文の意味および語形成から生じる候補を分ける。各候補について、名称を形成する要素、その入手元、形成規則、名称候補の形成に解答側の知識が必要か、形成後に標準名称だと確認するためだけに解答側の知識が必要かを別々に記録する。各要素を得るのに使う知識は、`quiz_generation_spec.md`第18節の区分に従い、`knowledge`（`surface`・`audience_known`・`answer_side`）に記録する。各値は、問題文の表層、想定層の既習知識、解答側の知識に当たる。`answer_side`とした要素には、その知識が想定プレイヤー層にとって明白に既習でない理由を`answer_side_reason`に記録する。
 
-露出検査担当は問題文の版ごとに新しく割り当て、`execution.exposure_assignments`に版、正規ID、解答名を含まない依頼名、起動時の記録を残す。依頼名は`task_label`に記録する。`execution.assignment_log.exposure`の依頼名と成果物経路にも解答名を含めない。
-
 対抗候補、露出候補、回答はIDで照合する。候補を最初に挙げた担当が、記録する時点でIDを付ける。後から候補を挙げる担当は、既存の候補と同じ対象なら既存のIDに対応付け、別の対象なら新しいIDを付ける。担当の記録にある名称を、ほかの担当、親、統括役が書き換えない。
 
 露出候補には`id`を付ける。問題文の意味から挙げた候補には、挙げた担当がどの回答と同じ名称かを`answer_id`（該当がなければ`null`）で対応付ける。解答を伏せて挙げた候補には`answer_id`を置かず、解答を開示した後の`answer_review`で対応付ける。
@@ -134,7 +138,7 @@
 
 ## 監査前の反証確認
 
-生成工程の状態検査に合格した後、監査前に難易度と各手掛かりの準一意性を独立に反証する。`evidence_challenge`には現行問題文の版、問う知識、生成担当とは別の担当者を記録する。問う知識は作業状態の`asked_knowledge`と一致させる。`beginner`と`general`には開いた資料のURL、反証で見つけた事情、採用する引用IDと解決理由を置く。各手掛かりの記録は採用中の手掛かりIDに対応させ、逆引きで確認した対抗候補の`id`と名称、候補自身を扱う資料のURL、問題文の条件との照合、候補の採否と未解決の有無を置く。生成側の対抗候補をすべて照合し、独立調査で新しく見つけた有力候補も記録する。条件の相違を確認できない候補や生成側と採否が食い違う候補は、監査前に解決する。
+生成工程の状態検査に合格した後、監査前に難易度と各手掛かりの準一意性を独立に反証する。`evidence_challenge`には現行問題文の版と問う知識を記録する。問う知識は作業状態の`asked_knowledge`と一致させる。`beginner`と`general`には開いた資料のURL、反証で見つけた事情、採用する引用IDと解決理由を置く。各手掛かりの記録は採用中の手掛かりIDに対応させ、逆引きで確認した対抗候補の`id`と名称、候補自身を扱う資料のURL、問題文の条件との照合、候補の採否と未解決の有無を置く。生成側の対抗候補をすべて照合し、独立調査で新しく見つけた有力候補も記録する。条件の相違を確認できない候補や生成側と採否が食い違う候補は、監査前に解決する。
 
 ## 監査結果
 
@@ -189,7 +193,7 @@ JSON manifestは、検査対象を具体的な内容へ結び付け、確定的�
 
 各`competitors`項目には、候補の`id`と`name`、その候補を扱う資料の`evidence_ids`を置く。手掛かりに書かれた条件ごとの`passage`、`matches`（真偽値）、`reason`、`evidence_ids`を`conditions`に置く。候補を別対象として退けるか同一対象の別名として扱うかを`disposition`（`excluded`・`same_target`）と`reason`で示す。別対象を退ける場合だけ、相違する条件の`passage`を`exclusion_passage`へ置く。条件の引用IDは候補の引用IDへ、候補の引用IDは準一意性の引用IDへ含める。
 
-問う知識の内容を`asked_knowledge`に記録し、難易度の独立検査は`difficulty_review`に記録する。後者の`asked_knowledge`には検査対象とした問う知識、`answer_granularity`には要求する解答知識の細かさ、`beginner`と`general`には各集団の`status`、`reason`、`evidence_ids`を置く。`reviewer_id`には難易度検査担当の正規識別子を記録し、委譲機能がない場合は`self`とする。一般層側の`other_access_paths`には、定義的な資料とは別に名称と代表情報の対応が共有され得る経路を`path`、実際に調べた内容を`search_record`、その対応への接触を確認できたかを`outcome`、調査結果を`result`、確認した資料の引用IDを`evidence_ids`として置く。`outcome`は`confirmed`または`not_confirmed`とし、前者では引用IDを必須とする。後者では引用IDを空にできるが、調べた範囲を超える不在の根拠とは扱わない。
+問う知識の内容を`asked_knowledge`に記録し、難易度の独立検査は`difficulty_review`に記録する。後者の`asked_knowledge`には検査対象とした問う知識、`answer_granularity`には要求する解答知識の細かさ、`beginner`と`general`には各集団の`status`、`reason`、`evidence_ids`を置く。一般層側の`other_access_paths`には、定義的な資料とは別に名称と代表情報の対応が共有され得る経路を`path`、実際に調べた内容を`search_record`、その対応への接触を確認できたかを`outcome`、調査結果を`result`、確認した資料の引用IDを`evidence_ids`として置く。`outcome`は`confirmed`または`not_confirmed`とし、前者では引用IDを必須とする。後者では引用IDを空にできるが、調べた範囲を超える不在の根拠とは扱わない。
 
 初学者側の`name_learning`には解答対象の名称を学ぶ位置を、`relation_learning`には問う関係を対象の特徴として学ぶ位置を記録する。`learning_connection`には両者を結び付け、要求する粒度の知識を1〜2年以内に学びうると判断する推論を記録する。それぞれに`reason`と`evidence_ids`を置き、引用IDを初学者側の`evidence_ids`にも含める。同じ引用を複数の判断に使えるが、その引用が各判断をどう支えるかは別々に示す。
 
@@ -197,24 +201,22 @@ JSON manifestは、検査対象を具体的な内容へ結び付け、確定的�
 
 専門用語の`term`には、現行問題文にある表記を記録する。命題理解に意味内容が必要かを`meaning_needed`に記録する。必要な場合は、語の意味を確認した引用と理由を`meaning_evidence_ids`・`meaning_reason`、想定プレイヤー層がその意味を明白に知っていると判断する引用と理由を`audience_evidence_ids`・`audience_reason`に分ける。必要ない場合は、意味内容を知らなくても問題文を理解できる理由を`understanding_without_meaning`に記録する。同じ引用を両方に使うときも、語義の確認と既習性の判断をそれぞれ説明する。
 
-`terminology_review`には、生成担当とは別の担当者の`reviewer_id`と`draft_version`を置く。独立検査の担当者は生成側の語IDを知らずに専門用語を抽出し、各語の表記と意味内容が命題理解に必要かを判断する。その後に生成側の用語一覧を受け取り、同じ語の記録へ生成側の語IDを対応付け、生成側にない語には新しい語IDを付ける。必要な語には語義と既習性それぞれの判定・理由・引用IDを、不要な語には意味内容を知らなくても文意が通る理由を記録する。該当語がない場合も空の`terms`を記録する。独立検査で列挙した語と必要性の判断が生成側と一致し、必要な語の両判断が合格し、生成側で採用した引用ID集合の全件を独立検査の記録に含めるまで、生成工程の状態検査を通さない。独立検査の監査結果は`terminology_review.audit`に記録し、生成工程では`pending`、監査後は`passed`とする。監査では語の抽出漏れ、意味内容の要否、語義・既習性の根拠と推論を確認する。構造検査は、問題文からの語の抽出、必要性の判断、引用が判断を実際に支えるかまでは判定しない。
+`terminology_review`には`draft_version`を置く。独立検査の担当者は生成側の語IDを知らずに専門用語を抽出し、各語の表記と意味内容が命題理解に必要かを判断する。その後に生成側の用語一覧を受け取り、同じ語の記録へ生成側の語IDを対応付け、生成側にない語には新しい語IDを付ける。必要な語には語義と既習性それぞれの判定・理由・引用IDを、不要な語には意味内容を知らなくても文意が通る理由を記録する。該当語がない場合も空の`terms`を記録する。独立検査で列挙した語と必要性の判断が生成側と一致し、必要な語の両判断が合格し、生成側で採用した引用ID集合の全件を独立検査の記録に含めるまで、生成工程の状態検査を通さない。独立検査の監査結果は`terminology_review.audit`に記録し、生成工程では`pending`、監査後は`passed`とする。監査では語の抽出漏れ、意味内容の要否、語義・既習性の根拠と推論を確認する。構造検査は、問題文からの語の抽出、必要性の判断、引用が判断を実際に支えるかまでは判定しない。
 
 `final_input`は監査前に確定する。`final_input.relative_clauses`には、現行問題文の各連体修飾節を`passage`、内の関係か外の関係かを`relation`（`inner`・`outer`）として置き、判断理由を`reason`として記録する。外の関係では、修飾節が表す内容と解答対象を結ぶ命題IDを`relation_proposition_ids`に置く。連体修飾節がなければ空配列とする。`work_state_check.py`は各`passage`が問題文にあって重複しないことと、外の関係だけに命題IDがあることを確認し、節の漏れ、内外関係の判断、命題が関係を表すかは監査担当が判定する。`final_input.quote_ids`には採用中の判断に用いた引用IDを過不足なく置く。`other_access_paths`の調査だけに用いた引用は含めない。
 
-監査合格後は、組立て担当と最終照合担当の割当記録を加える以外に、採用項目と`final_input`を変更しない。最終段階では、完成したMarkdownと監査に使った状態ファイルそのものを`work_state_check.py --stage final --output 完成稿.md 状態.json`へ渡す。`work_state_check.py`は逐語引用の本文が出力に実在することを確認し、引用と結論の意味上の対応は最終照合担当が資料本文に戻って判定する。
+監査合格後は、組立て担当と最終照合担当の起動の記録を加える以外に、採用項目と`final_input`を変更しない。最終段階では、完成したMarkdownと監査に使った状態ファイルそのものを`work_state_check.py --stage final --output 完成稿.md 状態.json`へ渡す。`work_state_check.py`は逐語引用の本文が出力に実在することを確認し、引用と結論の意味上の対応は最終照合担当が資料本文に戻って判定する。
 
-最終照合担当が完成稿を確認したら、`final_review`に`status: passed`、担当の正規識別子を`reviewer_id`、照合した引用・回答・手掛かりのIDを`quote_ids`・`answer_ids`・`clue_ids`、各検査の結果を`checks`（`current_draft`・`evidence_and_inference`・`difficulty`・`competitors`・`answer_judging`・`exposure`）、照合した完成稿のファイル内容のSHA-256を`output_sha256`として記録する。委譲機能がない場合の`reviewer_id`は`self`とする。完成稿を直した場合は再照合し、ハッシュも更新する。この記録は照合の対象と結果を検査するもので、判断の妥当性を機械的に証明するものではない。
+最終照合担当が完成稿を確認したら、`final_review`に`status: passed`、照合した引用・回答・手掛かりのIDを`quote_ids`・`answer_ids`・`clue_ids`、各検査の結果を`checks`（`current_draft`・`evidence_and_inference`・`difficulty`・`competitors`・`answer_judging`・`exposure`）、照合した完成稿のファイル内容のSHA-256を`output_sha256`として記録する。完成稿を直した場合は再照合し、ハッシュも更新する。この記録は照合の対象と結果を検査するもので、判断の妥当性を機械的に証明するものではない。
 
 生成工程ではすべての `audit` を `pending` とした状態で `--stage generation` を通す。監査担当だけが結果を更新し、`--stage audit` を通す。これにより、完成後に生成と監査の状態をまとめて作ることを認めない。
-
-委譲機能を利用できる環境では、ファセットの交差領域の確認、探索、生成、難易度と専門用語の独立検査、解答露出検査、監査、最終出力の組立て、最終照合を別々のagentへ割り当てる。親agentは起動toolが返した正規の識別子を起動直後に `execution.agents` へ記録し、各成果物に記載された担当識別子と照合する。候補変更時にも、継続して使う探索担当の識別子を別名へ置き換えない。利用できない環境では、その事実と理由を記録する。
 
 具体的なJSONの形は `scripts/work_state_check.py` が検査するフィールドに従う。次は架空のURLを使った題材探索状態の形式例である。
 
 ```json
 {
   "facet_nodes": {"subject": "subject::66", "place": "place::ROOT", "time": "time::ROOT", "type": "type::ROOT"},
-  "execution": {"delegation_available": true, "agents": {"intersection": "agent-1", "exploration": "agent-2", "alternate_exploration": "agent-3", "saturation_review": "agent-4"}, "assignment_log": {"intersection": {"agent_id": "agent-1", "recorded_at_spawn": true, "artifact_refs": ["intersection.md"]}, "exploration": {"agent_id": "agent-2", "recorded_at_spawn": true, "artifact_refs": ["exploration.md"]}, "alternate_exploration": {"agent_id": "agent-3", "recorded_at_spawn": true, "artifact_refs": ["alternate_exploration.md"]}, "saturation_review": {"agent_id": "agent-4", "recorded_at_spawn": true, "artifact_refs": ["saturation_review.md"]}}},
+  "execution": {"delegation_available": true, "assignments": [{"role": "facet_selection", "agent_id": "agent-1", "artifact_refs": ["facet_selection.md"]}, {"role": "intersection", "agent_id": "agent-2", "artifact_refs": ["intersection.md"]}, {"role": "exploration", "agent_id": "agent-3", "artifact_refs": ["exploration.md"]}, {"role": "alternate_exploration", "agent_id": "agent-4", "artifact_refs": ["alternate_exploration.md"]}, {"role": "saturation_review", "agent_id": "agent-5", "artifact_refs": ["saturation_review.md"]}, {"role": "exposure_precheck", "agent_id": "agent-6", "artifact_refs": ["exposure_precheck.md"]}, {"role": "topic_weighting", "agent_id": "agent-7", "artifact_refs": ["topic_weights.json"]}]},
   "intersection_review": {
     "source_refs": ["https://example.org/outline", "https://example.org/lesson"],
     "candidate_examples": [

@@ -138,15 +138,15 @@ def complete_state():
         "generation": "complete",
         "audit": "passed",
     }
-    assignment_log = {
-        role: {
+    assignments = [
+        {
+            "role": role,
             "agent_id": agent,
-            "recorded_at_spawn": True,
             "artifact_refs": [f"{role}.md"],
+            **({"draft_version": 2} if role == "exposure" else {}),
         }
         for role, agent in agents.items()
-    }
-    assignment_log["exposure"]["task_label"] = "露出候補の列挙"
+    ]
     state = {
         "selection_mode": "random",
         "facet_nodes": {
@@ -155,23 +155,10 @@ def complete_state():
             "time": "time::ROOT",
             "type": "type::ROOT",
         },
-        "execution": {
-            "delegation_available": True,
-            "agents": agents,
-            "assignment_log": assignment_log,
-            "exposure_assignments": [
-                {
-                    "draft_version": 2,
-                    "agent_id": agents["exposure"],
-                    "recorded_at_spawn": True,
-                    "task_label": "露出候補の列挙",
-                }
-            ],
-        },
+        "execution": {"delegation_available": True, "assignments": assignments},
         "answer_target": "ミュラー・リヤー錯視",
         "asked_knowledge": "図形条件からミュラー・リヤー錯視の名称を答える",
         "difficulty_review": {
-            "reviewer_id": agents["difficulty_review"],
             "asked_knowledge": "図形条件からミュラー・リヤー錯視の名称を答える",
             "answer_granularity": "錯視の名称と図形条件の対応",
             "audit": "passed",
@@ -289,7 +276,6 @@ def complete_state():
             }
         ],
         "terminology_review": {
-            "reviewer_id": agents["terminology_review"],
             "draft_version": 2,
             "audit": "passed",
             "terms": [
@@ -307,7 +293,6 @@ def complete_state():
             ],
         },
         "evidence_challenge": {
-            "reviewer_id": agents["evidence_challenge"],
             "draft_version": 2,
             "asked_knowledge": "図形条件からミュラー・リヤー錯視の名称を答える",
             "beginner": {
@@ -365,7 +350,6 @@ def complete_state():
             }
         ],
         "exposure_review": {
-            "reviewer_id": agents["audit"],
             "draft_version": 2,
             "question_sha256": hashlib.sha256(
                 "同じ長さの線分が矢羽の向きで異なる長さに見える錯視は何でしょう？".encode()
@@ -376,7 +360,6 @@ def complete_state():
             "no_candidate_reason": "問題文から名称候補を形成できなかった",
         },
         "answer_review": {
-            "reviewer_id": agents["exposure"],
             "draft_version": 2,
             "answers": [
                 {
@@ -496,13 +479,26 @@ def refresh_material_quotes(state):
     )
 
 
+def drop_assignment(state, role):
+    """起動の記録から、指定した役割の担当を除く。"""
+    state["execution"]["assignments"] = [
+        item for item in state["execution"]["assignments"] if item["role"] != role
+    ]
+
+
+def assignment_of(state, role):
+    """起動の記録から、指定した役割の担当を返す。"""
+    return next(
+        item for item in state["execution"]["assignments"] if item["role"] == role
+    )
+
+
 @pytest.fixture
 def generation_state(complete_state):
     """生成工程の監査前にある一問分の作業状態を作る。"""
     state = copy.deepcopy(complete_state)
     del state["evidence_challenge"]
-    del state["execution"]["agents"]["evidence_challenge"]
-    del state["execution"]["assignment_log"]["evidence_challenge"]
+    drop_assignment(state, "evidence_challenge")
     state["difficulty_review"]["audit"] = "pending"
     state["terminology_review"]["audit"] = "pending"
     for group in ("propositions", "terms", "answers", "checks"):
@@ -519,7 +515,6 @@ def reviewed_state(complete_state):
     state = copy.deepcopy(complete_state)
     state["final_review"] = {
         "status": "passed",
-        "reviewer_id": state["execution"]["agents"]["final_review"],
         "checks": dict.fromkeys(
             (
                 "current_draft",
@@ -748,46 +743,39 @@ class TestIntersectionState:
             == 0
         )
 
-    def test_delegated_review_requires_spawn_record(
+    def test_delegated_review_requires_assignment(self, run_script, intersection_state):
+        """別agentによる確認では起動の記録を必須とする。"""
+        drop_assignment(intersection_state, "intersection")
+        result = check_state(run_script, "intersection-checkpoint", intersection_state)
+        assert result.returncode == 1
+        assert "担当の記録がない: ['intersection']" in result.stderr
+
+    def test_review_rejects_agent_shared_with_selection(
         self, run_script, intersection_state
     ):
-        """別agentによる確認では起動時の担当記録を必須とする。"""
-        del intersection_state["execution"]["assignment_log"]["intersection"][
-            "recorded_at_spawn"
-        ]
-        assert (
-            check_state(
-                run_script, "intersection-checkpoint", intersection_state
-            ).returncode
-            == 1
-        )
+        """ファセット選択担当に交差領域の確認を兼ねさせない。"""
+        assignment_of(intersection_state, "intersection")["agent_id"] = assignment_of(
+            intersection_state, "facet_selection"
+        )["agent_id"]
+        result = check_state(run_script, "intersection-checkpoint", intersection_state)
+        assert result.returncode == 1
+        assert "agent_idを別の役割にも割り当てている" in result.stderr
 
-    def test_delegated_review_rejects_parent(self, run_script, intersection_state):
-        """委譲できる場合は選択担当による自己確認を拒否する。"""
-        intersection_state["execution"]["agents"]["intersection"] = "parent"
-        intersection_state["execution"]["assignment_log"]["intersection"][
-            "agent_id"
-        ] = "parent"
-        assert (
-            check_state(
-                run_script, "intersection-checkpoint", intersection_state
-            ).returncode
-            == 1
-        )
-
-    def test_assignment_agent_must_match_spawn_record(
-        self, run_script, intersection_state
+    @pytest.mark.parametrize(
+        ("field", "value", "message"),
+        [
+            ("role", "parent", "roleが担当表にない"),
+            ("artifact_refs", [], "artifact_refsが空である"),
+        ],
+    )
+    def test_assignment_requires_known_role_and_artifact(
+        self, run_script, intersection_state, field, value, message
     ):
-        """4軸の交差領域の確認担当と起動時の担当記録の不一致を拒否する。"""
-        intersection_state["execution"]["assignment_log"]["intersection"][
-            "agent_id"
-        ] = "agent-2"
-        assert (
-            check_state(
-                run_script, "intersection-checkpoint", intersection_state
-            ).returncode
-            == 1
-        )
+        """起動の記録は担当表の役割と成果物の場所を持つ。"""
+        assignment_of(intersection_state, "intersection")[field] = value
+        result = check_state(run_script, "intersection-checkpoint", intersection_state)
+        assert result.returncode == 1
+        assert message in result.stderr
 
     @pytest.mark.parametrize(
         "source", ["資料名", "https://", "https://example.org/a b"]
@@ -1233,11 +1221,11 @@ class TestWorkState:
         assert "題材探索台帳が混入" in result.stderr
 
     def test_generation_start_requires_spawn_record(self, run_script, complete_state):
-        """生成担当の起動時記録がない状態を拒否する。"""
-        del complete_state["execution"]["assignment_log"]["generation"]
+        """生成担当の起動の記録がない状態を拒否する。"""
+        drop_assignment(complete_state, "generation")
         result = check_state(run_script, "generation-start", complete_state)
         assert result.returncode == 1
-        assert "assignment_log.generation" in result.stderr
+        assert "担当の記録がない: ['generation']" in result.stderr
 
     def test_audit_requires_evidence_challenge(self, run_script, complete_state):
         """難易度と手掛かりの独立した反証確認を省けない。"""
@@ -1351,52 +1339,39 @@ class TestWorkState:
         self, run_script, generation_state
     ):
         """現行版に対応する露出検査担当の起動記録を要求する。"""
-        generation_state["execution"]["exposure_assignments"][0]["draft_version"] = 1
+        assignment_of(generation_state, "exposure")["draft_version"] = 1
         result = check_state(run_script, "generation", generation_state)
         assert result.returncode == 1
         assert "現行版の露出検査担当" in result.stderr
 
-    @pytest.mark.parametrize(
-        ("field", "value", "message"),
-        [
-            ("task_label", "", "task_labelがない"),
-            ("recorded_at_spawn", False, "起動時に記録されていない"),
-        ],
-    )
-    def test_generation_requires_exposure_assignment_metadata(
-        self, run_script, generation_state, field, value, message
-    ):
-        """版別の露出検査記録に依頼名と起動時の記録を要求する。"""
-        generation_state["execution"]["exposure_assignments"][0][field] = value
-        result = check_state(run_script, "generation", generation_state)
-        assert result.returncode == 1
-        assert message in result.stderr
-
-    def test_generation_rejects_duplicate_exposure_assignment_version(
+    def test_generation_requires_exposure_draft_version(
         self, run_script, generation_state
     ):
-        """同じ問題文の版に複数の露出検査記録を置かない。"""
-        assignment = copy.deepcopy(
-            generation_state["execution"]["exposure_assignments"][0]
-        )
-        assignment["agent_id"] = "agent-new-exposure"
-        generation_state["execution"]["exposure_assignments"].append(assignment)
+        """露出検査担当の起動の記録に対象の版を要求する。"""
+        del assignment_of(generation_state, "exposure")["draft_version"]
         result = check_state(run_script, "generation", generation_state)
         assert result.returncode == 1
-        assert "draft_versionが重複" in result.stderr
+        assert "draft_versionが不正である" in result.stderr
+
+    def test_generation_accepts_new_exposure_agent_for_same_version(
+        self, run_script, generation_state
+    ):
+        """同じ版を新しい露出検査担当が再検査した記録を認める。"""
+        assignment = copy.deepcopy(assignment_of(generation_state, "exposure"))
+        assignment["agent_id"] = "agent-new-exposure"
+        generation_state["execution"]["assignments"].append(assignment)
+        assert check_state(run_script, "generation", generation_state).returncode == 0
 
     def test_generation_rejects_reused_exposure_agent(
         self, run_script, generation_state
     ):
         """問題文の版を変えた露出検査に同じ担当を再利用しない。"""
-        assignment = copy.deepcopy(
-            generation_state["execution"]["exposure_assignments"][0]
-        )
+        assignment = copy.deepcopy(assignment_of(generation_state, "exposure"))
         assignment["draft_version"] = 1
-        generation_state["execution"]["exposure_assignments"].append(assignment)
+        generation_state["execution"]["assignments"].append(assignment)
         result = check_state(run_script, "generation", generation_state)
         assert result.returncode == 1
-        assert "agent_idを再利用" in result.stderr
+        assert "別の版の露出検査に再利用" in result.stderr
 
     def test_audit_requires_independent_exposure_record(
         self, run_script, complete_state
@@ -1410,7 +1385,6 @@ class TestWorkState:
     @pytest.mark.parametrize(
         ("field", "value", "message"),
         [
-            ("reviewer_id", "agent-other", "監査担当と一致しない"),
             ("draft_version", 1, "問題文と一致しない"),
             ("question_sha256", "0" * 64, "問題文と一致しない"),
             ("checked_answer_ids", [], "正答範囲と一致しない"),
@@ -1420,7 +1394,7 @@ class TestWorkState:
     def test_audit_rejects_invalid_exposure_record(
         self, run_script, complete_state, field, value, message
     ):
-        """露出検査記録を現行問題と監査担当へ対応させる。"""
+        """露出検査記録を現行問題と正答範囲へ対応させる。"""
         complete_state["exposure_review"][field] = value
         result = check_state(run_script, "audit", complete_state)
         assert result.returncode == 1
@@ -1481,14 +1455,13 @@ class TestWorkState:
     @pytest.mark.parametrize(
         ("field", "value", "message"),
         [
-            ("reviewer_id", "agent-other", "露出検査担当と一致しない"),
             ("draft_version", 1, "問題文と一致しない"),
         ],
     )
     def test_generation_rejects_invalid_answer_review(
         self, run_script, generation_state, field, value, message
     ):
-        """正誤判定を現行問題と露出検査担当へ対応させる。"""
+        """正誤判定を現行問題へ対応させる。"""
         generation_state["answer_review"][field] = value
         result = check_state(run_script, "generation", generation_state)
         assert result.returncode == 1
@@ -1597,8 +1570,7 @@ class TestWorkState:
             f"ユーザー指定の解答対象：{state['answer_target']}。履歴補正なし。"
         )
         for role in ("exploration", "alternate_exploration", "saturation_review"):
-            del state["execution"]["agents"][role]
-            del state["execution"]["assignment_log"][role]
+            drop_assignment(state, role)
         if stage == "final":
             state["final_review"]["output_sha256"] = hashlib.sha256(
                 final_output_text(state).encode()
@@ -1615,11 +1587,11 @@ class TestWorkState:
     def test_difficulty_review_requires_assigned_agent(
         self, run_script, complete_state
     ):
-        """難易度の独立検査には起動時に記録した担当者を要する。"""
-        del complete_state["execution"]["agents"]["difficulty_review"]
+        """難易度の独立検査には起動の記録を要する。"""
+        drop_assignment(complete_state, "difficulty_review")
         result = check_state(run_script, "audit", complete_state)
         assert result.returncode == 1
-        assert "execution.agents.difficulty_reviewがない" in result.stderr
+        assert "担当の記録がない: ['difficulty_review']" in result.stderr
 
     def test_difficulty_checkpoint_passes_without_draft(
         self, run_script, complete_state
@@ -1641,12 +1613,9 @@ class TestWorkState:
             "generation",
             "difficulty_review",
         }
-        for key in ("agents", "assignment_log"):
-            state["execution"][key] = {
-                role: item
-                for role, item in state["execution"][key].items()
-                if role in roles
-            }
+        state["execution"]["assignments"] = [
+            item for item in state["execution"]["assignments"] if item["role"] in roles
+        ]
         state["difficulty_review"]["audit"] = "pending"
         assert check_state(run_script, "difficulty", state).returncode == 0
 
@@ -1693,15 +1662,6 @@ class TestWorkState:
         result = check_state(run_script, "audit", complete_state)
         assert result.returncode == 1
         assert f"difficulty_review.{group}が独立検査に合格していない" in result.stderr
-
-    def test_difficulty_review_requires_matching_reviewer(
-        self, run_script, complete_state
-    ):
-        """難易度検査の記録は割り当てられた担当者に対応する。"""
-        complete_state["difficulty_review"]["reviewer_id"] = "別の担当者"
-        result = check_state(run_script, "audit", complete_state)
-        assert result.returncode == 1
-        assert "difficulty_review.reviewer_idが担当記録と一致しない" in result.stderr
 
     @pytest.mark.parametrize(
         "aspect", ["name_learning", "relation_learning", "learning_connection"]
@@ -1853,10 +1813,10 @@ class TestWorkState:
         """直接指定でも生成以降の担当は省略できない。"""
         complete_state["selection_mode"] = "specified"
         complete_state["user_specified_target"] = complete_state["answer_target"]
-        del complete_state["execution"]["agents"]["generation"]
+        drop_assignment(complete_state, "generation")
         result = check_state(run_script, "audit", complete_state)
         assert result.returncode == 1
-        assert "execution.agents.generationがない" in result.stderr
+        assert "担当の記録がない: ['generation']" in result.stderr
 
     def test_clue_rejects_quasi_uniqueness_depending_on_another_clue(
         self, run_script, complete_state
@@ -2414,7 +2374,7 @@ class TestWorkState:
             ("missing", "terminology_reviewがない"),
             ("failed", "terminology_review.terms.T1.audience_status"),
             ("stale", "terminology_review.draft_version"),
-            ("same_agent", "工程を別々のagentへ割り当てていない"),
+            ("same_agent", "agent_idを別の役割にも割り当てている"),
             ("audited", "terminology_reviewは生成工程の時点で監査済み"),
         ],
     )
@@ -2434,8 +2394,8 @@ class TestWorkState:
         elif change == "audited":
             generation_state["terminology_review"]["audit"] = "passed"
         else:
-            generation_state["execution"]["agents"]["terminology_review"] = (
-                generation_state["execution"]["agents"]["generation"]
+            assignment_of(generation_state, "terminology_review")["agent_id"] = (
+                assignment_of(generation_state, "generation")["agent_id"]
             )
         result = check_state(run_script, "generation", generation_state)
         assert result.returncode == 1
@@ -2690,11 +2650,6 @@ class TestWorkState:
         [
             ("status", "pending", "final_review.statusが合格していない"),
             (
-                "reviewer_id",
-                "別の担当者",
-                "final_review.reviewer_idが最終照合担当と一致しない",
-            ),
-            (
                 "output_sha256",
                 "0" * 64,
                 "final_review.output_sha256が完成稿と一致しない",
@@ -2704,7 +2659,7 @@ class TestWorkState:
     def test_final_requires_review_of_current_output(
         self, run_script, reviewed_state, field, value, message
     ):
-        """完成稿の照合結果は最終照合担当と現行ファイルに対応する。"""
+        """完成稿の照合結果は現行ファイルに対応する。"""
         reviewed_state["final_review"][field] = value
         result = check_state(run_script, "final", reviewed_state)
         assert result.returncode == 1
@@ -2719,15 +2674,12 @@ class TestWorkState:
 
     def test_final_requires_independent_reviewer(self, run_script, reviewed_state):
         """最終照合担当を監査担当と兼任させない。"""
-        audit_agent = reviewed_state["execution"]["agents"]["audit"]
-        reviewed_state["execution"]["agents"]["final_review"] = audit_agent
-        reviewed_state["execution"]["assignment_log"]["final_review"]["agent_id"] = (
-            audit_agent
-        )
-        reviewed_state["final_review"]["reviewer_id"] = audit_agent
+        assignment_of(reviewed_state, "final_review")["agent_id"] = assignment_of(
+            reviewed_state, "audit"
+        )["agent_id"]
         result = check_state(run_script, "final", reviewed_state)
         assert result.returncode == 1
-        assert "工程を別々のagentへ割り当てていない" in result.stderr
+        assert "agent_idを別の役割にも割り当てている" in result.stderr
 
     def test_final_requires_all_review_checks(self, run_script, reviewed_state):
         """完成稿の照合で未合格の判断を残さない。"""
@@ -2743,20 +2695,12 @@ class TestWorkState:
         assert result.returncode == 1
         assert "final_review.quote_idsが最終入力と一致しない" in result.stderr
 
-    def test_final_accepts_self_review_without_delegation(
-        self, run_script, reviewed_state
-    ):
-        """委譲できない環境では自分の照合記録を使う。"""
-        reviewed_state["execution"]["delegation_available"] = False
-        reviewed_state["execution"]["unavailable_reason"] = "委譲機能がない"
-        del reviewed_state["execution"]["agents"]
-        del reviewed_state["execution"]["assignment_log"]
-        reviewed_state["difficulty_review"]["reviewer_id"] = "self"
-        reviewed_state["evidence_challenge"]["reviewer_id"] = "self"
-        reviewed_state["terminology_review"]["reviewer_id"] = "self"
-        reviewed_state["exposure_review"]["reviewer_id"] = "self"
-        reviewed_state["answer_review"]["reviewer_id"] = "self"
-        reviewed_state["final_review"]["reviewer_id"] = "self"
+    def test_final_accepts_state_without_delegation(self, run_script, reviewed_state):
+        """委譲できない環境では起動の記録なしで確定できる。"""
+        reviewed_state["execution"] = {
+            "delegation_available": False,
+            "unavailable_reason": "委譲機能がない",
+        }
         result = check_state(run_script, "final", reviewed_state)
         assert result.returncode == 0
 
@@ -2776,17 +2720,6 @@ class TestWorkState:
         )
         assert result.returncode == 1
         assert "final_review.output_sha256が完成稿と一致しない" in result.stderr
-
-    def test_audit_requires_matching_assignment(self, run_script, complete_state):
-        """起動時に記録した担当者と実際の担当者の不一致を監査で拒否する。"""
-        complete_state["execution"]["assignment_log"]["exploration"]["agent_id"] = (
-            "別の担当"
-        )
-        result = check_state(run_script, "audit", complete_state)
-        assert result.returncode == 1
-        assert (
-            "assignment_log.exploration.agent_idが担当記録と一致しない" in result.stderr
-        )
 
     def test_final_requires_all_checked_answers(self, run_script, reviewed_state):
         """最終入力が監査済みの別解を欠けば出力を拒否する。"""
@@ -2839,25 +2772,22 @@ class TestWorkState:
 
     def test_audit_uses_only_assigned_agents(self, run_script, complete_state):
         """担当工程を同一agentへ集中させた状態を監査で拒否する。"""
-        complete_state["execution"]["agents"] = dict.fromkeys(
-            complete_state["execution"]["agents"], "agent-1"
-        )
-        complete_state["execution"]["exposure_assignments"][0]["agent_id"] = "agent-1"
+        for item in complete_state["execution"]["assignments"]:
+            item["agent_id"] = "agent-1"
         result = check_state(run_script, "audit", complete_state)
         assert result.returncode == 1
-        assert "工程を別々のagentへ割り当てていない" in result.stderr
+        assert "agent_idを別の役割にも割り当てている" in result.stderr
 
     def test_finalization_agent_needed_only_for_final(
         self, run_script, complete_state, reviewed_state
     ):
         """最終化の担当は監査時には不要だが最終出力時には必要となる。"""
         for state in (complete_state, reviewed_state):
-            del state["execution"]["agents"]["finalization"]
-            del state["execution"]["assignment_log"]["finalization"]
+            drop_assignment(state, "finalization")
         assert check_state(run_script, "audit", complete_state).returncode == 0
         result = check_state(run_script, "final", reviewed_state)
         assert result.returncode == 1
-        assert "execution.agents.finalizationがない" in result.stderr
+        assert "担当の記録がない: ['finalization']" in result.stderr
 
     def test_invalid_json_is_input_error(self, run_script):
         """解析できないJSONは作業状態の不合格とは異なる入力エラーとする。"""

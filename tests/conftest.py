@@ -54,14 +54,14 @@ def intersection_state():
     return {
         "execution": {
             "delegation_available": True,
-            "agents": {"intersection": "agent-1"},
-            "assignment_log": {
-                "intersection": {
-                    "agent_id": "agent-1",
-                    "recorded_at_spawn": True,
-                    "artifact_refs": ["intersection.md"],
+            "assignments": [
+                {
+                    "role": role,
+                    "agent_id": f"agent-{index}",
+                    "artifact_refs": [f"{role}.md"],
                 }
-            },
+                for index, role in enumerate(("facet_selection", "intersection"), 1)
+            ],
         },
         "facet_nodes": {
             "subject": "subject::66",
@@ -256,16 +256,27 @@ def selection_state(intersection_state):
             "resolved": True,
         },
     }
-    for index, role in enumerate(
-        ("exploration", "alternate_exploration", "saturation_review"), 2
-    ):
-        agent = f"agent-{index}"
-        state["execution"]["agents"][role] = agent
-        state["execution"]["assignment_log"][role] = {
-            "agent_id": agent,
-            "recorded_at_spawn": True,
-            "artifact_refs": [f"{role}.md"],
-        }
+    roles = (
+        "exploration",
+        "alternate_exploration",
+        "saturation_review",
+        "exposure_precheck",
+        "topic_weighting",
+    )
+    state["execution"] = {
+        **state["execution"],
+        "assignments": [
+            *state["execution"]["assignments"],
+            *(
+                {
+                    "role": role,
+                    "agent_id": f"agent-{index}",
+                    "artifact_refs": [f"{role}.md"],
+                }
+                for index, role in enumerate(roles, 3)
+            ),
+        ],
+    }
     candidate = state["candidates"][0]
     name = candidate["label"]
     candidate["exposure_precheck"]["formations"] = [

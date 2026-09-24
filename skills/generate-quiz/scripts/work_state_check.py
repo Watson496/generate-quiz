@@ -23,6 +23,7 @@ import sys
 from pathlib import Path
 from urllib.parse import urlsplit
 
+import assignment_plan
 import facet_node
 
 FINAL_HEADINGS = (
@@ -103,6 +104,41 @@ OUTPUT_HEADINGS = {
     "answer_judging": "解答と正誤判定",
     "references": "参考文献",
 }
+SELECTION_ROLES = ("exploration", "alternate_exploration", "saturation_review")
+STAGE_ROLES = {
+    "intersection-checkpoint": ("facet_selection", "intersection"),
+    "discovery-progress": ("facet_selection", "intersection", "exploration"),
+    "discovery": ("facet_selection", "intersection", *SELECTION_ROLES),
+    "selection": (
+        "facet_selection",
+        "intersection",
+        *SELECTION_ROLES,
+        "exposure_precheck",
+        "topic_weighting",
+    ),
+    "generation-start": ("generation",),
+    "difficulty": ("generation", "difficulty_review"),
+    "generation": ("generation", "difficulty_review", "terminology_review", "exposure"),
+    "audit": (
+        "generation",
+        "difficulty_review",
+        "terminology_review",
+        "exposure",
+        "evidence_challenge",
+        "audit",
+    ),
+    "final": (
+        "generation",
+        "difficulty_review",
+        "terminology_review",
+        "exposure",
+        "evidence_challenge",
+        "audit",
+        "finalization",
+        "final_review",
+    ),
+}
+WORK_STAGES = {"generation-start", "difficulty", "generation", "audit", "final"}
 MIN_ENTRY_POINTS = 2
 MIN_COVERAGE_AREAS = 2
 MIN_EXPRESSION_ALTERNATIVES = 2
@@ -307,42 +343,6 @@ def validate_intersection_state(state):
         )
     review = state.get("intersection_review")
     require_condition(isinstance(review, dict), "intersection_reviewがない")
-    execution = state.get("execution")
-    require_condition(isinstance(execution, dict), "executionがない")
-    available = execution.get("delegation_available")
-    require_condition(
-        isinstance(available, bool), "execution.delegation_availableがない"
-    )
-    if available:
-        agents = execution.get("agents")
-        require_condition(isinstance(agents, dict), "execution.agentsがない")
-        reviewer_id = required_text(agents, "intersection", "execution.agents")
-        require_condition(
-            reviewer_id != "parent", "4軸の交差領域の確認を選択担当と分離していない"
-        )
-        assignments = execution.get("assignment_log")
-        require_condition(
-            isinstance(assignments, dict), "execution.assignment_logがない"
-        )
-        assignment = assignments.get("intersection")
-        require_condition(
-            isinstance(assignment, dict), "execution.assignment_log.intersectionがない"
-        )
-        require_condition(
-            assignment.get("agent_id") == reviewer_id,
-            "execution.assignment_log.intersection.agent_idが担当記録と一致しない",
-        )
-        require_condition(
-            assignment.get("recorded_at_spawn") is True,
-            "execution.assignment_log.intersectionが起動時に記録されていない",
-        )
-        required_list(
-            assignment.get("artifact_refs"),
-            "execution.assignment_log.intersection.artifact_refs",
-            nonempty=True,
-        )
-    else:
-        required_text(execution, "unavailable_reason", "execution")
     sources = required_id_list(
         review.get("source_refs"), "intersection_review.source_refs", nonempty=True
     )
@@ -705,125 +705,58 @@ def validate_execution_assignments(state, stage, selection_mode="random"):
     require_condition(
         isinstance(available, bool), "execution.delegation_availableがない"
     )
-    if available:
-        if stage in {"generation", "audit", "final"}:
-            exposure_assignments = required_list(
-                data.get("exposure_assignments"),
-                "execution.exposure_assignments",
-                nonempty=True,
-            )
-            versions = set()
-            agent_ids = set()
-            for index, assignment in enumerate(exposure_assignments):
-                name = f"execution.exposure_assignments[{index}]"
-                require_condition(isinstance(assignment, dict), f"{name}がない")
-                version = assignment.get("draft_version")
-                require_condition(
-                    type(version) is int and version >= 1,
-                    f"{name}.draft_versionが不正である",
-                )
-                agent_id = required_text(assignment, "agent_id", name)
-                required_text(assignment, "task_label", name)
-                require_condition(
-                    version not in versions, f"{name}.draft_versionが重複している"
-                )
-                require_condition(
-                    agent_id not in agent_ids, f"{name}.agent_idを再利用している"
-                )
-                require_condition(
-                    assignment.get("recorded_at_spawn") is True,
-                    f"{name}が起動時に記録されていない",
-                )
-                versions.add(version)
-                agent_ids.add(agent_id)
-            draft = state.get("draft")
-            draft_version = draft.get("version") if isinstance(draft, dict) else None
-            assigned = data.get("agents")
-            exposure_id = (
-                assigned.get("exposure") if isinstance(assigned, dict) else None
-            )
-            require_condition(
-                any(
-                    assignment["draft_version"] == draft_version
-                    and assignment["agent_id"] == exposure_id
-                    for assignment in exposure_assignments
-                ),
-                "現行版の露出検査担当が版別記録と一致しない",
-            )
-        if selection_mode == "specified":
-            selection_roles = ()
-        elif stage == "discovery-progress":
-            selection_roles = ("exploration",)
-        else:
-            selection_roles = (
-                "exploration",
-                "alternate_exploration",
-                "saturation_review",
-            )
-        roles = (
-            selection_roles
-            + {
-                "discovery-progress": (),
-                "discovery": (),
-                "selection": (),
-                "generation-start": ("generation",),
-                "difficulty": ("generation", "difficulty_review"),
-                "generation": (
-                    "generation",
-                    "difficulty_review",
-                    "terminology_review",
-                    "exposure",
-                ),
-                "audit": (
-                    "generation",
-                    "difficulty_review",
-                    "terminology_review",
-                    "exposure",
-                    "evidence_challenge",
-                    "audit",
-                ),
-                "final": (
-                    "generation",
-                    "difficulty_review",
-                    "terminology_review",
-                    "exposure",
-                    "evidence_challenge",
-                    "audit",
-                    "finalization",
-                    "final_review",
-                ),
-            }[stage]
-        )
-        agents = data.get("agents")
-        require_condition(isinstance(agents, dict), "execution.agentsがない")
-        ids = [required_text(agents, k, "execution.agents") for k in roles]
-        require_condition(
-            len(ids) == len(set(ids)), "工程を別々のagentへ割り当てていない"
-        )
-        assignments = data.get("assignment_log")
-        require_condition(
-            isinstance(assignments, dict), "execution.assignment_logがない"
-        )
-        for role in roles:
-            item = assignments.get(role)
-            require_condition(
-                isinstance(item, dict), f"execution.assignment_log.{role}がない"
-            )
-            require_condition(
-                item.get("agent_id") == agents[role],
-                f"execution.assignment_log.{role}.agent_idが担当記録と一致しない",
-            )
-            require_condition(
-                item.get("recorded_at_spawn") is True,
-                f"execution.assignment_log.{role}が起動時に記録されていない",
-            )
-            required_list(
-                item.get("artifact_refs"),
-                f"execution.assignment_log.{role}.artifact_refs",
-                nonempty=True,
-            )
-    else:
+    if not available:
         required_text(data, "unavailable_reason", "execution")
+        return
+    known = {
+        role["id"]
+        for _, role in assignment_plan.ordered_roles(assignment_plan.load_table())
+    }
+    records = required_list(
+        data.get("assignments"), "execution.assignments", nonempty=True
+    )
+    roles_by_agent = {}
+    exposure_versions = {}
+    for index, record in enumerate(records):
+        name = f"execution.assignments[{index}]"
+        require_condition(
+            isinstance(record, dict), f"{name}はオブジェクトでなければならない"
+        )
+        role = record.get("role")
+        require_condition(role in known, f"{name}.roleが担当表にない")
+        agent_id = required_text(record, "agent_id", name)
+        required_id_list(
+            record.get("artifact_refs"), f"{name}.artifact_refs", nonempty=True
+        )
+        require_condition(
+            roles_by_agent.setdefault(agent_id, role) == role,
+            f"{name}.agent_idを別の役割にも割り当てている",
+        )
+        if role == "exposure":
+            version = record.get("draft_version")
+            require_condition(
+                type(version) is int and version >= 1,
+                f"{name}.draft_versionが不正である",
+            )
+            require_condition(
+                exposure_versions.setdefault(agent_id, version) == version,
+                f"{name}.agent_idを別の版の露出検査に再利用している",
+            )
+    roles = STAGE_ROLES[stage]
+    if selection_mode == "random" and stage in WORK_STAGES:
+        roles = SELECTION_ROLES + roles
+    assigned = set(roles_by_agent.values())
+    missing = [role for role in roles if role not in assigned]
+    require_condition(
+        not missing, f"execution.assignmentsに担当の記録がない: {missing}"
+    )
+    if stage in {"generation", "audit", "final"}:
+        draft = state.get("draft")
+        version = draft.get("version") if isinstance(draft, dict) else None
+        require_condition(
+            version in exposure_versions.values(),
+            "現行版の露出検査担当の記録がない",
+        )
 
 
 def validate_source_quotes(state):
@@ -996,16 +929,6 @@ def validate_difficulty_review(state, quote_ids, stage):
         review.get("asked_knowledge") == knowledge,
         "difficulty_review.asked_knowledgeが問う知識と一致しない",
     )
-    execution = state["execution"]
-    reviewer = (
-        execution["agents"]["difficulty_review"]
-        if execution["delegation_available"]
-        else "self"
-    )
-    require_condition(
-        review.get("reviewer_id") == reviewer,
-        "difficulty_review.reviewer_idが担当記録と一致しない",
-    )
     audit = review.get("audit")
     require_condition(
         audit in {"pending", "passed", "missing", "failed"},
@@ -1090,16 +1013,6 @@ def validate_challenge_item(item, name, quote_ids):
 def validate_evidence_challenge(state, quote_ids, active_clues, version):
     challenge = state.get("evidence_challenge")
     require_condition(isinstance(challenge, dict), "evidence_challengeがない")
-    execution = state["execution"]
-    reviewer = (
-        execution["agents"]["evidence_challenge"]
-        if execution["delegation_available"]
-        else "self"
-    )
-    require_condition(
-        challenge.get("reviewer_id") == reviewer,
-        "evidence_challenge.reviewer_idが担当記録と一致しない",
-    )
     require_condition(
         challenge.get("draft_version") == version,
         "evidence_challenge.draft_versionが問題文と一致しない",
@@ -1531,16 +1444,6 @@ def validate_final_review(state, output_bytes):
     require_condition(
         review.get("status") == "passed", "final_review.statusが合格していない"
     )
-    execution = state["execution"]
-    reviewer = (
-        execution["agents"]["final_review"]
-        if execution["delegation_available"]
-        else "self"
-    )
-    require_condition(
-        review.get("reviewer_id") == reviewer,
-        "final_review.reviewer_idが最終照合担当と一致しない",
-    )
     expected_checks = {
         "current_draft",
         "evidence_and_inference",
@@ -1593,16 +1496,6 @@ def validate_terminology(state, quote_ids, version, stage, draft_text):
         require_stage_completion(item, name, stage)
     review = state.get("terminology_review")
     require_condition(isinstance(review, dict), "terminology_reviewがない")
-    execution = state["execution"]
-    reviewer = (
-        execution["agents"]["terminology_review"]
-        if execution["delegation_available"]
-        else "self"
-    )
-    require_condition(
-        review.get("reviewer_id") == reviewer,
-        "terminology_review.reviewer_idが担当記録と一致しない",
-    )
     require_condition(
         review.get("draft_version") == version,
         "terminology_review.draft_versionが問題文と一致しない",
@@ -1659,14 +1552,6 @@ def validate_terminology(state, quote_ids, version, stage, draft_text):
 def validate_exposure_review(state, checks, answers, version):
     exposure_review = state.get("exposure_review")
     require_condition(isinstance(exposure_review, dict), "exposure_reviewがない")
-    execution = state["execution"]
-    reviewer_id = (
-        execution["agents"]["audit"] if execution["delegation_available"] else "self"
-    )
-    require_condition(
-        exposure_review.get("reviewer_id") == reviewer_id,
-        "exposure_review.reviewer_idが監査担当と一致しない",
-    )
     require_condition(
         exposure_review.get("draft_version") == version,
         "exposure_review.draft_versionが問題文と一致しない",
@@ -1771,14 +1656,6 @@ def validate_reviewed_answer(item, name, quote_ids):
 def validate_answer_review(state, answers, checks, quote_ids, version):
     review = state.get("answer_review")
     require_condition(isinstance(review, dict), "answer_reviewがない")
-    execution = state["execution"]
-    reviewer = (
-        execution["agents"]["exposure"] if execution["delegation_available"] else "self"
-    )
-    require_condition(
-        review.get("reviewer_id") == reviewer,
-        "answer_review.reviewer_idが露出検査担当と一致しない",
-    )
     require_condition(
         review.get("draft_version") == version,
         "answer_review.draft_versionが問題文と一致しない",
@@ -1875,12 +1752,6 @@ def validate_work_state(state, stage):
         validate_evidence_challenge(state, quote_ids, active_clues, version)
     validate_terminology(state, quote_ids, version, stage, draft["text"])
     answers = validate_answers(state, quote_ids, stage)
-    if state["execution"]["delegation_available"]:
-        required_text(
-            state["execution"]["assignment_log"]["exposure"],
-            "task_label",
-            "execution.assignment_log.exposure",
-        )
     checks, check_ids = records_with_ids(state.get("checks"), "checks", nonempty=True)
     require_condition(
         not (REQUIRED_CHECK_IDS - check_ids),
@@ -2019,9 +1890,10 @@ def main():
         )
         if args.stage == "intersection-checkpoint":
             validate_intersection_state(state)
+            validate_execution_assignments(state, args.stage)
         elif args.stage == "discovery-progress":
             validate_discovery_progress(state)
-            validate_execution_assignments(state, "discovery-progress")
+            validate_execution_assignments(state, args.stage)
         elif args.stage in {"discovery", "selection"}:
             validate_selection_state(state, discovery_only=args.stage == "discovery")
             validate_execution_assignments(state, args.stage)

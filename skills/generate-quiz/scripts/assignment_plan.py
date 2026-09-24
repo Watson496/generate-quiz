@@ -179,7 +179,7 @@ def coordinator_request(table, number):
     sections = "」節、「".join(dict.fromkeys(role["section"] for role in step["roles"]))
     lines = [
         f"あなたはステップ{number}（{step['name']}）の統括役である。",
-        f"`{workflow}`の「担当の構成」節と「{sections}」節を読み、その規定に従って担当を起動し、入力と成果物のファイルを受け渡す。",
+        f"`{workflow}`の「担当の構成」節と「{sections}」節、`{REF_DIR / 'work_state_spec.md'}`の「担当の起動の記録」節を読み、その規定に従って担当を起動し、入力と成果物のファイルを受け渡す。",
         "担当：",
         *(f"- {role['name']}（{role['id']}）" for role in step["roles"]),
         "報告は、完了したことと成果物のファイルの場所だけとする。",
