@@ -4,6 +4,8 @@
     "history": "確定済み履歴またはその保存先",
     "facet_levels": "ファセットの各階層の粒度判断",
     "facet_weights": "ファセットの兄弟ノードのweightと、候補ごとの三観点の評価と根拠",
+    "facet_level_reviews": "ファセットの粒度判断の検査結果",
+    "facet_weight_reviews": "ファセットのweightの検査結果",
     "facet_picks": "ファセットの各階層の抽選結果",
     "facet_nodes": "選択した4軸のノード",
     "intersection_review": "交差領域の確認記録",
@@ -54,6 +56,24 @@
           "specs": ["selection_and_history_spec.md", "facet_index.md", "work_state_spec.md"],
           "inputs": [["user_conditions", "history", "facet_levels", "facet_picks"]],
           "outputs": ["facet_weights"]
+        },
+        {
+          "id": "facet_granularity_review",
+          "name": "ファセットの粒度判断の検査担当",
+          "side": "check",
+          "section": "ファセット選択",
+          "specs": ["selection_and_history_spec.md", "facet_index.md", "work_state_spec.md"],
+          "inputs": [["user_conditions", "facet_levels", "facet_picks"]],
+          "outputs": ["facet_level_reviews"]
+        },
+        {
+          "id": "facet_weight_review",
+          "name": "ファセットのweightの検査担当",
+          "side": "check",
+          "section": "ファセット選択",
+          "specs": ["selection_and_history_spec.md", "facet_index.md", "work_state_spec.md"],
+          "inputs": [["user_conditions", "history", "facet_levels", "facet_weights", "facet_picks"]],
+          "outputs": ["facet_weight_reviews"]
         }
       ]
     },

@@ -769,6 +769,40 @@ class TestFacetSelectionState:
         assert result.returncode == 1
         assert "4軸すべての粒度判断が停止まで記録されていない" in result.stderr
 
+    def test_keeps_failed_review_of_removed_level(self, run_script, facet_state):
+        """修正で取り除いた階層の不合格の記録が残っていても受け付ける。"""
+        facet_state["facet_level_reviews"].insert(
+            0,
+            {
+                "level_id": "F9",
+                "status": "failed",
+                "reason": "この階層で子へ進む理由がない",
+            },
+        )
+        assert check_state(run_script, "facet-selection", facet_state).returncode == 0
+
+    @pytest.mark.parametrize("key", ["facet_level_reviews", "facet_weight_reviews"])
+    def test_requires_passed_review(self, run_script, facet_state, key):
+        """各階層の判断とweightは検査担当の合格を要する。"""
+        facet_state[key][0]["status"] = "failed"
+        result = check_state(run_script, "facet-selection", facet_state)
+        assert result.returncode == 1
+        assert f"{key}に不合格の項目がある" in result.stderr
+
+    def test_later_review_replaces_failed_one(self, run_script, facet_state):
+        """反論を新しい検査担当が再検査して合格した記録を認める。"""
+        review = dict(facet_state["facet_level_reviews"][0])
+        facet_state["facet_level_reviews"][0]["status"] = "failed"
+        facet_state["facet_level_reviews"].append(review)
+        assert check_state(run_script, "facet-selection", facet_state).returncode == 0
+
+    def test_requires_review_of_every_level(self, run_script, facet_state):
+        """検査のない階層を残さない。"""
+        facet_state["facet_level_reviews"].pop()
+        result = check_state(run_script, "facet-selection", facet_state)
+        assert result.returncode == 1
+        assert "facet_level_reviewsに検査のない項目がある: ['F6']" in result.stderr
+
     def test_requires_weighting_assignment(self, run_script, facet_state):
         """weightを推定した担当の起動の記録を要求する。"""
         drop_assignment(facet_state, "facet_weighting")

@@ -100,12 +100,34 @@ def facet_state(load_script):
                     "artifact_refs": [f"{role}.json"],
                 }
                 for index, role in enumerate(
-                    ("facet_granularity", "facet_weighting"), 1
+                    (
+                        "facet_granularity",
+                        "facet_weighting",
+                        "facet_granularity_review",
+                        "facet_weight_review",
+                    ),
+                    1,
                 )
             ],
         },
         "facet_levels": levels,
         "facet_weights": weights,
+        "facet_level_reviews": [
+            {
+                "level_id": level["id"],
+                "status": "passed",
+                "reason": f"{level['node']}の判断を先行軸と照らして確認した",
+            }
+            for level in levels
+        ],
+        "facet_weight_reviews": [
+            {
+                "level_id": item["level_id"],
+                "status": "passed",
+                "reason": "各候補の三観点とweightの対応を確認した",
+            }
+            for item in weights
+        ],
         "facet_picks": picks,
         "facet_nodes": {
             "subject": "subject::66",

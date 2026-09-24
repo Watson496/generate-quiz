@@ -14,9 +14,9 @@
 
 ## ファセットの選択
 
-ファセットの選択は、題材探索状態とは別のJSONに記録し、`work_state_check.py --stage facet-selection`で検査する。`facet_levels`には、判断した階層ごとに`id`、軸を`axis`、現在のノードを`node`、停止か子へ進むかを`decision`（`stop`・`descend`）、判断理由を`reason`として、判断した順に置く。子へ進む階層については、`facet_weights`に階層の`level_id`と、兄弟ノードごとの`candidates`を置く。各候補には、ノードの`key`と`label`、基礎weightを`weight`、文化的共有度・コミュニケーション場面での重要性・文化的背景知識としての機能の評価を`viewpoints`の`sharing`・`communication`・`background`、三観点をweightへまとめた根拠を`reason`、履歴距離を`history_distances`として置く。統括役は抽選結果を`facet_picks`に`level_id`と`key`として記録する。選び終えた4軸のノードは`facet_nodes`に置く。
+ファセットの選択は、題材探索状態とは別のJSONに記録し、`work_state_check.py --stage facet-selection`で検査する。`facet_levels`には、判断した階層ごとに`id`、軸を`axis`、現在のノードを`node`、停止か子へ進むかを`decision`（`stop`・`descend`）、判断理由を`reason`として、判断した順に置く。子へ進む階層については、`facet_weights`に階層の`level_id`と、兄弟ノードごとの`candidates`を置く。各候補には、ノードの`key`と`label`、基礎weightを`weight`、文化的共有度・コミュニケーション場面での重要性・文化的背景知識としての機能の評価を`viewpoints`の`sharing`・`communication`・`background`、三観点をweightへまとめた根拠を`reason`、履歴距離を`history_distances`として置く。粒度判断の検査結果は`facet_level_reviews`、weightの検査結果は`facet_weight_reviews`に、検査した階層の`level_id`、判定を`status`（`passed`・`failed`）、理由を`reason`として置く。反論を新しい検査担当が再検査した場合は、記録を書き換えずに後ろへ加える。統括役は抽選結果を`facet_picks`に`level_id`と`key`として記録する。選び終えた4軸のノードは`facet_nodes`に置く。
 
-`work_state_check.py`は、各軸が最上位ノードから始まって抽選結果のノードへ続き、停止で終わること、weightの候補が現在のノードの直接の子と一致すること、抽選結果が正のweightを持つ候補であること、`facet_nodes`が停止した階層のノードと一致することを確認する。粒度とweightの判断の妥当性は判定しない。
+`work_state_check.py`は、各軸が最上位ノードから始まって抽選結果のノードへ続き、停止で終わること、weightの候補が現在のノードの直接の子と一致すること、抽選結果が正のweightを持つ候補であること、`facet_nodes`が停止した階層のノードと一致すること、各階層の最後の検査結果が合格であることを確認する。粒度とweightの判断の妥当性は判定しない。
 
 ## ファセットの交差領域
 

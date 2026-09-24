@@ -108,7 +108,12 @@ FACET_AXES = ("subject", "place", "time", "type")
 FACET_VIEWPOINTS = ("sharing", "communication", "background")
 SELECTION_ROLES = ("exploration", "alternate_exploration", "saturation_review")
 STAGE_ROLES = {
-    "facet-selection": ("facet_granularity", "facet_weighting"),
+    "facet-selection": (
+        "facet_granularity",
+        "facet_weighting",
+        "facet_granularity_review",
+        "facet_weight_review",
+    ),
     "intersection-checkpoint": ("intersection",),
     "discovery-progress": ("intersection", "exploration"),
     "discovery": ("intersection", *SELECTION_ROLES),
@@ -327,6 +332,29 @@ def validate_exposure_screen(item, entry_ids, name):
     return screen["formation_risk"]
 
 
+def validate_reviews(state, key, expected_ids, id_field):
+    """検査担当の記録が対象の項目ごとにあり、最後の判定がすべて合格であることを確認する。"""
+    reviews = required_list(state.get(key), key, nonempty=bool(expected_ids))
+    latest = {}
+    for index, item in enumerate(reviews):
+        name = f"{key}[{index}]"
+        require_condition(
+            isinstance(item, dict), f"{name}はオブジェクトでなければならない"
+        )
+        target = required_text(item, id_field, name)
+        require_condition(
+            item.get("status") in {"passed", "failed"}, f"{name}.statusが不正である"
+        )
+        required_text(item, "reason", name)
+        latest[target] = item["status"]
+    missing = sorted(set(expected_ids) - set(latest))
+    require_condition(not missing, f"{key}に検査のない項目がある: {missing}")
+    failed = sorted(
+        target for target in set(expected_ids) if latest[target] != "passed"
+    )
+    require_condition(not failed, f"{key}に不合格の項目がある: {failed}")
+
+
 def validate_facet_weights(item, node, name):
     """子へ進む階層のweightが、兄弟ノードすべてに三観点の評価と根拠を持つことを検査する。"""
     candidates = required_list(
@@ -444,6 +472,10 @@ def validate_facet_selection(state):
         "子へ進まない階層にweightまたは抽選結果がある",
     )
     require_condition(set(nodes) == set(FACET_AXES), "facet_nodesに4軸がない")
+    validate_reviews(
+        state, "facet_level_reviews", [level["id"] for level in levels], "level_id"
+    )
+    validate_reviews(state, "facet_weight_reviews", sorted(descended), "level_id")
 
 
 def validate_intersection_state(state):
