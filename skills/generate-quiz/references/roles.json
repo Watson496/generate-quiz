@@ -116,6 +116,16 @@
           "split_size": 1
         },
         {
+          "id": "nearby_exploration",
+          "name": "近接探索担当",
+          "side": "make",
+          "section": "題材探索",
+          "specs": ["selection_and_history_spec.md", "work_state_spec.md"],
+          "inputs": [["user_conditions", "facet_nodes", "coverage_areas", "ledger"]],
+          "outputs": ["ledger"],
+          "split_size": 10
+        },
+        {
           "id": "alternate_exploration",
           "name": "別経路の探索担当",
           "side": "make",

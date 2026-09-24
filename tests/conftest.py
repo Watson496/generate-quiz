@@ -371,6 +371,7 @@ def selection_state(intersection_state):
     roles = (
         ("exploration", ["D1"]),
         ("exploration", ["D2"]),
+        ("nearby_exploration", ["K1", "K2"]),
         ("alternate_exploration", None),
         ("saturation_review", None),
         ("exposure_precheck", None),

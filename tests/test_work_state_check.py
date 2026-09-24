@@ -996,6 +996,18 @@ class TestSelectionState:
         assert result.returncode == 1
         assert "explorationの担当に割り当てていない項目がある: ['D2']" in result.stderr
 
+    def test_every_eligible_candidate_needs_nearby_assignment(
+        self, run_script, selection_state
+    ):
+        """選択対象の候補ごとに近接探索担当を割り当てる。"""
+        assignment_of(selection_state, "nearby_exploration")["items"] = ["K1"]
+        result = check_state(run_script, "discovery", selection_state)
+        assert result.returncode == 1
+        assert (
+            "nearby_explorationの担当に割り当てていない項目がある: ['K2']"
+            in result.stderr
+        )
+
     @pytest.mark.parametrize(
         ("role", "items", "message"),
         [

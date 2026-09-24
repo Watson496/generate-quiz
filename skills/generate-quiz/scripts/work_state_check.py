@@ -106,7 +106,12 @@ OUTPUT_HEADINGS = {
 }
 FACET_AXES = ("subject", "place", "time", "type")
 FACET_VIEWPOINTS = ("sharing", "communication", "background")
-SELECTION_ROLES = ("exploration", "alternate_exploration", "saturation_review")
+SELECTION_ROLES = (
+    "exploration",
+    "nearby_exploration",
+    "alternate_exploration",
+    "saturation_review",
+)
 STAGE_ROLES = {
     "facet-selection": (
         "facet_granularity",
@@ -956,6 +961,15 @@ def validate_selection_execution(state, stage):
     validate_execution_assignments(state, stage)
     require_items_assigned(
         state, "exploration", [area["id"] for area in state["coverage_areas"]]
+    )
+    require_items_assigned(
+        state,
+        "nearby_exploration",
+        [
+            item["id"]
+            for item in state["candidates"]
+            if item["disposition"] == "eligible"
+        ],
     )
 
 
