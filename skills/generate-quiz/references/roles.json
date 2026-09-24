@@ -58,7 +58,10 @@
     "answer_judgments": "解答・別解の候補ごとの正誤判定の案",
     "generation_checks": "生成側の検査単位の判断と理由",
     "final_input": "最終出力用の限定入力",
-    "terminology_review": "専門用語の独立検査の記録",
+    "term_listing": "問題文から独立に列挙した専門用語と、生成側の語IDへの対応",
+    "term_necessity_reviews": "専門用語の意味内容の要否の検査結果",
+    "term_sense_reviews": "専門用語の語義と引用の文脈の一致の検査結果",
+    "term_audience_reviews": "専門用語の想定層にとっての既習性の検査結果",
     "blind_candidates": "解答を伏せて挙げた名称候補",
     "exposure_candidates": "生成担当が問題文の意味から挙げた名称候補",
     "exposure_analysis": "名称候補ごとの露出の分析",
@@ -430,21 +433,48 @@
           "specs": ["verification_and_judging_spec.md", "quiz_generation_spec.md", "work_state_spec.md"],
           "inputs": [["answer_target", "asked_knowledge", "answer_granularity", "sources", "source_assessments"]],
           "outputs": ["sources", "difficulty_assessment"]
-        },
-        {
-          "id": "terminology_review",
-          "name": "専門用語の検査担当",
-          "side": "check",
-          "section": "専門用語の独立検査",
-          "specs": ["quiz_generation_spec.md", "verification_and_judging_spec.md", "work_state_spec.md"],
-          "inputs": [["user_conditions", "draft", "sources"], ["terms"]],
-          "outputs": ["terminology_review"]
         }
       ]
     },
     {
       "name": "検査",
       "roles": [
+        {
+          "id": "term_listing",
+          "name": "専門用語の列挙担当",
+          "side": "check",
+          "section": "専門用語",
+          "specs": ["quiz_generation_spec.md", "work_state_spec.md"],
+          "inputs": [["user_conditions", "draft"], ["terms"]],
+          "outputs": ["term_listing"]
+        },
+        {
+          "id": "term_necessity_review",
+          "name": "専門用語の意味内容の要否の検査担当",
+          "side": "check",
+          "section": "専門用語",
+          "specs": ["quiz_generation_spec.md", "work_state_spec.md"],
+          "inputs": [["user_conditions", "draft", "term_listing"]],
+          "outputs": ["term_necessity_reviews"]
+        },
+        {
+          "id": "term_sense_review",
+          "name": "専門用語の語義の検査担当",
+          "side": "check",
+          "section": "専門用語",
+          "specs": ["quiz_generation_spec.md", "verification_and_judging_spec.md", "work_state_spec.md"],
+          "inputs": [["draft", "term_listing", "sources"]],
+          "outputs": ["term_sense_reviews"]
+        },
+        {
+          "id": "term_audience_review",
+          "name": "専門用語の既習性の検査担当",
+          "side": "check",
+          "section": "専門用語",
+          "specs": ["quiz_generation_spec.md", "verification_and_judging_spec.md", "work_state_spec.md"],
+          "inputs": [["user_conditions", "draft", "term_listing", "sources"]],
+          "outputs": ["term_audience_reviews"]
+        },
         {
           "id": "beginner_difficulty_review",
           "name": "初学者側の難易度の検査担当",
@@ -580,7 +610,7 @@
           "specs": ["quiz_generation_spec.md", "verification_and_judging_spec.md", "selection_and_history_spec.md", "output_structure_spec.md", "work_state_spec.md"],
           "inputs": [
             ["draft", "answer_target"],
-            ["user_conditions", "sources", "propositions", "clues", "competitors", "competitor_comparisons", "asked_knowledge", "terms", "answers", "generation_checks", "final_input", "difficulty_assessment", "terminology_review", "blind_candidates", "exposure_analysis", "answer_review", "beginner_difficulty_review", "general_difficulty_review"]
+            ["user_conditions", "sources", "propositions", "clues", "competitors", "competitor_comparisons", "asked_knowledge", "terms", "answers", "generation_checks", "final_input", "difficulty_assessment", "term_listing", "term_necessity_reviews", "term_sense_reviews", "term_audience_reviews", "blind_candidates", "exposure_analysis", "answer_review", "beginner_difficulty_review", "general_difficulty_review"]
           ],
           "outputs": ["audit_results"]
         }

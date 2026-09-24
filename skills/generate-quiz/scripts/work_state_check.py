@@ -166,7 +166,6 @@ STAGE_ROLES = {
         "competitor_comparison",
         "asked_knowledge",
         "difficulty_assessment",
-        "terminology_review",
     ),
     "audit": (
         "name_research",
@@ -190,7 +189,10 @@ STAGE_ROLES = {
         "competitor_comparison_review",
         "asked_knowledge",
         "difficulty_assessment",
-        "terminology_review",
+        "term_listing",
+        "term_necessity_review",
+        "term_sense_review",
+        "term_audience_review",
         "exposure",
         "exposure_analysis",
         "beginner_difficulty_review",
@@ -219,7 +221,10 @@ STAGE_ROLES = {
         "competitor_comparison_review",
         "asked_knowledge",
         "difficulty_assessment",
-        "terminology_review",
+        "term_listing",
+        "term_necessity_review",
+        "term_sense_review",
+        "term_audience_review",
         "exposure",
         "exposure_analysis",
         "beginner_difficulty_review",
@@ -2098,7 +2103,7 @@ def validate_final_review(state, output_bytes):
 
 
 def validate_terminology(state, quote_ids, version, stage, draft_text):
-    terms, _ = records_with_ids(state.get("terms"), "terms")
+    terms, term_ids = records_with_ids(state.get("terms"), "terms")
     seen = set()
     for item in terms:
         name = f"terms.{item['id']}"
@@ -2117,59 +2122,43 @@ def validate_terminology(state, quote_ids, version, stage, draft_text):
             referenced_ids(item, "audience_evidence_ids", quote_ids, name)
         else:
             required_text(item, "understanding_without_meaning", name)
-        require_stage_completion(item, name, stage)
-    review = state.get("terminology_review")
-    require_condition(isinstance(review, dict), "terminology_reviewがない")
+    if stage in {"audit", "final"}:
+        validate_term_reviews(state, terms, term_ids, quote_ids, version)
+
+
+def validate_term_reviews(state, terms, term_ids, quote_ids, version):
+    """独立に列挙した語、意味内容の要否、語義、既習性の検査が生成側の記録と対応することを検査する。"""
+    listing = state.get("term_listing")
+    require_condition(isinstance(listing, dict), "term_listingがない")
     require_condition(
-        review.get("draft_version") == version,
-        "terminology_review.draft_versionが問題文と一致しない",
+        listing.get("draft_version") == version,
+        "term_listing.draft_versionが問題文と一致しない",
     )
-    audit = review.get("audit")
+    listed, listed_ids = records_with_ids(listing.get("terms"), "term_listing.terms")
+    for item in listed:
+        required_text(item, "term", f"term_listing.terms.{item['id']}")
     require_condition(
-        audit in {"pending", "passed", "missing", "failed"},
-        "terminology_review.auditが不正である",
+        listed_ids == term_ids, "term_listing.termsが専門用語の記録と一致しない"
     )
-    if stage == "generation":
+    validate_reviews(state, "term_necessity_reviews", sorted(term_ids), "term_id")
+    by_id = {item["id"]: item for item in terms}
+    for item in state["term_necessity_reviews"]:
         require_condition(
-            audit == "pending",
-            "terminology_reviewは生成工程の時点で監査済みになっている",
+            item.get("meaning_needed") == by_id[item["term_id"]]["meaning_needed"],
+            f"term_necessity_reviews.{item['term_id']}.meaning_neededが生成側の判断と一致しない",
         )
-    else:
-        require_condition(audit == "passed", "terminology_reviewが監査に合格していない")
-    reviewed, reviewed_ids = records_with_ids(
-        review.get("terms"), "terminology_review.terms"
-    )
-    required_ids = {item["id"] for item in terms}
-    require_condition(
-        reviewed_ids == required_ids,
-        "terminology_review.termsが専門用語の記録と一致しない",
-    )
-    term_by_id = {item["id"]: item for item in terms}
-    for item in reviewed:
-        name = f"terminology_review.terms.{item['id']}"
-        term = term_by_id[item["id"]]
-        required_text(item, "term", name)
-        require_condition(
-            isinstance(item.get("meaning_needed"), bool),
-            f"{name}.meaning_neededがない",
-        )
-        require_condition(
-            item["meaning_needed"] == term["meaning_needed"],
-            f"{name}.meaning_neededが生成側の判断と一致しない",
-        )
-        if not item["meaning_needed"]:
-            required_text(item, "understanding_without_meaning", name)
-            continue
-        for kind in ("meaning", "audience"):
+    needed = sorted(item["id"] for item in terms if item["meaning_needed"])
+    for kind, key in (
+        ("meaning", "term_sense_reviews"),
+        ("audience", "term_audience_reviews"),
+    ):
+        validate_reviews(state, key, needed, "term_id")
+        for item in state[key]:
+            name = f"{key}.{item['term_id']}"
+            evidence = referenced_ids(item, "evidence_ids", quote_ids, name)
             require_condition(
-                item.get(f"{kind}_status") == "passed",
-                f"{name}.{kind}_statusが合格していない",
-            )
-            required_text(item, f"{kind}_reason", name)
-            evidence = referenced_ids(item, f"{kind}_evidence_ids", quote_ids, name)
-            require_condition(
-                set(evidence) == set(term[f"{kind}_evidence_ids"]),
-                f"{name}.{kind}_evidence_idsが採用引用と一致しない",
+                set(evidence) == set(by_id[item["term_id"]][f"{kind}_evidence_ids"]),
+                f"{name}.evidence_idsが採用引用と一致しない",
             )
 
 
