@@ -34,6 +34,10 @@
     "source_assessments": "資料ごとの信頼性の水準、明白な誤り、使ってよい用途",
     "source_reliability_reviews": "資料の信頼性の評価の検査結果",
     "propositions": "命題",
+    "proposition_support": "命題ごとの裏取り（各資料が命題を述べているか）",
+    "proposition_certainty": "命題ごとの確実性の判定",
+    "corroboration_reviews": "命題の裏取りの検査結果",
+    "certainty_reviews": "命題の確実性の検査結果",
     "clues": "手掛かりの問題文中の文字列と命題ID",
     "clue_centrality": "手掛かりごとの中核性の評価",
     "centrality_reviews": "手掛かりの中核性の検査結果",
@@ -344,6 +348,24 @@
           "outputs": ["clue_centrality"]
         },
         {
+          "id": "corroboration",
+          "name": "命題の裏取り担当",
+          "side": "make",
+          "section": "命題の裏取りと確実性",
+          "specs": ["verification_and_judging_spec.md", "work_state_spec.md"],
+          "inputs": [["propositions", "sources", "source_assessments"]],
+          "outputs": ["proposition_support"]
+        },
+        {
+          "id": "certainty",
+          "name": "命題の確実性担当",
+          "side": "make",
+          "section": "命題の裏取りと確実性",
+          "specs": ["verification_and_judging_spec.md", "work_state_spec.md"],
+          "inputs": [["propositions", "sources", "source_assessments", "proposition_support"]],
+          "outputs": ["proposition_certainty"]
+        },
+        {
           "id": "difficulty_review",
           "name": "難易度検査担当",
           "side": "check",
@@ -393,6 +415,24 @@
           "specs": ["quiz_generation_spec.md", "verification_and_judging_spec.md", "work_state_spec.md"],
           "inputs": [["answer_target", "clues", "sources", "source_assessments", "clue_centrality"]],
           "outputs": ["centrality_reviews"]
+        },
+        {
+          "id": "corroboration_review",
+          "name": "命題の裏取りの検査担当",
+          "side": "check",
+          "section": "命題の裏取りと確実性",
+          "specs": ["verification_and_judging_spec.md", "work_state_spec.md"],
+          "inputs": [["propositions", "sources", "source_assessments", "proposition_support"]],
+          "outputs": ["corroboration_reviews"]
+        },
+        {
+          "id": "certainty_review",
+          "name": "命題の確実性の検査担当",
+          "side": "check",
+          "section": "命題の裏取りと確実性",
+          "specs": ["verification_and_judging_spec.md", "work_state_spec.md"],
+          "inputs": [["propositions", "sources", "source_assessments", "proposition_support", "proposition_certainty"]],
+          "outputs": ["certainty_reviews"]
         },
         {
           "id": "evidence_challenge",

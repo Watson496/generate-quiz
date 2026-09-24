@@ -155,7 +155,14 @@ def complete_state():
     )
     assignments.extend(
         {"role": role, "agent_id": f"agent-{role}", "artifact_refs": [f"{role}.json"]}
-        for role in ("clue_centrality", "centrality_review")
+        for role in (
+            "clue_centrality",
+            "centrality_review",
+            "corroboration",
+            "corroboration_review",
+            "certainty",
+            "certainty_review",
+        )
     )
     state = {
         "selection_mode": "random",
@@ -237,6 +244,27 @@ def complete_state():
                 "reason": "編集体制と記述の出所を確かめた",
             }
         ],
+        "proposition_support": [
+            {
+                "proposition_id": "P1",
+                "evidence_ids": evidence.copy(),
+                "reason": "引用が直接述べる",
+                "inference_type": "direct",
+            }
+        ],
+        "proposition_certainty": [
+            {
+                "proposition_id": "P1",
+                "level": "複数の教材が断定しており、確定した事実として扱える",
+                "reason": "入門教材と事典が同じ図形条件を述べる",
+            }
+        ],
+        "corroboration_reviews": [
+            {"proposition_id": "P1", "status": "passed", "reason": "引用が述べる"}
+        ],
+        "certainty_reviews": [
+            {"proposition_id": "P1", "status": "passed", "reason": "断定できる"}
+        ],
         "clue_centrality": [
             {
                 "clue_id": "C1",
@@ -255,9 +283,6 @@ def complete_state():
                 "draft_version": 2,
                 "claim": "ミュラー・リヤー錯視では同じ長さの線分が矢羽の向きで異なる長さに見える",
                 "passage": "同じ長さの線分が矢羽の向きで異なる長さに見える錯視",
-                "evidence_ids": evidence,
-                "reason": "引用が直接述べる",
-                "inference_type": "direct",
                 "generation": "complete",
                 "audit": "passed",
             }
@@ -1396,6 +1421,32 @@ class TestPrejudgmentState:
 class TestWorkState:
     """生成・監査・最終出力の作業状態を検査する。"""
 
+    @pytest.mark.parametrize(
+        ("key", "message"),
+        [
+            ("proposition_support", "裏取りの記録のない命題がある: ['P1']"),
+            ("proposition_certainty", "確実性の判定のない命題がある: ['P1']"),
+        ],
+    )
+    def test_active_proposition_needs_support_and_certainty(
+        self, run_script, generation_state, key, message
+    ):
+        """採用中の命題ごとに裏取りと確実性の判定を要する。"""
+        generation_state[key][0]["proposition_id"] = "P9"
+        result = check_state(run_script, "generation", generation_state)
+        assert result.returncode == 1
+        assert message in result.stderr
+
+    @pytest.mark.parametrize("key", ["corroboration_reviews", "certainty_reviews"])
+    def test_proposition_judgments_require_passed_review(
+        self, run_script, complete_state, key
+    ):
+        """裏取りと確実性の判定は、それぞれ検査担当の合格を要する。"""
+        complete_state[key][0]["status"] = "failed"
+        result = check_state(run_script, "audit", complete_state)
+        assert result.returncode == 1
+        assert f"{key}に不合格の項目がある: ['P1']" in result.stderr
+
     def test_active_clue_needs_centrality(self, run_script, generation_state):
         """採用中の手掛かりごとに中核性の評価を要する。"""
         generation_state["clue_centrality"][0]["clue_id"] = "C9"
@@ -2382,7 +2433,7 @@ class TestWorkState:
 
     def test_audit_rejects_unknown_quote(self, run_script, complete_state):
         """存在しない引用を根拠にした命題を監査で拒否する。"""
-        complete_state["propositions"][0]["evidence_ids"] = ["Q2"]
+        complete_state["proposition_support"][0]["evidence_ids"] = ["Q2"]
         result = check_state(run_script, "audit", complete_state)
         assert result.returncode == 1
         assert "存在しないIDを参照" in result.stderr
@@ -2392,7 +2443,7 @@ class TestWorkState:
         self, run_script, complete_state, invalid_id
     ):
         """引用IDに文字列以外を指定しても追跡表示を出さない。"""
-        complete_state["propositions"][0]["evidence_ids"] = [invalid_id]
+        complete_state["proposition_support"][0]["evidence_ids"] = [invalid_id]
         result = check_state(run_script, "audit", complete_state)
         assert result.returncode == 1
         assert "空でない文字列ID" in result.stderr
@@ -2402,7 +2453,7 @@ class TestWorkState:
         self, run_script, complete_state
     ):
         """単純な命題には形式的な検証要素を要求しない。"""
-        assert "verification_elements" not in complete_state["propositions"][0]
+        assert "verification_elements" not in complete_state["proposition_support"][0]
         assert check_state(run_script, "audit", complete_state).returncode == 0
 
     def test_recorded_verification_elements_require_valid_evidence(
@@ -2413,7 +2464,7 @@ class TestWorkState:
         proposition["claim"] = "市が住民に賞状を贈った"
         proposition["passage"] = "市が住民に賞状を贈った"
         complete_state["sources"][0]["quotes"][0]["text"] = proposition["claim"]
-        proposition["verification_elements"] = [
+        complete_state["proposition_support"][0]["verification_elements"] = [
             {
                 "text": "贈った主体は市",
                 "reason": "引用が直接述べる",

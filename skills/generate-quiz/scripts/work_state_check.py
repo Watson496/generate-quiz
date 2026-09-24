@@ -161,6 +161,8 @@ STAGE_ROLES = {
         "generation",
         "source_reliability",
         "clue_centrality",
+        "corroboration",
+        "certainty",
         "difficulty_review",
         "terminology_review",
         "exposure",
@@ -171,6 +173,10 @@ STAGE_ROLES = {
         "source_reliability_review",
         "clue_centrality",
         "centrality_review",
+        "corroboration",
+        "corroboration_review",
+        "certainty",
+        "certainty_review",
         "difficulty_review",
         "terminology_review",
         "exposure",
@@ -183,6 +189,10 @@ STAGE_ROLES = {
         "source_reliability_review",
         "clue_centrality",
         "centrality_review",
+        "corroboration",
+        "corroboration_review",
+        "certainty",
+        "certainty_review",
         "difficulty_review",
         "terminology_review",
         "exposure",
@@ -1227,35 +1237,10 @@ def validate_sources_propositions_and_clues(state, version, stage):
         name = f"propositions.{item['id']}"
         required_text(item, "claim", name)
         required_text(item, "passage", name)
-        required_text(item, "reason", name)
-        require_condition(
-            item.get("inference_type")
-            in {"direct", "deduction", "interpretation", "synthesis"},
-            f"{name}.inference_typeが不正である",
-        )
-        referenced_ids(item, "evidence_ids", quote_ids, name)
         require_condition(
             item.get("draft_version") == version, f"{name}の問題文の版が一致しない"
         )
         require_stage_completion(item, name, stage)
-        elements = required_list(
-            item.get("verification_elements", []),
-            f"{name}.verification_elements",
-        )
-        for index, element in enumerate(elements):
-            element_name = f"{name}.verification_elements[{index}]"
-            require_condition(
-                isinstance(element, dict),
-                f"{element_name}はオブジェクトでなければならない",
-            )
-            required_text(element, "text", element_name)
-            required_text(element, "reason", element_name)
-            require_condition(
-                element.get("inference_type")
-                in {"direct", "deduction", "interpretation", "synthesis"},
-                f"{element_name}.inference_typeが不正である",
-            )
-            referenced_ids(element, "evidence_ids", quote_ids, element_name)
     require_condition(active_props, "activeな命題がない")
     clues, _ = records_with_ids(state.get("clues"), "clues", nonempty=True)
     active_clues = []
@@ -1294,7 +1279,68 @@ def validate_sources_propositions_and_clues(state, version, stage):
     return quote_ids, active_props, active_clues
 
 
-def validate_source_assessments(state, active_props, stage):
+def validate_support_record(item, name, quote_ids):
+    """根拠の引用ID、理由、推論の種類を検査する。"""
+    required_text(item, "reason", name)
+    require_condition(
+        item.get("inference_type")
+        in {"direct", "deduction", "interpretation", "synthesis"},
+        f"{name}.inference_typeが不正である",
+    )
+    referenced_ids(item, "evidence_ids", quote_ids, name)
+
+
+def validate_proposition_support(state, active_props, quote_ids, stage):
+    """採用中の各命題に裏取りと確実性の記録があり、検査で合格していることを検査する。"""
+    prop_ids = sorted(item["id"] for item in active_props)
+    supports = {}
+    for index, item in enumerate(
+        required_list(
+            state.get("proposition_support"), "proposition_support", nonempty=True
+        )
+    ):
+        name = f"proposition_support[{index}]"
+        require_condition(
+            isinstance(item, dict), f"{name}はオブジェクトでなければならない"
+        )
+        prop_id = required_text(item, "proposition_id", name)
+        validate_support_record(item, name, quote_ids)
+        elements = required_list(
+            item.get("verification_elements", []), f"{name}.verification_elements"
+        )
+        for position, element in enumerate(elements):
+            element_name = f"{name}.verification_elements[{position}]"
+            require_condition(
+                isinstance(element, dict),
+                f"{element_name}はオブジェクトでなければならない",
+            )
+            required_text(element, "text", element_name)
+            validate_support_record(element, element_name, quote_ids)
+        supports[prop_id] = item
+    missing = [prop_id for prop_id in prop_ids if prop_id not in supports]
+    require_condition(not missing, f"裏取りの記録のない命題がある: {missing}")
+    certain = set()
+    for index, item in enumerate(
+        required_list(
+            state.get("proposition_certainty"), "proposition_certainty", nonempty=True
+        )
+    ):
+        name = f"proposition_certainty[{index}]"
+        require_condition(
+            isinstance(item, dict), f"{name}はオブジェクトでなければならない"
+        )
+        certain.add(required_text(item, "proposition_id", name))
+        required_text(item, "level", name)
+        required_text(item, "reason", name)
+    missing = [prop_id for prop_id in prop_ids if prop_id not in certain]
+    require_condition(not missing, f"確実性の判定のない命題がある: {missing}")
+    if stage in {"audit", "final"}:
+        validate_reviews(state, "corroboration_reviews", prop_ids, "proposition_id")
+        validate_reviews(state, "certainty_reviews", prop_ids, "proposition_id")
+    return [supports[prop_id] for prop_id in prop_ids]
+
+
+def validate_source_assessments(state, supports, stage):
     """資料ごとの信頼性の評価と、事実の根拠に使える資料だけを命題の根拠にしたことを検査する。"""
     source_ids = [source["id"] for source in state["sources"]]
     assessments = {}
@@ -1329,7 +1375,7 @@ def validate_source_assessments(state, active_props, stage):
         for source in state["sources"]
         for quote in source["quotes"]
     }
-    for item in active_props:
+    for item in supports:
         cited = set(item["evidence_ids"])
         for element in item.get("verification_elements", []):
             cited.update(element["evidence_ids"])
@@ -1340,7 +1386,7 @@ def validate_source_assessments(state, active_props, stage):
         )
         require_condition(
             not usage_only,
-            f"propositions.{item['id']}が事実の根拠に使えない資料の引用を根拠にしている: {usage_only}",
+            f"命題{item['proposition_id']}が事実の根拠に使えない資料の引用を根拠にしている: {usage_only}",
         )
     require_items_assigned(state, "source_reliability", source_ids)
     if stage in {"audit", "final"}:
@@ -1636,6 +1682,43 @@ def validate_structure_check(item, name, draft_text, active_clues):
         required_text(connection, "reason", cname)
 
 
+def adopted_quote_ids(state, active_props, active_clues, difficulty_review):
+    """採用中の判断が根拠として使う引用IDを集める。"""
+    cited = set()
+    for group in ("beginner", "general"):
+        cited.update(difficulty_review[group]["evidence_ids"])
+    active_ids = {item["id"] for item in active_props}
+    for item in state["proposition_support"]:
+        if item["proposition_id"] not in active_ids:
+            continue
+        cited.update(item["evidence_ids"])
+        for element in item.get("verification_elements", []):
+            cited.update(element["evidence_ids"])
+    for item in active_clues:
+        for key in ("quasi_uniqueness", "familiarity"):
+            check = item["checks"][key]
+            cited.update(check["evidence_ids"])
+    for item in state["clue_centrality"]:
+        if item["clue_id"] in {clue["id"] for clue in active_clues}:
+            cited.update(item["evidence_ids"])
+    for key in ("answers", "checks"):
+        for item in state[key]:
+            cited.update(item.get("evidence_ids", []))
+    for key in ("answers", "candidate_reviews"):
+        for item in state["answer_review"][key]:
+            cited.update(item["evidence_ids"])
+    for item in state["terms"]:
+        if item["meaning_needed"]:
+            cited.update(item["meaning_evidence_ids"])
+            cited.update(item["audience_evidence_ids"])
+    challenge = state["evidence_challenge"]
+    for item in (challenge["beginner"], challenge["general"], *challenge["clues"]):
+        cited.update(item["resolution_evidence_ids"])
+        for comparison in item.get("competitor_comparisons", []):
+            cited.update(comparison["evidence_ids"])
+    return cited
+
+
 def validate_final_input(state, version, active_props, active_clues, difficulty_review):
     final = state.get("final_input")
     require_condition(isinstance(final, dict), "final_inputがない")
@@ -1684,35 +1767,7 @@ def validate_final_input(state, version, active_props, active_clues, difficulty_
             len(refs) == len(set(refs)) and set(refs) == ids,
             f"final_input.{key}が検査済みの現行項目と一致しない",
         )
-    cited = set()
-    for group in ("beginner", "general"):
-        cited.update(difficulty_review[group]["evidence_ids"])
-    for item in active_props:
-        cited.update(item["evidence_ids"])
-        for element in item.get("verification_elements", []):
-            cited.update(element["evidence_ids"])
-    for item in active_clues:
-        for key in ("quasi_uniqueness", "familiarity"):
-            check = item["checks"][key]
-            cited.update(check["evidence_ids"])
-    for item in state["clue_centrality"]:
-        if item["clue_id"] in {clue["id"] for clue in active_clues}:
-            cited.update(item["evidence_ids"])
-    for key in ("answers", "checks"):
-        for item in state[key]:
-            cited.update(item.get("evidence_ids", []))
-    for key in ("answers", "candidate_reviews"):
-        for item in state["answer_review"][key]:
-            cited.update(item["evidence_ids"])
-    for item in state["terms"]:
-        if item["meaning_needed"]:
-            cited.update(item["meaning_evidence_ids"])
-            cited.update(item["audience_evidence_ids"])
-    challenge = state["evidence_challenge"]
-    for item in (challenge["beginner"], challenge["general"], *challenge["clues"]):
-        cited.update(item["resolution_evidence_ids"])
-        for comparison in item.get("competitor_comparisons", []):
-            cited.update(comparison["evidence_ids"])
+    cited = adopted_quote_ids(state, active_props, active_clues, difficulty_review)
     quote_refs = required_id_list(final.get("quote_ids"), "final_input.quote_ids")
     require_condition(
         len(quote_refs) == len(set(quote_refs)) and set(quote_refs) == cited,
@@ -2208,7 +2263,8 @@ def validate_work_state(state, stage):
     quote_ids, active_props, active_clues = validate_sources_propositions_and_clues(
         state, version, stage
     )
-    validate_source_assessments(state, active_props, stage)
+    supports = validate_proposition_support(state, active_props, quote_ids, stage)
+    validate_source_assessments(state, supports, stage)
     validate_clue_centrality(state, active_clues, quote_ids, stage)
     difficulty_review = validate_difficulty_review(state, quote_ids, stage)
     if stage in {"audit", "final"}:
