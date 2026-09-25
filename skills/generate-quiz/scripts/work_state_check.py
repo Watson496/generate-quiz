@@ -425,6 +425,15 @@ def facet_node_exists(key, subdivisions):
     )
 
 
+def through_single_children(key):
+    """子が一つだけのカタログのノードをたどり、判断の対象になるノードと、たどったノードを返す。"""
+    passed = []
+    while len(children := facet_node.child_keys(key) or []) == 1:
+        passed.append(key)
+        key = children[0]
+    return key, passed
+
+
 def validate_facet_selection(state):
     """4軸の各階層の粒度判断、weight、抽選結果が一続きになっていることを検査する。"""
     levels, _ = records_with_ids(
@@ -460,10 +469,14 @@ def validate_facet_selection(state):
     subdivided = {}
     axes = iter(FACET_AXES)
     axis = next(axes)
-    expected = f"{axis}::ROOT"
+    expected, passed = through_single_children(f"{axis}::ROOT")
     descended = set()
     for level in levels:
         name = f"facet_levels.{level['id']}"
+        require_condition(
+            level.get("node") not in passed,
+            f"{name}で子が一つだけのノードを判断している",
+        )
         require_condition(
             level.get("axis") == axis and level.get("node") == expected,
             f"{name}が前の階層の抽選結果から続いていない",
@@ -483,7 +496,7 @@ def validate_facet_selection(state):
                 f"facet_nodes.{axis}が停止した階層のノードと一致しない",
             )
             axis = next(axes, None)
-            expected = f"{axis}::ROOT"
+            expected, passed = through_single_children(f"{axis}::ROOT")
             continue
         children = facet_node.child_keys(expected)
         if not children:
@@ -508,7 +521,7 @@ def validate_facet_selection(state):
             f"{name}の抽選結果が正のweightを持つ候補ではない",
         )
         descended.add(level["id"])
-        expected = chosen
+        expected, passed = through_single_children(chosen)
     require_condition(axis is None, "4軸すべての粒度判断が停止まで記録されていない")
     require_condition(
         set(weights_by_level) <= descended and set(picks_by_level) <= descended,
