@@ -177,6 +177,7 @@ MIN_ENTRY_POINTS = 2
 MIN_COVERAGE_AREAS = 2
 MIN_EXPRESSION_ALTERNATIVES = 2
 MIN_INTERSECTION_EXAMPLES = 2
+MIN_SUBDIVISION_CHILDREN = 2
 EXIT_OK, EXIT_STATE_INVALID, EXIT_USAGE = 0, 1, 2
 
 
@@ -306,6 +307,18 @@ def validate_reviews(state, key, expected_ids, id_field):
     require_condition(not failed, f"{key}に不合格の項目がある: {failed}")
 
 
+def is_url(value):
+    try:
+        parsed = urlsplit(value)
+    except ValueError:
+        return False
+    return (
+        parsed.scheme in {"http", "https"}
+        and parsed.hostname is not None
+        and not any(char.isspace() for char in value)
+    )
+
+
 def validate_weight_record(item, name, *, positive):
     """weightと三観点の評価、根拠、履歴距離を検査する。"""
     require_condition(isinstance(item, dict), f"{name}はオブジェクトでなければならない")
@@ -327,7 +340,7 @@ def validate_weight_record(item, name, *, positive):
     )
 
 
-def validate_facet_weights(item, node, name):
+def validate_facet_weights(item, node, children, name, *, derived):
     """子へ進む階層のweightが、兄弟ノードすべてに三観点の評価と根拠を持つことを検査する。"""
     candidates = required_list(
         item.get("candidates"), f"{name}.candidates", nonempty=True
@@ -338,8 +351,12 @@ def validate_facet_weights(item, node, name):
         validate_weight_record(candidate, cname, positive=False)
         keys.append(required_text(candidate, "key", cname))
         required_text(candidate, "label", cname)
+        require_condition(
+            not (derived and candidate.get("history_distances")),
+            f"{cname}.history_distancesが細分した区分にある",
+        )
     require_condition(
-        keys == facet_node.child_keys(node),
+        keys == children,
         f"{name}.candidatesが{node}の直接の子と一致しない",
     )
     require_condition(
@@ -347,6 +364,65 @@ def validate_facet_weights(item, node, name):
         f"{name}に正のweightがない",
     )
     return {candidate["key"]: candidate["weight"] for candidate in candidates}
+
+
+def validate_facet_subdivisions(state):
+    """カタログの最下層より下の細分が、subjectの最下層または細分した区分を親とし、根拠と範囲を持つことを検査し、親ごとの細分を返す。"""
+    records = required_list(state.get("facet_subdivisions", []), "facet_subdivisions")
+    subdivisions = {}
+    for index, item in enumerate(records):
+        name = f"facet_subdivisions[{index}]"
+        require_condition(
+            isinstance(item, dict), f"{name}はオブジェクトでなければならない"
+        )
+        parent = required_text(item, "parent", name)
+        require_condition(parent not in subdivisions, f"{name}.parentが重複している")
+        derived = {
+            child["key"]
+            for record in subdivisions.values()
+            for child in record["children"]
+        }
+        require_condition(
+            parent.startswith("subject::")
+            and (parent in derived or facet_node.child_keys(parent) == []),
+            f"{name}.parentがsubjectの最下層でも細分した区分でもない",
+        )
+        required_text(item, "characteristic", name)
+        required_text(item, "basis", name)
+        urls = required_id_list(
+            item.get("source_urls"), f"{name}.source_urls", nonempty=True
+        )
+        require_condition(
+            all(is_url(url) for url in urls), f"{name}.source_urlsにURLでない値がある"
+        )
+        children = required_list(item.get("children"), f"{name}.children")
+        require_condition(
+            len(children) >= MIN_SUBDIVISION_CHILDREN,
+            f"{name}.childrenが二つに満たない",
+        )
+        for position, child in enumerate(children, 1):
+            cname = f"{name}.children[{position - 1}]"
+            require_condition(
+                isinstance(child, dict), f"{cname}はオブジェクトでなければならない"
+            )
+            key = f"{parent}{'.' if '*' in parent else '*'}{position}"
+            require_condition(child.get("key") == key, f"{cname}.keyが{key}ではない")
+            require_condition(
+                facet_node.find_block(key)[1] is None,
+                f"{cname}.keyがカタログのノードと重なっている",
+            )
+            required_text(child, "label", cname)
+            required_text(child, "scope", cname)
+        subdivisions[parent] = item
+    return subdivisions
+
+
+def facet_node_exists(key, subdivisions):
+    return facet_node.find_block(key)[1] is not None or any(
+        child["key"] == key
+        for record in subdivisions.values()
+        for child in record["children"]
+    )
 
 
 def validate_facet_selection(state):
@@ -380,6 +456,8 @@ def validate_facet_selection(state):
         picks_by_level[level_id] = required_text(item, "key", name)
     nodes = state.get("facet_nodes")
     require_condition(isinstance(nodes, dict), "facet_nodesがない")
+    subdivisions = validate_facet_subdivisions(state)
+    subdivided = {}
     axes = iter(FACET_AXES)
     axis = next(axes)
     expected = f"{axis}::ROOT"
@@ -391,8 +469,8 @@ def validate_facet_selection(state):
             f"{name}が前の階層の抽選結果から続いていない",
         )
         require_condition(
-            facet_node.child_keys(expected) is not None,
-            f"{name}.nodeがカタログに存在しない",
+            facet_node_exists(expected, subdivisions),
+            f"{name}.nodeがカタログにも細分にも存在しない",
         )
         required_text(level, "reason", name)
         decision = level.get("decision")
@@ -407,11 +485,22 @@ def validate_facet_selection(state):
             axis = next(axes, None)
             expected = f"{axis}::ROOT"
             continue
+        children = facet_node.child_keys(expected)
+        if not children:
+            require_condition(
+                expected in subdivisions, f"{name}で細分せずに最下層から子へ進んでいる"
+            )
+            subdivided[expected] = level["id"]
+            children = [child["key"] for child in subdivisions[expected]["children"]]
         require_condition(
             level["id"] in weights_by_level, f"{name}の兄弟ノードのweightがない"
         )
         candidate_weights = validate_facet_weights(
-            weights_by_level[level["id"]], expected, f"facet_weights.{level['id']}"
+            weights_by_level[level["id"]],
+            expected,
+            children,
+            f"facet_weights.{level['id']}",
+            derived=expected in subdivided,
         )
         chosen = picks_by_level.get(level["id"])
         require_condition(
@@ -426,6 +515,13 @@ def validate_facet_selection(state):
         "子へ進まない階層にweightまたは抽選結果がある",
     )
     require_condition(set(nodes) == set(FACET_AXES), "facet_nodesに4軸がない")
+    require_condition(
+        set(subdivisions) == set(subdivided), "子へ進んでいないノードの細分がある"
+    )
+    if subdivided or state.get("facet_subdivision_reviews"):
+        validate_reviews(
+            state, "facet_subdivision_reviews", sorted(subdivided.values()), "level_id"
+        )
     validate_reviews(
         state, "facet_level_reviews", [level["id"] for level in levels], "level_id"
     )
@@ -440,14 +536,15 @@ def validate_intersection_state(state):
         isinstance(nodes, dict) and set(nodes) == {"subject", "place", "time", "type"},
         "facet_nodesに4軸の正規ノードキーがない",
     )
+    subdivisions = validate_facet_subdivisions(state)
     for axis, key in nodes.items():
         require_condition(
             isinstance(key, str) and key.startswith(f"{axis}::"),
             f"facet_nodes.{axis}が不正である",
         )
         require_condition(
-            facet_node.find_block(key)[1] is not None,
-            f"facet_nodes.{axis}がカタログに存在しない",
+            facet_node_exists(key, subdivisions),
+            f"facet_nodes.{axis}がカタログにも細分にも存在しない",
         )
     review = state.get("intersection_review")
     require_condition(isinstance(review, dict), "intersection_reviewがない")
@@ -465,16 +562,9 @@ def validate_intersection_state(state):
         "intersection_review.source_refsに同じ資料が重複している",
     )
     for source in sources:
-        try:
-            parsed = urlsplit(source)
-            valid = (
-                parsed.scheme in {"http", "https"}
-                and parsed.hostname is not None
-                and not any(char.isspace() for char in source)
-            )
-        except ValueError:
-            valid = False
-        require_condition(valid, "intersection_review.source_refsにURLでない値がある")
+        require_condition(
+            is_url(source), "intersection_review.source_refsにURLでない値がある"
+        )
     examples = required_list(
         review.get("candidate_examples"),
         "intersection_review.candidate_examples",
@@ -1066,6 +1156,16 @@ def validate_execution_assignments(state, stage):
         )
 
 
+def require_role_assigned(state, role):
+    """条件によって置く担当の起動の記録があることを確認する。"""
+    if not state["execution"]["delegation_available"]:
+        return
+    require_condition(
+        any(record["role"] == role for record in state["execution"]["assignments"]),
+        f"execution.assignmentsに担当の記録がない: {[role]}",
+    )
+
+
 def require_items_assigned(state, role, ids):
     """分割する担当の起動の記録が、対象の項目をすべて受け持っていることを確認する。"""
     if not state["execution"]["delegation_available"]:
@@ -1082,6 +1182,13 @@ def require_items_assigned(state, role, ids):
     )
 
 
+def validate_facet_execution(state):
+    """ファセット選択の起動の記録と、細分した場合の細分の検査担当の記録を検査する。"""
+    validate_execution_assignments(state, "facet-selection")
+    if state.get("facet_subdivisions"):
+        require_role_assigned(state, "facet_subdivision_review")
+
+
 def validate_selection_execution(state, stage):
     """題材探索状態の起動の記録と、分割した担当の受け持ちを検査する。"""
     validate_execution_assignments(state, stage)
@@ -1096,25 +1203,13 @@ def validate_selection_execution(state, stage):
     if stage in {"selection", "prejudgment"}:
         groups = [group["id"] for group in state["topic_groups"]]
         require_items_assigned(state, "topic_weighting", groups)
-        if len(groups) > 1 and state["execution"]["delegation_available"]:
-            require_condition(
-                any(
-                    record["role"] == "group_weighting"
-                    for record in state["execution"]["assignments"]
-                ),
-                "execution.assignmentsに担当の記録がない: ['group_weighting']",
-            )
+        if len(groups) > 1:
+            require_role_assigned(state, "group_weighting")
         members = member_candidate_ids(state)
         require_items_assigned(state, "exposure_precheck", sorted(members))
         excluded = members - pickable_candidate_ids(state)
-        if excluded and state["execution"]["delegation_available"]:
-            require_condition(
-                any(
-                    record["role"] == "exposure_precheck_review"
-                    for record in state["execution"]["assignments"]
-                ),
-                "execution.assignmentsに担当の記録がない: ['exposure_precheck_review']",
-            )
+        if excluded:
+            require_role_assigned(state, "exposure_precheck_review")
 
 
 def validate_source_quotes(state):
@@ -2517,7 +2612,7 @@ def main():
         )
         if args.stage == "facet-selection":
             validate_facet_selection(state)
-            validate_execution_assignments(state, args.stage)
+            validate_facet_execution(state)
         elif args.stage == "intersection-checkpoint":
             validate_intersection_state(state)
             validate_execution_assignments(state, args.stage)

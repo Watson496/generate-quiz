@@ -4,7 +4,9 @@
     "history": "確定済み履歴またはその保存先",
     "facet_levels": "ファセットの各階層の粒度判断",
     "facet_weights": "ファセットの兄弟ノードのweightと、候補ごとの三観点の評価と根拠",
+    "facet_subdivisions": "subjectのカタログの最下層より下の細分",
     "facet_level_reviews": "ファセットの粒度判断の検査結果",
+    "facet_subdivision_reviews": "ファセットの細分の検査結果",
     "facet_weight_reviews": "ファセットのweightの検査結果",
     "facet_distribution_reviews": "ファセットのweightの分布全体の検査結果",
     "facet_picks": "ファセットの各階層の抽選結果",
@@ -93,7 +95,7 @@
           "section": "ファセット選択",
           "specs": ["selection_and_history_spec.md", "facet_index.md", "work_state_spec.md"],
           "inputs": [["user_conditions", "facet_picks"]],
-          "outputs": ["facet_levels", "facet_nodes"]
+          "outputs": ["facet_levels", "facet_subdivisions", "facet_nodes"]
         },
         {
           "id": "facet_weighting",
@@ -101,7 +103,7 @@
           "side": "make",
           "section": "ファセット選択",
           "specs": ["selection_and_history_spec.md", "facet_index.md", "work_state_spec.md"],
-          "inputs": [["user_conditions", "history", "facet_levels", "facet_picks"]],
+          "inputs": [["user_conditions", "history", "facet_levels", "facet_subdivisions", "facet_picks"]],
           "outputs": ["facet_weights"]
         },
         {
@@ -110,8 +112,17 @@
           "side": "check",
           "section": "ファセット選択",
           "specs": ["selection_and_history_spec.md", "facet_index.md", "work_state_spec.md"],
-          "inputs": [["user_conditions", "facet_levels", "facet_picks"]],
+          "inputs": [["user_conditions", "facet_levels", "facet_subdivisions", "facet_picks"]],
           "outputs": ["facet_level_reviews"]
+        },
+        {
+          "id": "facet_subdivision_review",
+          "name": "ファセットの細分の検査担当",
+          "side": "check",
+          "section": "ファセット選択",
+          "specs": ["selection_and_history_spec.md", "facet_index.md", "work_state_spec.md"],
+          "inputs": [["user_conditions", "facet_levels", "facet_subdivisions", "facet_picks"]],
+          "outputs": ["facet_subdivision_reviews"]
         },
         {
           "id": "facet_weight_review",
@@ -119,7 +130,7 @@
           "side": "check",
           "section": "ファセット選択",
           "specs": ["selection_and_history_spec.md", "facet_index.md", "work_state_spec.md"],
-          "inputs": [["user_conditions", "history", "facet_levels", "facet_weights", "facet_picks"]],
+          "inputs": [["user_conditions", "history", "facet_levels", "facet_subdivisions", "facet_weights", "facet_picks"]],
           "outputs": ["facet_weight_reviews"]
         },
         {
@@ -142,7 +153,7 @@
           "side": "check",
           "section": "交差領域の確認",
           "specs": ["selection_and_history_spec.md", "work_state_spec.md"],
-          "inputs": [["facet_nodes"]],
+          "inputs": [["facet_nodes", "facet_subdivisions"]],
           "outputs": ["intersection_review", "coverage_areas"]
         }
       ]
@@ -156,7 +167,7 @@
           "side": "make",
           "section": "題材探索",
           "specs": ["selection_and_history_spec.md", "work_state_spec.md"],
-          "inputs": [["user_conditions", "history", "facet_nodes", "coverage_areas", "ledger"]],
+          "inputs": [["user_conditions", "history", "facet_nodes", "facet_subdivisions", "coverage_areas", "ledger"]],
           "outputs": ["coverage_areas", "ledger"],
           "split_size": 1
         },
@@ -166,7 +177,7 @@
           "side": "make",
           "section": "題材探索",
           "specs": ["selection_and_history_spec.md", "work_state_spec.md"],
-          "inputs": [["user_conditions", "facet_nodes", "coverage_areas", "ledger"]],
+          "inputs": [["user_conditions", "facet_nodes", "facet_subdivisions", "coverage_areas", "ledger"]],
           "outputs": ["ledger"],
           "split_size": 10
         },
@@ -176,7 +187,7 @@
           "side": "make",
           "section": "題材探索",
           "specs": ["selection_and_history_spec.md", "work_state_spec.md"],
-          "inputs": [["facet_nodes", "coverage_areas", "ledger"]],
+          "inputs": [["facet_nodes", "facet_subdivisions", "coverage_areas", "ledger"]],
           "outputs": ["coverage_areas", "ledger", "independent_review"]
         },
         {
@@ -185,7 +196,7 @@
           "side": "check",
           "section": "題材探索",
           "specs": ["selection_and_history_spec.md", "work_state_spec.md"],
-          "inputs": [["facet_nodes", "intersection_review", "coverage_areas", "ledger", "independent_review"]],
+          "inputs": [["facet_nodes", "facet_subdivisions", "intersection_review", "coverage_areas", "ledger", "independent_review"]],
           "outputs": ["saturation_challenge"]
         }
       ]
@@ -199,7 +210,7 @@
           "side": "make",
           "section": "所属判定",
           "specs": ["selection_and_history_spec.md", "facet_index.md", "work_state_spec.md"],
-          "inputs": [["facet_nodes", "ledger"]],
+          "inputs": [["facet_nodes", "facet_subdivisions", "ledger"]],
           "outputs": ["memberships"],
           "split_size": 20
         },
@@ -209,7 +220,7 @@
           "side": "check",
           "section": "所属判定",
           "specs": ["selection_and_history_spec.md", "facet_index.md", "work_state_spec.md"],
-          "inputs": [["facet_nodes", "ledger", "memberships"]],
+          "inputs": [["facet_nodes", "facet_subdivisions", "ledger", "memberships"]],
           "outputs": ["membership_reviews"],
           "split_size": 20
         }
@@ -317,7 +328,7 @@
           "side": "check",
           "section": "抽選後の予備判定",
           "specs": ["selection_and_history_spec.md", "facet_index.md", "work_state_spec.md"],
-          "inputs": [["facet_nodes", "picked_candidate", "ledger"]],
+          "inputs": [["facet_nodes", "facet_subdivisions", "picked_candidate", "ledger"]],
           "outputs": ["prejudgment_membership"]
         },
         {

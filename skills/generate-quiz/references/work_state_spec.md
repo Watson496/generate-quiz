@@ -14,13 +14,13 @@
 
 ## ファセットの選択
 
-ファセットの選択は、題材探索状態とは別のJSONに記録し、`work_state_check.py --stage facet-selection`で検査する。`facet_levels`には、判断した階層ごとに`id`、軸を`axis`、現在のノードを`node`、停止か子へ進むかを`decision`（`stop`・`descend`）、判断理由を`reason`として、判断した順に置く。子へ進む階層については、`facet_weights`に階層の`level_id`と、兄弟ノードごとの`candidates`を置く。各候補には、ノードの`key`と`label`、基礎weightを`weight`、文化的共有度・コミュニケーション場面での重要性・文化的背景知識としての機能の評価を`viewpoints`の`sharing`・`communication`・`background`、三観点をweightへまとめた根拠を`reason`、履歴距離を`history_distances`として置く。粒度判断の検査結果は`facet_level_reviews`、weightの検査結果は`facet_weight_reviews`、weightの分布の検査結果は`facet_distribution_reviews`に、検査した階層の`level_id`、判定を`status`（`passed`・`failed`）、理由を`reason`として置く。反論を新しい検査担当が再検査した場合は、記録を書き換えずに後ろへ加える。統括役は抽選結果を`facet_picks`に`level_id`と`key`として記録する。選び終えた4軸のノードは`facet_nodes`に置く。
+ファセットの選択は、題材探索状態とは別のJSONに記録し、`work_state_check.py --stage facet-selection`で検査する。`facet_levels`には、判断した階層ごとに`id`、軸を`axis`、現在のノードを`node`、停止か子へ進むかを`decision`（`stop`・`descend`）、判断理由を`reason`として、判断した順に置く。子へ進む階層については、`facet_weights`に階層の`level_id`と、兄弟ノードごとの`candidates`を置く。各候補には、ノードの`key`と`label`、基礎weightを`weight`、文化的共有度・コミュニケーション場面での重要性・文化的背景知識としての機能の評価を`viewpoints`の`sharing`・`communication`・`background`、三観点をweightへまとめた根拠を`reason`、履歴距離を`history_distances`として置く。subjectのカタログの最下層より下へ分けた場合は、`facet_subdivisions`に、分けたノードを`parent`、区分の原理にした特性を`characteristic`、区分の根拠を`basis`、根拠にした資料のURLを`source_urls`、区分を`children`として置く。各区分には、UDCの記号法に従い、`parent`に`*`（`parent`がすでに`*`を含む場合は`.`）と1からの連番を付けたキーを`key`、名前を`label`、入る対象の範囲を`scope`として置く。区分をさらに分けた場合は、その区分を`parent`とする記録を加える。区分のweightには`history_distances`を置かない。粒度判断の検査結果は`facet_level_reviews`、区分の分け方の検査結果は`facet_subdivision_reviews`、weightの検査結果は`facet_weight_reviews`、weightの分布の検査結果は`facet_distribution_reviews`に、検査した階層の`level_id`、判定を`status`（`passed`・`failed`）、理由を`reason`として置く。反論を新しい検査担当が再検査した場合は、記録を書き換えずに後ろへ加える。統括役は抽選結果を`facet_picks`に`level_id`と`key`として記録する。選び終えた4軸のノードは`facet_nodes`に置く。
 
-`work_state_check.py`は、各軸が最上位ノードから始まって抽選結果のノードへ続き、停止で終わること、weightの候補が現在のノードの直接の子と一致すること、抽選結果が正のweightを持つ候補であること、`facet_nodes`が停止した階層のノードと一致すること、各階層の最後の検査結果が合格であることを確認する。粒度とweightの判断の妥当性は判定しない。
+`work_state_check.py`は、各軸が最上位ノードから始まって抽選結果のノードへ続き、停止で終わること、カタログの最下層から子へ進む階層に`facet_subdivisions`の記録があり、その親がsubjectの最下層か分けた区分であること、weightの候補が現在のノードの直接の子（分けた場合は区分）と一致すること、抽選結果が正のweightを持つ候補であること、`facet_nodes`が停止した階層のノードと一致すること、各階層の最後の検査結果が合格であることを確認する。粒度とweightの判断の妥当性は判定しない。
 
 ## ファセットの交差領域
 
-ファセット選択後、題材探索前に4軸の正規ノードキーと交差領域の確認記録をJSONへ保存し、`work_state_check.py --stage intersection-checkpoint`で検査する。確認記録には、開いた資料のURL、交差領域の広さを判断した理由、資料中に実名がある異なる候補二つ以上と各資料のURL、うち一件以上の初級学習資料と扱いの根拠、成立の判定を含める。広さの理由には、選択範囲に入る大区分と、異なる用途の資料で確かめた対象の種類・下位領域を対応させ、候補探索の経路を設けられるかを記す。探索する下位領域は、`coverage_areas`に`id`、名前を`label`、区分の根拠を`basis`、含まれる解答対象の種類を`target_kinds`として記録する。担当の起動は「担当の起動の記録」節に従って記録する。形式検査は資料の独立性や判断の妥当性を保証しない。
+ファセット選択後、題材探索前に4軸の正規ノードキーと交差領域の確認記録をJSONへ保存し、区分に分けたノードを選んだ場合は`facet_subdivisions`も写して、`work_state_check.py --stage intersection-checkpoint`で検査する。確認記録には、開いた資料のURL、交差領域の広さを判断した理由、資料中に実名がある異なる候補二つ以上と各資料のURL、うち一件以上の初級学習資料と扱いの根拠、成立の判定を含める。広さの理由には、選択範囲に入る大区分と、異なる用途の資料で確かめた対象の種類・下位領域を対応させ、候補探索の経路を設けられるかを記す。探索する下位領域は、`coverage_areas`に`id`、名前を`label`、区分の根拠を`basis`、含まれる解答対象の種類を`target_kinds`として記録する。担当の起動は「担当の起動の記録」節に従って記録する。形式検査は資料の独立性や判断の妥当性を保証しない。
 
 ## 題材候補の探索状態
 

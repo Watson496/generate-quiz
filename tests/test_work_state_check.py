@@ -848,6 +848,154 @@ class TestWorkStateFunctions:
             state_module.records_with_ids([{"id": "P1"}, {"id": "P1"}], "命題")
 
 
+class TestFacetSubdivision:
+    """subjectのカタログの最下層より下の細分を検査する。"""
+
+    def test_valid_subdivision_passes(self, run_script, subdivided_facet_state):
+        """最下層を区分に分け、区分をさらに分けた状態を受け付ける。"""
+        result = check_state(run_script, "facet-selection", subdivided_facet_state)
+        assert result.returncode == 0
+
+    def test_leaf_requires_subdivision(self, run_script, subdivided_facet_state):
+        """細分の記録なしに最下層から子へ進まない。"""
+        subdivided_facet_state["facet_subdivisions"].pop()
+        result = check_state(run_script, "facet-selection", subdivided_facet_state)
+        assert result.returncode == 1
+        assert "で細分せずに最下層から子へ進んでいる" in result.stderr
+
+    @pytest.mark.parametrize("parent", ["subject::33", "place::ROOT"])
+    def test_parent_must_be_subject_leaf(
+        self, run_script, subdivided_facet_state, parent
+    ):
+        """カタログに子があるノードやsubject以外の軸は細分しない。"""
+        subdivided_facet_state["facet_subdivisions"].append(
+            {**subdivided_facet_state["facet_subdivisions"][0], "parent": parent}
+        )
+        result = check_state(run_script, "facet-selection", subdivided_facet_state)
+        assert result.returncode == 1
+        assert "parentがsubjectの最下層でも細分した区分でもない" in result.stderr
+
+    def test_asterisk_parent_continues_with_dot(
+        self, state_module, subdivided_facet_state
+    ):
+        """すでに`*`を含むノードを分けた区分は、`.`と番号で続ける。"""
+        record = subdivided_facet_state["facet_subdivisions"][0]
+        record["parent"] = "subject::630*0"
+        for position, child in enumerate(record["children"], 1):
+            child["key"] = f"subject::630*0.{position}"
+        state = {"facet_subdivisions": [record]}
+        assert "subject::630*0" in state_module.validate_facet_subdivisions(state)
+
+    def test_child_key_must_not_be_catalog_node(
+        self, state_module, subdivided_facet_state, monkeypatch
+    ):
+        """区分のキーはカタログのノードと重ならない。"""
+        find_block = state_module.facet_node.find_block
+        monkeypatch.setattr(
+            state_module.facet_node,
+            "find_block",
+            lambda key: (None, [key]) if key == "subject::338*1" else find_block(key),
+        )
+        state = {"facet_subdivisions": subdivided_facet_state["facet_subdivisions"]}
+        with pytest.raises(
+            state_module.StateError, match="カタログのノードと重なっている"
+        ):
+            state_module.validate_facet_subdivisions(state)
+
+    def test_child_keys_follow_parent(self, run_script, subdivided_facet_state):
+        """区分のキーは親のキーに連番を付けた形にする。"""
+        subdivided_facet_state["facet_subdivisions"][0]["children"][0]["key"] = "景気"
+        result = check_state(run_script, "facet-selection", subdivided_facet_state)
+        assert result.returncode == 1
+        assert "keyがsubject::338*1ではない" in result.stderr
+
+    @pytest.mark.parametrize("field", ["characteristic", "basis"])
+    def test_requires_characteristic_and_basis(
+        self, run_script, subdivided_facet_state, field
+    ):
+        """区分の原理と根拠を記録する。"""
+        del subdivided_facet_state["facet_subdivisions"][0][field]
+        result = check_state(run_script, "facet-selection", subdivided_facet_state)
+        assert result.returncode == 1
+        assert f"facet_subdivisions[0].{field}がない" in result.stderr
+
+    def test_requires_source_url(self, run_script, subdivided_facet_state):
+        """区分の根拠にした資料をURLで示す。"""
+        subdivided_facet_state["facet_subdivisions"][0]["source_urls"] = ["教科書"]
+        result = check_state(run_script, "facet-selection", subdivided_facet_state)
+        assert result.returncode == 1
+        assert "source_urlsにURLでない値がある" in result.stderr
+
+    def test_requires_scope_of_each_child(self, run_script, subdivided_facet_state):
+        """区分ごとに入る対象の範囲を記す。"""
+        del subdivided_facet_state["facet_subdivisions"][0]["children"][1]["scope"]
+        result = check_state(run_script, "facet-selection", subdivided_facet_state)
+        assert result.returncode == 1
+        assert "children[1].scopeがない" in result.stderr
+
+    def test_requires_two_children(self, run_script, subdivided_facet_state):
+        """一つの区分だけの細分を認めない。"""
+        children = subdivided_facet_state["facet_subdivisions"][0]["children"]
+        del children[1:]
+        result = check_state(run_script, "facet-selection", subdivided_facet_state)
+        assert result.returncode == 1
+        assert "childrenが二つに満たない" in result.stderr
+
+    def test_rejects_unused_subdivision(
+        self, run_script, facet_state, subdivided_facet_state
+    ):
+        """子へ進んでいないノードの細分を残さない。"""
+        facet_state["facet_subdivisions"] = subdivided_facet_state[
+            "facet_subdivisions"
+        ][:1]
+        result = check_state(run_script, "facet-selection", facet_state)
+        assert result.returncode == 1
+        assert "子へ進んでいないノードの細分がある" in result.stderr
+
+    def test_rejects_history_distance_of_child(
+        self, run_script, subdivided_facet_state
+    ):
+        """細分した区分には履歴補正を掛けない。"""
+        candidate = subdivided_facet_state["facet_weights"][-1]["candidates"][0]
+        candidate["history_distances"] = [1]
+        result = check_state(run_script, "facet-selection", subdivided_facet_state)
+        assert result.returncode == 1
+        assert "history_distancesが細分した区分にある" in result.stderr
+
+    def test_requires_passed_subdivision_review(
+        self, run_script, subdivided_facet_state
+    ):
+        """区分の分け方は検査担当の合格を要する。"""
+        subdivided_facet_state["facet_subdivision_reviews"][1].update(
+            status="failed", fix_data=["facet_subdivisions"]
+        )
+        result = check_state(run_script, "facet-selection", subdivided_facet_state)
+        assert result.returncode == 1
+        assert "facet_subdivision_reviewsに不合格の項目がある" in result.stderr
+
+    def test_requires_subdivision_reviewer(self, run_script, subdivided_facet_state):
+        """細分した場合は細分の検査担当の起動を記録する。"""
+        drop_assignment(subdivided_facet_state, "facet_subdivision_review")
+        result = check_state(run_script, "facet-selection", subdivided_facet_state)
+        assert result.returncode == 1
+        assert "担当の記録がない: ['facet_subdivision_review']" in result.stderr
+
+    def test_intersection_accepts_subdivided_node(
+        self, run_script, intersection_state, subdivided_facet_state
+    ):
+        """細分の記録を写した交差領域の確認記録は、区分を選択ノードとして受け付ける。"""
+        intersection_state["facet_nodes"] = subdivided_facet_state["facet_nodes"]
+        intersection_state["facet_subdivisions"] = subdivided_facet_state[
+            "facet_subdivisions"
+        ]
+        result = check_state(run_script, "intersection-checkpoint", intersection_state)
+        assert result.returncode == 0
+        del intersection_state["facet_subdivisions"]
+        result = check_state(run_script, "intersection-checkpoint", intersection_state)
+        assert result.returncode == 1
+        assert "facet_nodes.subjectがカタログにも細分にも存在しない" in result.stderr
+
+
 class TestFacetSelectionState:
     """ファセットの各階層の判断、weight、抽選結果を検査する。"""
 
