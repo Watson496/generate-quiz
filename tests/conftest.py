@@ -48,6 +48,14 @@ def load_script(monkeypatch):
     return load
 
 
+def top_node(facet_node, axis):
+    """最上位から子が一つだけのノードをたどった、軸の最初に判断するノードを返す。"""
+    key = f"{axis}::ROOT"
+    while len(children := facet_node.child_keys(key)) == 1:
+        key = children[0]
+    return key
+
+
 def build_facet_state(facet_node, path, subdivisions=()):
     """指定した経路で各軸を下り、最後のノードで止めたファセット選択の状態を作る。"""
     children_of = {
@@ -56,7 +64,7 @@ def build_facet_state(facet_node, path, subdivisions=()):
     }
     levels, weights, picks = [], [], []
     for axis in ("subject", "place", "time", "type"):
-        nodes = path.get(axis, [f"{axis}::ROOT"])
+        nodes = path.get(axis, [top_node(facet_node, axis)])
         for position, node in enumerate(nodes):
             level_id = f"F{len(levels) + 1}"
             descend = position < len(nodes) - 1
@@ -140,7 +148,7 @@ def build_facet_state(facet_node, path, subdivisions=()):
         ],
         "facet_picks": picks,
         "facet_nodes": {
-            axis: path.get(axis, [f"{axis}::ROOT"])[-1]
+            axis: path.get(axis, [top_node(facet_node, axis)])[-1]
             for axis in ("subject", "place", "time", "type")
         },
     }
@@ -226,9 +234,9 @@ def intersection_state():
         },
         "facet_nodes": {
             "subject": "subject::66",
-            "place": "place::ROOT",
+            "place": "place::(1/9)",
             "time": "time::ROOT",
-            "type": "type::ROOT",
+            "type": "type::ontology",
         },
         "coverage_areas": [
             {
