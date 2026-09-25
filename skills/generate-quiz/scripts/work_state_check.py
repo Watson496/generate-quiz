@@ -774,6 +774,7 @@ def validate_selection_candidates(state, entry_ids, areas, area_ids):
                     "no_japanese_context",
                     "prohibited_format",
                     "unverified_name",
+                    "descriptive_name",
                 },
                 f"{name}.exclusion_codeが不正である",
             )
@@ -951,6 +952,16 @@ def eligible_candidate_ids(state):
     }
 
 
+def descriptive_name_ids(state):
+    """名称が対象の説明そのものであることを理由に除外した候補のIDを返す。"""
+    return sorted(
+        item["id"]
+        for item in state["candidates"]
+        if item["disposition"] == "excluded"
+        and item["exclusion_code"] == "descriptive_name"
+    )
+
+
 def member_candidate_ids(state):
     """探索段階の選択対象のうち、4軸すべてに所属する候補のIDを返す。"""
     eligible = eligible_candidate_ids(state)
@@ -1026,6 +1037,9 @@ def validate_selection_review(state, areas, candidates, entry_ids):
     referenced_ids(core, "core_candidate_ids", candidate_ids, name)
     referenced_ids(core, "added_candidate_ids", candidate_ids, name, nonempty=False)
     required_text(core, "reason", name)
+    descriptive = descriptive_name_ids(state)
+    if descriptive or state.get("descriptive_name_reviews"):
+        validate_reviews(state, "descriptive_name_reviews", descriptive, "candidate_id")
 
 
 def validate_discovery_progress(state):
@@ -1197,6 +1211,8 @@ def validate_selection_execution(state, stage):
     )
     eligible = sorted(eligible_candidate_ids(state))
     require_items_assigned(state, "nearby_exploration", eligible)
+    if descriptive_name_ids(state):
+        require_role_assigned(state, "descriptive_name_review")
     if stage != "discovery":
         require_items_assigned(state, "membership", eligible)
         require_items_assigned(state, "membership_review", eligible)

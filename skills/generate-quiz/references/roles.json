@@ -16,6 +16,7 @@
     "ledger": "題材候補の探索台帳（入口、候補、近接探索の記録）",
     "independent_review": "別経路の探索記録",
     "saturation_challenge": "探索完了の反証調査の記録",
+    "descriptive_name_reviews": "名称が対象の説明そのものであることを理由にした除外の検査結果",
     "memberships": "候補ごとの、選択した4軸の各ノードへの所属判定",
     "membership_reviews": "所属判定の検査結果",
     "exposure_prechecks": "所属する各選択対象の解答露出の予備検査の結果",
@@ -198,6 +199,15 @@
           "specs": ["selection_and_history_spec.md", "work_state_spec.md"],
           "inputs": [["facet_nodes", "facet_subdivisions", "intersection_review", "coverage_areas", "ledger", "independent_review"]],
           "outputs": ["saturation_challenge"]
+        },
+        {
+          "id": "descriptive_name_review",
+          "name": "名称が説明そのものである候補の検査担当",
+          "side": "check",
+          "section": "題材探索",
+          "specs": ["selection_and_history_spec.md", "work_state_spec.md"],
+          "inputs": [["ledger"]],
+          "outputs": ["descriptive_name_reviews"]
         }
       ]
     },
