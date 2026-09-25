@@ -16,6 +16,7 @@ python3 "$SKILL_DIR/scripts/facet_node.py" --grep '音楽'      # ラベル部�
 3. 子へ進んだ場合は、選んだ子の `NODE_KEY` で次の親ブロックを取得する。
 4. 出力時の階層パスには `PATH_LABELS` を使い、コードは表示しない。
 5. 同名ラベルがあっても `NODE_KEY` が異なれば別ノードとして扱う。
+6. subjectの最下層（`DIRECT_CHILDREN` がないノード）より下へ進む場合は、`selection_and_history_spec.md` 第2.1節に従って区分に分ける。区分はカタログのノードではないため、`facet_node.py` では取得できない。出力時の階層パスでは、`PATH_LABELS` の後に区分の名前を続ける。
 
 ## FACET_ROOT `subject::ROOT`
 
