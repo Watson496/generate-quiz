@@ -1281,6 +1281,38 @@ class TestDiscoveryProgressState:
         )
 
 
+def add_descriptive_name(state, *, review_status="passed"):
+    """名称が対象の説明そのものであることを理由に除外した候補と、その検査結果を加える。"""
+    state["coverage_areas"][0]["source_searches"][0]["found_candidate_ids"].append("K3")
+    state["candidates"].append(
+        {
+            "id": "K3",
+            "label": "炭酸ナトリウム製造法",
+            "coverage_area_ids": ["D1"],
+            "discovery_entry_point_ids": ["E1"],
+            "name_use_note": "分類表で炭酸ナトリウムを製造する方法の総称として使われている",
+            "disposition": "excluded",
+            "exclusion_code": "descriptive_name",
+            "exclusion_reason": "炭酸ナトリウムを製造する方法という説明がそのまま名称になっている",
+        }
+    )
+    review = {
+        "candidate_id": "K3",
+        "status": review_status,
+        "reason": "名称の語を使わずに対象を特定する説明がない",
+    }
+    if review_status == "failed":
+        review["fix_data"] = ["ledger"]
+    state["descriptive_name_reviews"] = [review]
+    state["execution"]["assignments"].append(
+        {
+            "role": "descriptive_name_review",
+            "agent_id": "agent-descriptive-name-review",
+            "artifact_refs": ["descriptive_name_review.json"],
+        }
+    )
+
+
 class TestSelectionState:
     """題材探索の完了状態を検査する。"""
 
@@ -1300,6 +1332,48 @@ class TestSelectionState:
         result = check_state(run_script, "discovery", selection_state)
         assert result.returncode == 1
         assert message in result.stderr
+
+    def test_accepts_reviewed_descriptive_name(self, run_script, selection_state):
+        """名称が説明そのものである候補は、検査に合格すれば探索段階で除外できる。"""
+        add_descriptive_name(selection_state)
+        assert check_state(run_script, "discovery", selection_state).returncode == 0
+
+    def test_descriptive_name_requires_passed_review(self, run_script, selection_state):
+        """名称が説明そのものであることによる除外は、検査担当の合格を要する。"""
+        add_descriptive_name(selection_state, review_status="failed")
+        result = check_state(run_script, "discovery", selection_state)
+        assert result.returncode == 1
+        assert "descriptive_name_reviewsに不合格の項目がある" in result.stderr
+
+    def test_descriptive_name_requires_reviewer(self, run_script, selection_state):
+        """名称が説明そのものであることによる除外には、検査担当の起動の記録を要する。"""
+        add_descriptive_name(selection_state)
+        drop_assignment(selection_state, "descriptive_name_review")
+        result = check_state(run_script, "discovery", selection_state)
+        assert result.returncode == 1
+        assert "担当の記録がない: ['descriptive_name_review']" in result.stderr
+
+    def test_reinstated_descriptive_name_keeps_failed_review(
+        self, run_script, selection_state
+    ):
+        """不合格で選択対象へ戻した候補の検査結果が残っていても受け付ける。"""
+        add_descriptive_name(selection_state, review_status="failed")
+        candidate = selection_state["candidates"][-1]
+        for key in ("exclusion_code", "exclusion_reason"):
+            del candidate[key]
+        candidate.update(
+            disposition="eligible",
+            expanded=True,
+            expansion_searches=[
+                {
+                    "source_or_query": "炭酸ナトリウム製造法の関連項目",
+                    "relation_checked": "同じ製品の別の製法",
+                    "found_candidate_ids": [],
+                }
+            ],
+        )
+        assignment_of(selection_state, "nearby_exploration")["items"].append("K3")
+        assert check_state(run_script, "discovery", selection_state).returncode == 0
 
     def test_every_area_needs_exploration_assignment(self, run_script, selection_state):
         """下位領域ごとに題材探索担当を割り当てる。"""
