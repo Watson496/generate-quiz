@@ -82,6 +82,24 @@ class TestFacetNodeFunctions:
             "subject::2",
         ]
 
+    def test_children_match_direct_children_count(self, facet_module):
+        """キーに逆引用符を含む子も含め、全ノードで読み取る子の数がカタログの件数と一致する。"""
+        for path in facet_module.ref_files():
+            key, count, children = None, None, 0
+            for line in facet_module.read_lines(path):
+                if line.startswith("## FACET_NODE `"):
+                    key, count, children = line, None, 0
+                elif line.startswith("- DIRECT_CHILDREN_COUNT:"):
+                    count = int(line.split(":")[1])
+                elif facet_module.CHILD_RE.match(line):
+                    children += 1
+                elif facet_module.END_RE.match(line) and count is not None:
+                    assert children == count, key
+
+    def test_child_keys_keep_backquoted_key(self, facet_module):
+        """UDCの固有補助番号の逆引用符をキーの一部として読む。"""
+        assert "subject::81`01/`08" in facet_module.child_keys("subject::81")
+
 
 class TestFacetNode:
     """ファセットカタログの参照。カタログにないノードを返さないことを主に見る。"""
