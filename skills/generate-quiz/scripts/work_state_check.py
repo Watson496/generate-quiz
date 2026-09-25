@@ -540,7 +540,7 @@ def validate_facet_selection(state):
     validate_reviews(state, "facet_distribution_reviews", sorted(descended), "level_id")
 
 
-def validate_intersection_state(state):
+def validate_intersection_state(state, *, allow_not_viable=False):
     """4軸の選択と交差領域の確認記録を検査する。"""
     nodes = state.get("facet_nodes")
     require_condition(
@@ -605,8 +605,9 @@ def validate_intersection_state(state):
         "intersection_reviewに初級学習資料で確認した候補例がない",
     )
     required_text(review, "scope_reason", "intersection_review")
+    results = {"viable", "not_viable"} if allow_not_viable else {"viable"}
     require_condition(
-        review.get("result") == "viable", "4軸の交差領域の独立確認が合格していない"
+        review.get("result") in results, "4軸の交差領域の独立確認が合格していない"
     )
 
 
@@ -2629,7 +2630,7 @@ def main():
             validate_facet_selection(state)
             validate_facet_execution(state)
         elif args.stage == "intersection-checkpoint":
-            validate_intersection_state(state)
+            validate_intersection_state(state, allow_not_viable=True)
             validate_execution_assignments(state, args.stage)
         elif args.stage == "discovery-progress":
             validate_discovery_progress(state)

@@ -1216,6 +1216,18 @@ class TestIntersectionState:
             == 1
         )
 
+    def test_checkpoint_accepts_not_viable_result(
+        self, run_script, intersection_state, selection_state
+    ):
+        """不成立の確認記録も記録として検査し、題材探索以降では成立を求める。"""
+        intersection_state["intersection_review"]["result"] = "not_viable"
+        result = check_state(run_script, "intersection-checkpoint", intersection_state)
+        assert result.returncode == 0
+        selection_state["intersection_review"]["result"] = "not_viable"
+        result = check_state(run_script, "discovery", selection_state)
+        assert result.returncode == 1
+        assert "4軸の交差領域の独立確認が合格していない" in result.stderr
+
 
 class TestDiscoveryProgressState:
     """題材探索途中の状態を検査する。"""
