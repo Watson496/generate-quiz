@@ -176,9 +176,9 @@ def complete_state():
         "selection_mode": "random",
         "facet_nodes": {
             "subject": "subject::66",
-            "place": "place::ROOT",
+            "place": "place::(1/9)",
             "time": "time::ROOT",
-            "type": "type::ROOT",
+            "type": "type::ontology",
         },
         "execution": {"delegation_available": True, "assignments": assignments},
         "answer_target": "ミュラー・リヤー錯視",
@@ -561,9 +561,9 @@ def complete_state():
                 "answer_target": "ミュラー・リヤー錯視",
                 "facet_nodes": {
                     "subject": "subject::66",
-                    "place": "place::ROOT",
+                    "place": "place::(1/9)",
                     "time": "time::ROOT",
-                    "type": "type::ROOT",
+                    "type": "type::ontology",
                 },
                 "facet_paths": {
                     "subject": "科学 ＞ 心理学",
@@ -1041,6 +1041,17 @@ class TestFacetSelectionState:
         result = check_state(run_script, "facet-selection", facet_state)
         assert result.returncode == 1
         assert "facet_nodes.subjectが停止した階層のノードと一致しない" in result.stderr
+
+    def test_single_child_node_is_not_judged(self, run_script, facet_state):
+        """子が一つだけのノードでは判断せず、その子から判断する。"""
+        level = next(
+            item for item in facet_state["facet_levels"] if item["axis"] == "type"
+        )
+        level["node"] = "type::ROOT"
+        facet_state["facet_nodes"]["type"] = "type::ROOT"
+        result = check_state(run_script, "facet-selection", facet_state)
+        assert result.returncode == 1
+        assert "子が一つだけのノードを判断している" in result.stderr
 
     def test_all_axes_must_stop(self, run_script, facet_state):
         """4軸すべてで停止するまで記録する。"""
