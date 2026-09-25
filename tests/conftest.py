@@ -48,11 +48,12 @@ def load_script(monkeypatch):
     return load
 
 
-@pytest.fixture
-def facet_state(load_script):
-    """subjectだけを二階層下り、ほかの軸を最上位で止めたファセット選択の状態を作る。"""
-    facet_node = load_script("generate-quiz", "facet_node.py")
-    path = {"subject": ["subject::ROOT", "subject::6", "subject::66"]}
+def build_facet_state(facet_node, path, subdivisions=()):
+    """指定した経路で各軸を下り、最後のノードで止めたファセット選択の状態を作る。"""
+    children_of = {
+        item["parent"]: [child["key"] for child in item["children"]]
+        for item in subdivisions
+    }
     levels, weights, picks = [], [], []
     for axis in ("subject", "place", "time", "type"):
         nodes = path.get(axis, [f"{axis}::ROOT"])
@@ -85,7 +86,7 @@ def facet_state(load_script):
                             },
                             "reason": f"{key}の三観点をまとめた",
                         }
-                        for key in facet_node.child_keys(node)
+                        for key in children_of.get(node) or facet_node.child_keys(node)
                     ],
                 }
             )
@@ -139,12 +140,74 @@ def facet_state(load_script):
         ],
         "facet_picks": picks,
         "facet_nodes": {
-            "subject": "subject::66",
-            "place": "place::ROOT",
-            "time": "time::ROOT",
-            "type": "type::ROOT",
+            axis: path.get(axis, [f"{axis}::ROOT"])[-1]
+            for axis in ("subject", "place", "time", "type")
         },
     }
+
+
+@pytest.fixture
+def facet_state(load_script):
+    """subjectだけを二階層下り、ほかの軸を最上位で止めたファセット選択の状態を作る。"""
+    facet_node = load_script("generate-quiz", "facet_node.py")
+    return build_facet_state(
+        facet_node, {"subject": ["subject::ROOT", "subject::6", "subject::66"]}
+    )
+
+
+def subdivision(parent, labels):
+    """親ノードを、指定した名前の区分に分けた細分の記録を作る。"""
+    return {
+        "parent": parent,
+        "characteristic": "経済学が扱う経済現象の種類",
+        "basis": "経済学の教科書の章立てが景気と物価を別の章で扱う",
+        "source_urls": ["https://example.org/economics"],
+        "children": [
+            {
+                "key": f"{parent}{'.' if '*' in parent else '*'}{position}",
+                "label": label,
+                "scope": f"{label}に入る対象",
+            }
+            for position, label in enumerate(labels, 1)
+        ],
+    }
+
+
+@pytest.fixture
+def subdivided_facet_state(load_script):
+    """subjectをカタログの最下層より下へ二段分けたファセット選択の状態を作る。"""
+    facet_node = load_script("generate-quiz", "facet_node.py")
+    subdivisions = [
+        subdivision("subject::338", ["景気", "物価"]),
+        subdivision("subject::338*2", ["インフレーション", "デフレーション"]),
+    ]
+    path = [
+        "subject::ROOT",
+        "subject::3",
+        "subject::33",
+        "subject::338",
+        "subject::338*2",
+        "subject::338*2.1",
+    ]
+    state = build_facet_state(facet_node, {"subject": path}, subdivisions)
+    state["facet_subdivisions"] = subdivisions
+    state["facet_subdivision_reviews"] = [
+        {
+            "level_id": level["id"],
+            "status": "passed",
+            "reason": "一つの特性で重なりなく親を覆っている",
+        }
+        for level in state["facet_levels"]
+        if level["node"] in {"subject::338", "subject::338*2"}
+    ]
+    state["execution"]["assignments"].append(
+        {
+            "role": "facet_subdivision_review",
+            "agent_id": "agent-subdivision-review",
+            "artifact_refs": ["facet_subdivision_review.json"],
+        }
+    )
+    return state
 
 
 @pytest.fixture
