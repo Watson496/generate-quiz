@@ -10,6 +10,7 @@
     "facet_weight_reviews": "ファセットのweightの検査結果",
     "facet_distribution_reviews": "ファセットのweightの分布全体の検査結果",
     "facet_picks": "ファセットの各階層の抽選結果",
+    "granularity_return": "粒度判断へ戻った場合の、戻った理由の記録（交差領域の確認記録、または探索完了の反証調査の記録）",
     "facet_nodes": "選択した4軸のノード",
     "intersection_review": "交差領域の確認記録",
     "coverage_areas": "探索する下位領域と、下位領域ごとの探索記録",
@@ -84,7 +85,7 @@
     "final_reflection_review": "完成稿への反映の照合結果",
     "final_contamination_review": "完成稿への作業用記録の混入の検査結果"
   },
-  "given_data": ["user_conditions", "history", "facet_picks", "picked_candidate", "answer_target", "research_requests"],
+  "given_data": ["user_conditions", "history", "facet_picks", "granularity_return", "picked_candidate", "answer_target", "research_requests"],
   "steps": [
     {
       "name": "ファセット選択",
@@ -95,7 +96,7 @@
           "side": "make",
           "section": "ファセット選択",
           "specs": ["selection_and_history_spec.md", "facet_index.md", "work_state_spec.md"],
-          "inputs": [["user_conditions", "facet_picks"]],
+          "inputs": [["user_conditions", "facet_picks", "granularity_return"]],
           "outputs": ["facet_levels", "facet_subdivisions", "facet_nodes"]
         },
         {
@@ -113,7 +114,7 @@
           "side": "check",
           "section": "ファセット選択",
           "specs": ["selection_and_history_spec.md", "facet_index.md", "work_state_spec.md"],
-          "inputs": [["user_conditions", "facet_levels", "facet_subdivisions", "facet_picks"]],
+          "inputs": [["user_conditions", "facet_levels", "facet_subdivisions", "facet_picks", "granularity_return"]],
           "outputs": ["facet_level_reviews"]
         },
         {
