@@ -41,10 +41,11 @@ argument-hint: <作問条件（主題・問題数・文字数・履歴など。�
 
 - 同梱スクリプトにはPython 3.14以上を使用する。
 - 毎問Web検索を使う。検索手段が一切使えない場合は、内部知識で代替せず作問を中止する。
-- 担当の割り当て、重み付き乱択、履歴補正、文字数判定、作業状態の構造検査は、必ず同梱スクリプトを実行する。
+- 担当の割り当て、重み付き乱択、履歴補正、台帳の断片の統合、文字数判定、作業状態の構造検査は、必ず同梱スクリプトを実行する。
   - 担当の割り当てと再実行の範囲：`scripts/assignment_plan.py`
   - ファセットの抽選：`scripts/weighted_pick.py`
   - 題材候補の抽選：`scripts/topic_pick.py`
+  - 台帳の断片の統合：`scripts/ledger_merge.py`
   - 文字数と採否：`scripts/length_check.py`
   - ファセットノードの取得：`scripts/facet_node.py`
   - 作業状態の構造検査：`scripts/work_state_check.py`
@@ -86,6 +87,12 @@ JSON
 
 ```bash
 python3 "$SKILL_DIR/scripts/topic_pick.py" state.json
+```
+
+同時に動いた担当が書いた台帳の断片は、`ledger_merge.py`で探索状態へまとめる。まとめた後は`work_state_check.py`で探索状態を検査する。
+
+```bash
+python3 "$SKILL_DIR/scripts/ledger_merge.py" state.json fragment_D1.json fragment_D2.json -o state.json
 ```
 
 問題文の版ごとに文字数判定の`DRAW`を保持する。同じ版を検査するときは`--draw`へ同じ値を渡し、再抽選しない。
