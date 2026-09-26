@@ -1366,6 +1366,23 @@ class TestSelectionState:
         assert result.returncode == 1
         assert "core_candidate_idsに選択対象でない候補がある" in result.stderr
 
+    def test_excluded_candidate_needs_only_reason(self, run_script, selection_state):
+        """除外した候補は、名称と除外の理由だけで記録できる。"""
+        selection_state["candidates"].append(
+            {
+                "id": "K3",
+                "label": "心臓",
+                "disposition": "excluded",
+                "exclusion_code": "outside_facets",
+                "exclusion_reason": "名称が第一義に指すのは動物一般の器官である",
+            }
+        )
+        assert check_state(run_script, "discovery", selection_state).returncode == 0
+        assert (
+            check_state(run_script, "discovery-progress", selection_state).returncode
+            == 0
+        )
+
     def test_candidate_outside_facets_is_recorded_only(
         self, run_script, selection_state
     ):
