@@ -9,8 +9,6 @@ from pathlib import Path
 import pytest
 
 REQUIRED_CHECK_IDS = {
-    "difficulty.beginner",
-    "difficulty.general",
     "terminology",
     "clue_order",
     "answer_exposure",
@@ -51,17 +49,27 @@ def complete_state():
     """全工程を通過できる一問分の作業状態を作る。"""
     evidence = ["Q1"]
     roles = (
-        "exploration",
-        "alternate_exploration",
-        "saturation_review",
-        "generation",
-        "difficulty_review",
-        "evidence_challenge",
-        "terminology_review",
+        "clue_search",
+        "exposure_analysis",
+        "name_research",
+        "answer_range",
+        "answer_judging",
+        "writer",
+        "asked_knowledge",
+        "difficulty_assessment",
+        "beginner_difficulty_review",
+        "general_difficulty_review",
+        "structure_review",
+        "clue_order_review",
+        "naturalness_review",
+        "incremental_comprehension_review",
+        "term_listing",
+        "term_necessity_review",
+        "term_sense_review",
+        "term_audience_review",
         "exposure",
-        "audit",
+        "material_writer",
         "finalization",
-        "final_review",
     )
     agents = {role: f"agent-{index}" for index, role in enumerate(roles, 1)}
     checks = [
@@ -97,7 +105,6 @@ def complete_state():
             ),
             **(
                 {
-                    "blind_candidates": [],
                     "semantic_candidates": [
                         {
                             "id": "X1",
@@ -121,13 +128,6 @@ def complete_state():
                 if check_id == "answer_exposure"
                 else {}
             ),
-            "generation": "complete",
-            "audit": "passed",
-            **(
-                {"asked_knowledge": "図形条件からミュラー・リヤー錯視の名称を答える"}
-                if check_id in {"difficulty.beginner", "difficulty.general"}
-                else {}
-            ),
         }
         for check_id in sorted(REQUIRED_CHECK_IDS)
     ]
@@ -135,46 +135,57 @@ def complete_state():
         "claim": "対象を絞れる",
         "reason": "定義と比較した",
         "evidence_ids": evidence,
-        "generation": "complete",
-        "audit": "passed",
     }
-    assignment_log = {
-        role: {
+    assignments = [
+        {
+            "role": role,
             "agent_id": agent,
-            "recorded_at_spawn": True,
             "artifact_refs": [f"{role}.md"],
+            **({"draft_version": 2} if role == "exposure" else {}),
         }
         for role, agent in agents.items()
-    }
-    assignment_log["exposure"]["task_label"] = "露出候補の列挙"
+    ]
+    assignments.extend(
+        {
+            "role": role,
+            "agent_id": f"agent-{role}",
+            "artifact_refs": [f"{role}.json"],
+            "items": ["S1"],
+        }
+        for role in ("source_reliability", "source_reliability_review")
+    )
+    assignments.extend(
+        {"role": role, "agent_id": f"agent-{role}", "artifact_refs": [f"{role}.json"]}
+        for role in (
+            "clue_centrality",
+            "centrality_review",
+            "familiarity_review",
+            "corroboration",
+            "corroboration_review",
+            "certainty",
+            "certainty_review",
+            "proposition_extraction",
+            "proposition_matching",
+            "competitor_search",
+            "competitor_search_review",
+            "competitor_comparison",
+            "competitor_comparison_review",
+        )
+    )
     state = {
         "selection_mode": "random",
         "facet_nodes": {
             "subject": "subject::66",
-            "place": "place::ROOT",
+            "place": "place::(1/9)",
             "time": "time::ROOT",
-            "type": "type::ROOT",
+            "type": "type::ontology",
         },
-        "execution": {
-            "delegation_available": True,
-            "agents": agents,
-            "assignment_log": assignment_log,
-            "exposure_assignments": [
-                {
-                    "draft_version": 2,
-                    "agent_id": agents["exposure"],
-                    "recorded_at_spawn": True,
-                    "task_label": "露出候補の列挙",
-                }
-            ],
-        },
+        "execution": {"delegation_available": True, "assignments": assignments},
         "answer_target": "ミュラー・リヤー錯視",
         "asked_knowledge": "図形条件からミュラー・リヤー錯視の名称を答える",
-        "difficulty_review": {
-            "reviewer_id": agents["difficulty_review"],
+        "answer_granularity": "錯視の名称と図形条件の対応",
+        "difficulty_assessment": {
             "asked_knowledge": "図形条件からミュラー・リヤー錯視の名称を答える",
-            "answer_granularity": "錯視の名称と図形条件の対応",
-            "audit": "passed",
             "beginner": {
                 "status": "passed",
                 "reason": "日本語の初学者向け資料で学習対象として扱う",
@@ -224,55 +235,168 @@ def complete_state():
                 ],
             }
         ],
+        "source_assessments": [
+            {
+                "source_id": "S1",
+                "level": "専門家が編集した事典で、記述の出所を確認できる",
+                "clear_errors": [],
+                "uses": ["fact", "usage_example"],
+                "reason": "編集体制と改訂履歴を確認した",
+            }
+        ],
+        "source_reliability_reviews": [
+            {
+                "source_id": "S1",
+                "status": "passed",
+                "reason": "編集体制と記述の出所を確かめた",
+            }
+        ],
+        "proposition_support": [
+            {
+                "proposition_id": "P1",
+                "evidence_ids": evidence.copy(),
+                "reason": "引用が直接述べる",
+                "inference_type": "direct",
+            }
+        ],
+        "proposition_certainty": [
+            {
+                "proposition_id": "P1",
+                "level": "複数の教材が断定しており、確定した事実として扱える",
+                "reason": "入門教材と事典が同じ図形条件を述べる",
+            }
+        ],
+        "corroboration_reviews": [
+            {"proposition_id": "P1", "status": "passed", "reason": "引用が述べる"}
+        ],
+        "certainty_reviews": [
+            {"proposition_id": "P1", "status": "passed", "reason": "断定できる"}
+        ],
+        "competitors": [
+            {
+                "id": "R1",
+                "name": "近接候補",
+                "clue_ids": ["C1"],
+                "evidence_ids": evidence.copy(),
+            }
+        ],
+        "competitor_comparisons": [
+            {
+                "clue_id": "C1",
+                "competitor_id": "R1",
+                "conditions": [
+                    {
+                        "passage": "矢羽の向きで異なる長さに見える",
+                        "matches": False,
+                        "reason": "引用で候補の図形条件との差を確認した",
+                        "evidence_ids": evidence.copy(),
+                    }
+                ],
+                "disposition": "excluded",
+                "exclusion_passage": "矢羽の向きで異なる長さに見える",
+                "reason": "手掛かりに書かれた図形条件で区別する",
+            }
+        ],
+        "competitor_search_reviews": [
+            {
+                "clue_id": "C1",
+                "found": [
+                    {
+                        "id": "R1",
+                        "name": "近接候補",
+                        "source_url": "https://example.org/competitor",
+                        "evidence_ids": evidence.copy(),
+                    }
+                ],
+                "status": "passed",
+                "reason": "逆引きで作る側と同じ候補を見つけた",
+            }
+        ],
+        "competitor_comparison_reviews": [
+            {
+                "clue_id": "C1",
+                "competitor_id": "R1",
+                "conditions": [
+                    {
+                        "passage": "矢羽の向きで異なる長さに見える",
+                        "match": "不一致",
+                        "reason": "候補には当てはまらない",
+                    }
+                ],
+                "disposition": "excluded",
+                "status": "passed",
+                "reason": "図形条件で区別する",
+            }
+        ],
+        "familiarity_reviews": [
+            {"clue_id": "C1", "status": "passed", "reason": "入門教材で扱われる"}
+        ],
+        "clue_centrality": [
+            {
+                "clue_id": "C1",
+                "claim": "錯視の図形条件は対象の定義に当たる",
+                "reason": "資料が図形条件で対象を説明する",
+                "evidence_ids": evidence.copy(),
+            }
+        ],
+        "centrality_reviews": [
+            {"clue_id": "C1", "status": "passed", "reason": "定義として扱われる"}
+        ],
         "propositions": [
             {
                 "id": "P1",
-                "status": "active",
-                "draft_version": 2,
                 "claim": "ミュラー・リヤー錯視では同じ長さの線分が矢羽の向きで異なる長さに見える",
+            }
+        ],
+        "realized_propositions": [
+            {
+                "proposition_id": "P1",
+                "draft_version": 2,
                 "passage": "同じ長さの線分が矢羽の向きで異なる長さに見える錯視",
-                "evidence_ids": evidence,
-                "reason": "引用が直接述べる",
-                "inference_type": "direct",
-                "generation": "complete",
-                "audit": "passed",
+            }
+        ],
+        "extracted_propositions": [
+            {
+                "id": "E1",
+                "draft_version": 2,
+                "claim": "この錯視では同じ長さの線分が矢羽の向きで異なる長さに見える",
+                "passage": "同じ長さの線分が矢羽の向きで異なる長さに見える錯視",
+            }
+        ],
+        "proposition_matching_reviews": [
+            {
+                "extracted_id": "E1",
+                "proposition_id": "P1",
+                "strength_matches": True,
+                "status": "passed",
+                "reason": "断定の強さが確実性の判定と一致する",
             }
         ],
         "clues": [
             {
                 "id": "C1",
+                "fact": "同じ長さの線分が矢羽の向きで異なる長さに見える錯視である",
+                "proposition_ids": ["P1"],
+            }
+        ],
+        "clue_uses": [
+            {
+                "clue_id": "C1",
                 "status": "active",
                 "text": "同じ長さの線分が矢羽の向きで異なる長さに見える錯視",
                 "directly_describes_target": True,
-                "proposition_ids": ["P1"],
-                "checks": {
-                    "centrality": copy.deepcopy(clue_check),
-                    "quasi_uniqueness": {
-                        **clue_check,
-                        "comparison_scope": "同じ上位分類",
-                        "competitors": [
-                            {
-                                "id": "R1",
-                                "name": "近接候補",
-                                "evidence_ids": evidence,
-                                "conditions": [
-                                    {
-                                        "passage": "矢羽の向きで異なる長さに見える",
-                                        "matches": False,
-                                        "reason": "引用で候補の図形条件との差を確認した",
-                                        "evidence_ids": evidence,
-                                    }
-                                ],
-                                "disposition": "excluded",
-                                "exclusion_passage": "矢羽の向きで異なる長さに見える",
-                                "reason": "手掛かりに書かれた図形条件で区別する",
-                            }
-                        ],
-                        "standalone_sufficient": True,
-                        "depends_on_clue_ids": [],
-                    },
-                    "familiarity": copy.deepcopy(clue_check),
+            }
+        ],
+        "clue_checks": [
+            {
+                "clue_id": "C1",
+                "quasi_uniqueness": {
+                    **clue_check,
+                    "comparison_scope": "同じ上位分類",
+                    "standalone_sufficient": True,
+                    "depends_on_clue_ids": [],
                 },
+                "familiarity": copy.deepcopy(clue_check),
             }
         ],
         "terms": [
@@ -284,99 +408,116 @@ def complete_state():
                 "meaning_evidence_ids": evidence.copy(),
                 "audience_reason": "想定プレイヤー層で既習事項として扱う",
                 "audience_evidence_ids": evidence.copy(),
-                "generation": "complete",
-                "audit": "passed",
             }
         ],
-        "terminology_review": {
-            "reviewer_id": agents["terminology_review"],
+        "structure_review": {
             "draft_version": 2,
-            "audit": "passed",
-            "terms": [
-                {
-                    "id": "T1",
-                    "term": "矢羽",
-                    "meaning_needed": True,
-                    "meaning_status": "passed",
-                    "audience_status": "passed",
-                    "meaning_reason": "資料の定義と語義が一致する",
-                    "audience_reason": "想定プレイヤー層の既習事項として扱う",
-                    "meaning_evidence_ids": evidence.copy(),
-                    "audience_evidence_ids": evidence.copy(),
-                }
-            ],
+            "question_form": "SC",
+            "otoshi_clue_ids": ["C1"],
+            "status": "passed",
+            "reason": "核名詞句の直前にある落としが対象を直接説明する",
         },
-        "evidence_challenge": {
-            "reviewer_id": agents["evidence_challenge"],
+        "clue_order_review": {
+            "draft_version": 2,
+            "status": "passed",
+            "reason": "手掛かりが一つなので順序の問題はない",
+        },
+        "naturalness_review": {
+            "draft_version": 2,
+            "status": "passed",
+            "reason": "語順と修飾関係に不自然な点がない",
+        },
+        "incremental_comprehension_review": {
+            "draft_version": 2,
+            "status": "passed",
+            "reason": "前から読んで途中で解釈が変わる箇所がない",
+        },
+        "term_listing": {"draft_version": 2, "terms": [{"id": "T1", "term": "矢羽"}]},
+        "term_necessity_reviews": [
+            {
+                "term_id": "T1",
+                "meaning_needed": True,
+                "status": "passed",
+                "reason": "矢羽の意味が分からないと図形条件を理解できない",
+            }
+        ],
+        "term_sense_reviews": [
+            {
+                "term_id": "T1",
+                "status": "passed",
+                "reason": "資料の定義と語義が一致する",
+                "evidence_ids": evidence.copy(),
+            }
+        ],
+        "term_audience_reviews": [
+            {
+                "term_id": "T1",
+                "status": "passed",
+                "reason": "想定プレイヤー層の既習事項として扱う",
+                "evidence_ids": evidence.copy(),
+            }
+        ],
+        "beginner_difficulty_review": {
             "draft_version": 2,
             "asked_knowledge": "図形条件からミュラー・リヤー錯視の名称を答える",
-            "beginner": {
-                "source_urls_checked": ["https://example.org/beginner"],
-                "adverse_finding": "図中の注記だけでないか確認した",
-                "resolution_evidence_ids": evidence.copy(),
-                "resolution_reason": "名称と図形条件を学習内容として説明する",
-                "status": "passed",
-            },
-            "general": {
-                "source_urls_checked": ["https://example.org/general"],
-                "adverse_finding": "一般向け資料での紹介を確認した",
-                "resolution_evidence_ids": evidence.copy(),
-                "resolution_reason": "紹介の範囲を考慮して判断する",
-                "status": "passed",
-            },
-            "clues": [
-                {
-                    "id": "C1",
-                    "source_urls_checked": ["https://example.org/competitor"],
-                    "adverse_finding": "近接候補を調べた",
-                    "resolution_evidence_ids": evidence.copy(),
-                    "resolution_reason": "候補の図形条件が異なる",
-                    "status": "passed",
-                    "competitor_comparisons": [
-                        {
-                            "id": "R1",
-                            "name": "近接候補",
-                            "source_url": "https://example.org/competitor",
-                            "evidence_ids": evidence.copy(),
-                            "conditions": [
-                                {
-                                    "passage": "矢羽の向きで異なる長さに見える",
-                                    "match": "不一致",
-                                    "reason": "候補には当てはまらない",
-                                }
-                            ],
-                            "disposition": "excluded",
-                            "resolution_reason": "図形条件で区別する",
-                            "remaining": False,
-                        }
-                    ],
-                }
-            ],
+            "source_urls_checked": ["https://example.org/beginner"],
+            "adverse_finding": "図中の注記だけでないか確認した",
+            "resolution_evidence_ids": evidence.copy(),
+            "resolution_reason": "名称と図形条件を学習内容として説明する",
+            "status": "passed",
+        },
+        "general_difficulty_review": {
+            "draft_version": 2,
+            "asked_knowledge": "図形条件からミュラー・リヤー錯視の名称を答える",
+            "source_urls_checked": ["https://example.org/general"],
+            "adverse_finding": "一般向け資料での紹介を確認した",
+            "resolution_evidence_ids": evidence.copy(),
+            "resolution_reason": "紹介の範囲を考慮して判断する",
+            "status": "passed",
         },
         "answers": [
             {
                 "id": "A1",
                 "answer": "ミュラー・リヤー錯視",
-                "judgment": "correct",
-                "reason": "標準名称である",
-                "evidence_ids": evidence,
-                "generation": "complete",
-                "audit": "passed",
             }
         ],
-        "exposure_review": {
-            "reviewer_id": agents["audit"],
-            "draft_version": 2,
-            "question_sha256": hashlib.sha256(
-                "同じ長さの線分が矢羽の向きで異なる長さに見える錯視は何でしょう？".encode()
-            ).hexdigest(),
-            "checked_answer_ids": ["A1"],
-            "status": "passed",
-            "candidates": [],
-            "no_candidate_reason": "問題文から名称候補を形成できなかった",
-        },
+        "answer_judgments": [
+            {
+                "answer_id": "A1",
+                "judgment": "correct",
+                "reason": "標準名称である",
+                "evidence_ids": evidence.copy(),
+            }
+        ],
+        "names": [
+            {
+                "id": "N1",
+                "name": "ミュラー・リヤー錯視",
+                "usage": "教材が錯視の標準名称として使う",
+                "evidence_ids": evidence.copy(),
+            }
+        ],
+        "blind_candidates": [],
+        "exposure_analysis": [
+            {
+                "candidate_id": "X1",
+                "name": "一般名称",
+                "formation_rule": "対象との既知の対応から名称を選ぶ",
+                "components": [
+                    {
+                        "form": "一般名称",
+                        "source": "対象と名称の既知の対応",
+                        "knowledge": "answer_side",
+                        "answer_side_reason": "名称そのものを知っている必要がある",
+                    }
+                ],
+                "formation_requires_answer_side_knowledge": True,
+                "standard_name_confirmation_requires_answer_side_knowledge": True,
+                "status": "passed",
+                "reason": "名称を作るには解答側の知識が要る",
+            }
+        ],
         "answer_review": {
-            "reviewer_id": agents["exposure"],
             "draft_version": 2,
             "answers": [
                 {
@@ -406,15 +547,23 @@ def complete_state():
             ],
         },
         "checks": checks,
+        "relative_clauses": [
+            {
+                "passage": "同じ長さの線分が矢羽の向きで異なる長さに見える錯視",
+                "relation": "outer",
+                "reason": "線分が異なる長さに見える現象と錯視名との関係を補う",
+                "relation_proposition_ids": ["P1"],
+            }
+        ],
         "final_input": {
             "draft_version": 2,
             "topic_selection": {
                 "answer_target": "ミュラー・リヤー錯視",
                 "facet_nodes": {
                     "subject": "subject::66",
-                    "place": "place::ROOT",
+                    "place": "place::(1/9)",
                     "time": "time::ROOT",
-                    "type": "type::ROOT",
+                    "type": "type::ontology",
                 },
                 "facet_paths": {
                     "subject": "科学 ＞ 心理学",
@@ -424,14 +573,6 @@ def complete_state():
                 },
                 "history_result": "履歴補正を適用した",
             },
-            "relative_clauses": [
-                {
-                    "passage": "同じ長さの線分が矢羽の向きで異なる長さに見える錯視",
-                    "relation": "outer",
-                    "reason": "線分が異なる長さに見える現象と錯視名との関係を補う",
-                    "relation_proposition_ids": ["P1"],
-                }
-            ],
             "proposition_ids": ["P1"],
             "clue_ids": ["C1"],
             "term_ids": ["T1"],
@@ -477,6 +618,17 @@ def final_output_sections(state):
     }
 
 
+FINAL_REVIEW_ROLES = ("final_reflection_review", "final_contamination_review")
+
+
+def set_reviewed_output(state, text):
+    """完成稿の照合結果と照合担当の起動の記録を、指定した完成稿に対応させる。"""
+    digest = hashlib.sha256(text.encode("utf-8")).hexdigest()
+    for role in FINAL_REVIEW_ROLES:
+        state[role]["output_sha256"] = digest
+        assignment_of(state, role)["output_sha256"] = digest
+
+
 def final_output_text(state):
     """最終段階の構造検査に使う完成稿本文を組み立てる。"""
     return "\n\n".join(
@@ -496,104 +648,102 @@ def refresh_material_quotes(state):
     )
 
 
+def add_source(state, source):
+    """資料を加え、その信頼性の評価、検査、担当の受け持ちも加える。"""
+    state["sources"].append(source)
+    state["source_assessments"].append(
+        {
+            "source_id": source["id"],
+            "level": f"{source['citation']}の編集体制を確認できる",
+            "clear_errors": [],
+            "uses": ["fact"],
+            "reason": f"{source['citation']}の作成主体を確認した",
+        }
+    )
+    state.setdefault("source_reliability_reviews", []).append(
+        {"source_id": source["id"], "status": "passed", "reason": "評価を確かめた"}
+    )
+    for item in state["execution"]["assignments"]:
+        if item["role"] in {"source_reliability", "source_reliability_review"}:
+            item["items"] = [*item["items"], source["id"]]
+
+
+def drop_assignment(state, role):
+    """起動の記録から、指定した役割の担当を除く。"""
+    state["execution"]["assignments"] = [
+        item for item in state["execution"]["assignments"] if item["role"] != role
+    ]
+
+
+def assignment_of(state, role):
+    """起動の記録から、指定した役割の担当を返す。"""
+    return next(
+        item for item in state["execution"]["assignments"] if item["role"] == role
+    )
+
+
+def drop_from_weights(state, candidate_id):
+    """抽選の対象から外れた候補を、まとまりとweightから除く。"""
+    groups = []
+    for group in state["topic_groups"]:
+        group["candidate_ids"] = [
+            item for item in group["candidate_ids"] if item != candidate_id
+        ]
+        if group["candidate_ids"]:
+            groups.append(group)
+    state["topic_groups"] = groups
+    kept = {group["id"] for group in groups}
+    state["group_weights"] = [
+        item for item in state["group_weights"] if item["group_id"] in kept
+    ]
+    if len(groups) == 1:
+        del state["group_weights"]
+    state["candidate_weights"] = [
+        item
+        for item in state["candidate_weights"]
+        if item["candidate_id"] != candidate_id
+    ]
+    state["topic_group_reviews"] = [
+        item for item in state["topic_group_reviews"] if item["group_id"] in kept
+    ]
+    state["topic_weight_reviews"] = [
+        item
+        for item in state["topic_weight_reviews"]
+        if item["target"] in kept or (item["target"] == "groups" and len(groups) > 1)
+    ]
+
+
 @pytest.fixture
-def generation_state(complete_state):
-    """生成工程の監査前にある一問分の作業状態を作る。"""
+def writing_state(complete_state):
+    """検査のステップを完了する前の一問分の作業状態を作る。"""
     state = copy.deepcopy(complete_state)
-    del state["evidence_challenge"]
-    del state["execution"]["agents"]["evidence_challenge"]
-    del state["execution"]["assignment_log"]["evidence_challenge"]
-    state["difficulty_review"]["audit"] = "pending"
-    state["terminology_review"]["audit"] = "pending"
-    for group in ("propositions", "terms", "answers", "checks"):
-        for item in state[group]:
-            item["audit"] = "pending"
-    for check in state["clues"][0]["checks"].values():
-        check["audit"] = "pending"
+    for group in ("beginner", "general"):
+        del state[f"{group}_difficulty_review"]
+        drop_assignment(state, f"{group}_difficulty_review")
     return state
 
 
 @pytest.fixture
 def reviewed_state(complete_state):
-    """完成稿を最終照合担当が照合した最終段階の作業状態を作る。"""
+    """完成稿を二つの照合担当が照合した最終段階の作業状態を作る。"""
     state = copy.deepcopy(complete_state)
-    state["final_review"] = {
+    state["final_reflection_review"] = {
         "status": "passed",
-        "reviewer_id": state["execution"]["agents"]["final_review"],
-        "checks": dict.fromkeys(
-            (
-                "current_draft",
-                "evidence_and_inference",
-                "difficulty",
-                "competitors",
-                "answer_judging",
-                "exposure",
-            ),
-            "passed",
-        ),
+        "reason": "各節の本文と引用が限定入力と一致する",
         "quote_ids": state["final_input"]["quote_ids"].copy(),
         "answer_ids": state["final_input"]["answer_ids"].copy(),
         "clue_ids": state["final_input"]["clue_ids"].copy(),
-        "output_sha256": hashlib.sha256(
-            final_output_text(state).encode("utf-8")
-        ).hexdigest(),
     }
+    state["final_contamination_review"] = {
+        "status": "passed",
+        "reason": "検索過程や担当IDなどの作業用記録がない",
+    }
+    state["execution"]["assignments"].extend(
+        {"role": role, "agent_id": f"agent-{role}", "artifact_refs": [f"{role}.json"]}
+        for role in FINAL_REVIEW_ROLES
+    )
+    set_reviewed_output(state, final_output_text(state))
     return state
-
-
-@pytest.fixture
-def exposed_precheck():
-    """異なる代表説明から解答名を形成できる露出予備検査を作る。"""
-    return {
-        "representative_descriptions": [
-            "腓腹筋とヒラメ筋を踵骨につなぐ腱",
-            "足首を底屈させる際に踵骨へ筋力を伝える腱",
-        ],
-        "accepted_names": ["踵骨腱"],
-        "formations": [
-            {
-                "name": "踵骨腱",
-                "description_index": 0,
-                "name_index": 0,
-                "formation_rule": "付着先の骨と腱を表す語を結ぶ",
-                "components": [
-                    {
-                        "form": "踵骨",
-                        "source": "腓腹筋とヒラメ筋を踵骨につなぐ腱",
-                        "knowledge": "surface",
-                    },
-                    {
-                        "form": "腱",
-                        "source": "腓腹筋とヒラメ筋を踵骨につなぐ腱",
-                        "knowledge": "surface",
-                    },
-                ],
-                "formation_requires_answer_side_knowledge": False,
-                "standard_name_confirmation_requires_answer_side_knowledge": True,
-            },
-            {
-                "name": "踵骨腱",
-                "description_index": 1,
-                "name_index": 0,
-                "formation_rule": "力を伝える先の骨と腱を表す語を結ぶ",
-                "components": [
-                    {
-                        "form": "踵骨",
-                        "source": "足首を底屈させる際に踵骨へ筋力を伝える腱",
-                        "knowledge": "surface",
-                    },
-                    {
-                        "form": "腱",
-                        "source": "足首を底屈させる際に踵骨へ筋力を伝える腱",
-                        "knowledge": "surface",
-                    },
-                ],
-                "formation_requires_answer_side_knowledge": False,
-                "standard_name_confirmation_requires_answer_side_knowledge": True,
-            },
-        ],
-        "status": "rejected",
-    }
 
 
 def check_state(run_script, stage, state):
@@ -697,28 +847,278 @@ class TestWorkStateFunctions:
         with pytest.raises(state_module.StateError, match="idが重複"):
             state_module.records_with_ids([{"id": "P1"}, {"id": "P1"}], "命題")
 
-    @pytest.mark.parametrize(
-        ("stage", "audit"),
-        [("generation", "pending"), ("audit", "passed"), ("final", "passed")],
-    )
-    def test_stage_completion_accepts_matching_audit_state(
-        self, state_module, stage, audit
+
+class TestFacetSubdivision:
+    """subjectのカタログの最下層より下の細分を検査する。"""
+
+    def test_valid_subdivision_passes(self, run_script, subdivided_facet_state):
+        """最下層を区分に分け、区分をさらに分けた状態を受け付ける。"""
+        result = check_state(run_script, "facet-selection", subdivided_facet_state)
+        assert result.returncode == 0
+
+    def test_leaf_requires_subdivision(self, run_script, subdivided_facet_state):
+        """細分の記録なしに最下層から子へ進まない。"""
+        subdivided_facet_state["facet_subdivisions"].pop()
+        result = check_state(run_script, "facet-selection", subdivided_facet_state)
+        assert result.returncode == 1
+        assert "で細分せずに最下層から子へ進んでいる" in result.stderr
+
+    @pytest.mark.parametrize("parent", ["subject::33", "place::ROOT"])
+    def test_parent_must_be_subject_leaf(
+        self, run_script, subdivided_facet_state, parent
     ):
-        """各工程で許される監査状態を受け付ける。"""
-        record = {"generation": "complete", "audit": audit}
-        state_module.require_stage_completion(record, "命題", stage)
+        """カタログに子があるノードやsubject以外の軸は細分しない。"""
+        subdivided_facet_state["facet_subdivisions"].append(
+            {**subdivided_facet_state["facet_subdivisions"][0], "parent": parent}
+        )
+        result = check_state(run_script, "facet-selection", subdivided_facet_state)
+        assert result.returncode == 1
+        assert "parentがsubjectの最下層でも細分した区分でもない" in result.stderr
+
+    def test_asterisk_parent_continues_with_dot(
+        self, state_module, subdivided_facet_state
+    ):
+        """すでに`*`を含むノードを分けた区分は、`.`と番号で続ける。"""
+        record = subdivided_facet_state["facet_subdivisions"][0]
+        record["parent"] = "subject::630*0"
+        for position, child in enumerate(record["children"], 1):
+            child["key"] = f"subject::630*0.{position}"
+        state = {"facet_subdivisions": [record]}
+        assert "subject::630*0" in state_module.validate_facet_subdivisions(state)
+
+    def test_child_key_must_not_be_catalog_node(
+        self, state_module, subdivided_facet_state, monkeypatch
+    ):
+        """区分のキーはカタログのノードと重ならない。"""
+        find_block = state_module.facet_node.find_block
+        monkeypatch.setattr(
+            state_module.facet_node,
+            "find_block",
+            lambda key: (None, [key]) if key == "subject::338*1" else find_block(key),
+        )
+        state = {"facet_subdivisions": subdivided_facet_state["facet_subdivisions"]}
+        with pytest.raises(
+            state_module.StateError, match="カタログのノードと重なっている"
+        ):
+            state_module.validate_facet_subdivisions(state)
+
+    def test_child_keys_follow_parent(self, run_script, subdivided_facet_state):
+        """区分のキーは親のキーに連番を付けた形にする。"""
+        subdivided_facet_state["facet_subdivisions"][0]["children"][0]["key"] = "景気"
+        result = check_state(run_script, "facet-selection", subdivided_facet_state)
+        assert result.returncode == 1
+        assert "keyがsubject::338*1ではない" in result.stderr
+
+    @pytest.mark.parametrize("field", ["characteristic", "basis"])
+    def test_requires_characteristic_and_basis(
+        self, run_script, subdivided_facet_state, field
+    ):
+        """区分の原理と根拠を記録する。"""
+        del subdivided_facet_state["facet_subdivisions"][0][field]
+        result = check_state(run_script, "facet-selection", subdivided_facet_state)
+        assert result.returncode == 1
+        assert f"facet_subdivisions[0].{field}がない" in result.stderr
+
+    def test_requires_source_url(self, run_script, subdivided_facet_state):
+        """区分の根拠にした資料をURLで示す。"""
+        subdivided_facet_state["facet_subdivisions"][0]["source_urls"] = ["教科書"]
+        result = check_state(run_script, "facet-selection", subdivided_facet_state)
+        assert result.returncode == 1
+        assert "source_urlsにURLでない値がある" in result.stderr
+
+    def test_requires_scope_of_each_child(self, run_script, subdivided_facet_state):
+        """区分ごとに入る対象の範囲を記す。"""
+        del subdivided_facet_state["facet_subdivisions"][0]["children"][1]["scope"]
+        result = check_state(run_script, "facet-selection", subdivided_facet_state)
+        assert result.returncode == 1
+        assert "children[1].scopeがない" in result.stderr
+
+    def test_requires_two_children(self, run_script, subdivided_facet_state):
+        """一つの区分だけの細分を認めない。"""
+        children = subdivided_facet_state["facet_subdivisions"][0]["children"]
+        del children[1:]
+        result = check_state(run_script, "facet-selection", subdivided_facet_state)
+        assert result.returncode == 1
+        assert "childrenが二つに満たない" in result.stderr
+
+    def test_rejects_unused_subdivision(
+        self, run_script, facet_state, subdivided_facet_state
+    ):
+        """子へ進んでいないノードの細分を残さない。"""
+        facet_state["facet_subdivisions"] = subdivided_facet_state[
+            "facet_subdivisions"
+        ][:1]
+        result = check_state(run_script, "facet-selection", facet_state)
+        assert result.returncode == 1
+        assert "子へ進んでいないノードの細分がある" in result.stderr
+
+    def test_rejects_history_distance_of_child(
+        self, run_script, subdivided_facet_state
+    ):
+        """細分した区分には履歴補正を掛けない。"""
+        candidate = subdivided_facet_state["facet_weights"][-1]["candidates"][0]
+        candidate["history_distances"] = [1]
+        result = check_state(run_script, "facet-selection", subdivided_facet_state)
+        assert result.returncode == 1
+        assert "history_distancesが細分した区分にある" in result.stderr
+
+    def test_requires_passed_subdivision_review(
+        self, run_script, subdivided_facet_state
+    ):
+        """区分の分け方は検査担当の合格を要する。"""
+        subdivided_facet_state["facet_subdivision_reviews"][1].update(
+            status="failed", fix_data=["facet_subdivisions"]
+        )
+        result = check_state(run_script, "facet-selection", subdivided_facet_state)
+        assert result.returncode == 1
+        assert "facet_subdivision_reviewsに不合格の項目がある" in result.stderr
+
+    def test_requires_subdivision_reviewer(self, run_script, subdivided_facet_state):
+        """細分した場合は細分の検査担当の起動を記録する。"""
+        drop_assignment(subdivided_facet_state, "facet_subdivision_review")
+        result = check_state(run_script, "facet-selection", subdivided_facet_state)
+        assert result.returncode == 1
+        assert "担当の記録がない: ['facet_subdivision_review']" in result.stderr
+
+    def test_intersection_accepts_subdivided_node(
+        self, run_script, intersection_state, subdivided_facet_state
+    ):
+        """細分の記録を写した交差領域の確認記録は、区分を選択ノードとして受け付ける。"""
+        intersection_state["facet_nodes"] = subdivided_facet_state["facet_nodes"]
+        intersection_state["facet_subdivisions"] = subdivided_facet_state[
+            "facet_subdivisions"
+        ]
+        result = check_state(run_script, "intersection-checkpoint", intersection_state)
+        assert result.returncode == 0
+        del intersection_state["facet_subdivisions"]
+        result = check_state(run_script, "intersection-checkpoint", intersection_state)
+        assert result.returncode == 1
+        assert "facet_nodes.subjectがカタログにも細分にも存在しない" in result.stderr
+
+
+class TestFacetSelectionState:
+    """ファセットの各階層の判断、weight、抽選結果を検査する。"""
+
+    def test_valid_state_passes(self, run_script, facet_state):
+        """停止まで一続きに記録した状態を受け付ける。"""
+        assert check_state(run_script, "facet-selection", facet_state).returncode == 0
+
+    def test_weights_must_cover_all_children(self, run_script, facet_state):
+        """兄弟ノードの一部だけにweightを付けた状態を拒否する。"""
+        facet_state["facet_weights"][0]["candidates"].pop()
+        result = check_state(run_script, "facet-selection", facet_state)
+        assert result.returncode == 1
+        assert "subject::ROOTの直接の子と一致しない" in result.stderr
+
+    @pytest.mark.parametrize("viewpoint", ["sharing", "communication", "background"])
+    def test_weights_require_each_viewpoint(self, run_script, facet_state, viewpoint):
+        """候補ごとに三観点の評価をそれぞれ要求する。"""
+        del facet_state["facet_weights"][0]["candidates"][0]["viewpoints"][viewpoint]
+        result = check_state(run_script, "facet-selection", facet_state)
+        assert result.returncode == 1
+        assert f"viewpoints.{viewpoint}がない" in result.stderr
+
+    def test_pick_must_have_positive_weight(self, run_script, facet_state):
+        """weight 0の候補を抽選結果にしない。"""
+        chosen = facet_state["facet_picks"][0]["key"]
+        for candidate in facet_state["facet_weights"][0]["candidates"]:
+            if candidate["key"] == chosen:
+                candidate["weight"] = 0
+        result = check_state(run_script, "facet-selection", facet_state)
+        assert result.returncode == 1
+        assert "正のweightを持つ候補ではない" in result.stderr
+
+    def test_next_level_must_follow_pick(self, run_script, facet_state):
+        """抽選結果と異なるノードから次の階層を始めない。"""
+        facet_state["facet_picks"][0]["key"] = "subject::7"
+        result = check_state(run_script, "facet-selection", facet_state)
+        assert result.returncode == 1
+        assert "前の階層の抽選結果から続いていない" in result.stderr
+
+    def test_nodes_must_match_stopped_levels(self, run_script, facet_state):
+        """選択したノードは停止した階層のノードと一致させる。"""
+        facet_state["facet_nodes"]["subject"] = "subject::6"
+        result = check_state(run_script, "facet-selection", facet_state)
+        assert result.returncode == 1
+        assert "facet_nodes.subjectが停止した階層のノードと一致しない" in result.stderr
+
+    def test_single_child_node_is_not_judged(self, run_script, facet_state):
+        """子が一つだけのノードでは判断せず、その子から判断する。"""
+        level = next(
+            item for item in facet_state["facet_levels"] if item["axis"] == "type"
+        )
+        level["node"] = "type::ROOT"
+        facet_state["facet_nodes"]["type"] = "type::ROOT"
+        result = check_state(run_script, "facet-selection", facet_state)
+        assert result.returncode == 1
+        assert "子が一つだけのノードを判断している" in result.stderr
+
+    def test_all_axes_must_stop(self, run_script, facet_state):
+        """4軸すべてで停止するまで記録する。"""
+        facet_state["facet_levels"].pop()
+        result = check_state(run_script, "facet-selection", facet_state)
+        assert result.returncode == 1
+        assert "4軸すべての粒度判断が停止まで記録されていない" in result.stderr
+
+    def test_keeps_failed_review_of_removed_level(self, run_script, facet_state):
+        """修正で取り除いた階層の不合格の記録が残っていても受け付ける。"""
+        facet_state["facet_level_reviews"].insert(
+            0,
+            {
+                "level_id": "F9",
+                "status": "failed",
+                "reason": "この階層で子へ進む理由がない",
+                "fix_data": ["facet_levels"],
+            },
+        )
+        assert check_state(run_script, "facet-selection", facet_state).returncode == 0
 
     @pytest.mark.parametrize(
-        ("stage", "audit"),
-        [("generation", "passed"), ("audit", "pending")],
+        "key",
+        ["facet_level_reviews", "facet_weight_reviews", "facet_distribution_reviews"],
     )
-    def test_stage_completion_rejects_mismatched_audit_state(
-        self, state_module, stage, audit
-    ):
-        """工程に合わない監査状態を拒否する。"""
-        record = {"generation": "complete", "audit": audit}
-        with pytest.raises(state_module.StateError, match="監査"):
-            state_module.require_stage_completion(record, "命題", stage)
+    def test_requires_passed_review(self, run_script, facet_state, key):
+        """各階層の判断とweightは検査担当の合格を要する。"""
+        facet_state[key][0].update(status="failed", fix_data=["facet_levels"])
+        result = check_state(run_script, "facet-selection", facet_state)
+        assert result.returncode == 1
+        assert f"{key}に不合格の項目がある" in result.stderr
+
+    def test_later_review_replaces_failed_one(self, run_script, facet_state):
+        """反論を新しい検査担当が再検査して合格した記録を認める。"""
+        review = dict(facet_state["facet_level_reviews"][0])
+        facet_state["facet_level_reviews"][0].update(
+            status="failed", fix_data=["facet_levels"]
+        )
+        facet_state["facet_level_reviews"].append(review)
+        assert check_state(run_script, "facet-selection", facet_state).returncode == 0
+
+    def test_failed_review_requires_fix_target(self, run_script, facet_state):
+        """不合格の判定には、修正が必要な入力を担当表のデータで示す。"""
+        facet_state["facet_level_reviews"][0]["status"] = "failed"
+        result = check_state(run_script, "facet-selection", facet_state)
+        assert result.returncode == 1
+        assert (
+            "facet_level_reviews[0].fix_dataは配列でなければならない" in result.stderr
+        )
+        facet_state["facet_level_reviews"][0]["fix_data"] = ["unknown"]
+        result = check_state(run_script, "facet-selection", facet_state)
+        assert result.returncode == 1
+        assert "fix_dataが担当表にないデータを参照している" in result.stderr
+
+    def test_requires_review_of_every_level(self, run_script, facet_state):
+        """検査のない階層を残さない。"""
+        facet_state["facet_level_reviews"].pop()
+        result = check_state(run_script, "facet-selection", facet_state)
+        assert result.returncode == 1
+        assert "facet_level_reviewsに検査のない項目がある: ['F6']" in result.stderr
+
+    def test_requires_weighting_assignment(self, run_script, facet_state):
+        """weightを推定した担当の起動の記録を要求する。"""
+        drop_assignment(facet_state, "facet_weighting")
+        result = check_state(run_script, "facet-selection", facet_state)
+        assert result.returncode == 1
+        assert "担当の記録がない: ['facet_weighting']" in result.stderr
 
 
 class TestIntersectionState:
@@ -748,46 +1148,28 @@ class TestIntersectionState:
             == 0
         )
 
-    def test_delegated_review_requires_spawn_record(
-        self, run_script, intersection_state
-    ):
-        """別agentによる確認では起動時の担当記録を必須とする。"""
-        del intersection_state["execution"]["assignment_log"]["intersection"][
-            "recorded_at_spawn"
-        ]
-        assert (
-            check_state(
-                run_script, "intersection-checkpoint", intersection_state
-            ).returncode
-            == 1
-        )
+    def test_delegated_review_requires_assignment(self, run_script, intersection_state):
+        """別agentによる確認では起動の記録を必須とする。"""
+        drop_assignment(intersection_state, "intersection")
+        result = check_state(run_script, "intersection-checkpoint", intersection_state)
+        assert result.returncode == 1
+        assert "execution.assignmentsが空である" in result.stderr
 
-    def test_delegated_review_rejects_parent(self, run_script, intersection_state):
-        """委譲できる場合は選択担当による自己確認を拒否する。"""
-        intersection_state["execution"]["agents"]["intersection"] = "parent"
-        intersection_state["execution"]["assignment_log"]["intersection"][
-            "agent_id"
-        ] = "parent"
-        assert (
-            check_state(
-                run_script, "intersection-checkpoint", intersection_state
-            ).returncode
-            == 1
-        )
-
-    def test_assignment_agent_must_match_spawn_record(
-        self, run_script, intersection_state
+    @pytest.mark.parametrize(
+        ("field", "value", "message"),
+        [
+            ("role", "parent", "roleが担当表にない"),
+            ("artifact_refs", [], "artifact_refsが空である"),
+        ],
+    )
+    def test_assignment_requires_known_role_and_artifact(
+        self, run_script, intersection_state, field, value, message
     ):
-        """4軸の交差領域の確認担当と起動時の担当記録の不一致を拒否する。"""
-        intersection_state["execution"]["assignment_log"]["intersection"][
-            "agent_id"
-        ] = "agent-2"
-        assert (
-            check_state(
-                run_script, "intersection-checkpoint", intersection_state
-            ).returncode
-            == 1
-        )
+        """起動の記録は担当表の役割と成果物の場所を持つ。"""
+        assignment_of(intersection_state, "intersection")[field] = value
+        result = check_state(run_script, "intersection-checkpoint", intersection_state)
+        assert result.returncode == 1
+        assert message in result.stderr
 
     @pytest.mark.parametrize(
         "source", ["資料名", "https://", "https://example.org/a b"]
@@ -850,6 +1232,32 @@ class TestDiscoveryProgressState:
             == 0
         )
 
+    def test_discovery_progress_accepts_unstarted_area(
+        self, run_script, selection_state
+    ):
+        """探索を始めていない下位領域が残っていても途中検査できる。"""
+        area = selection_state["coverage_areas"][1]
+        for key in ("explored", "entry_point_ids", "source_searches"):
+            del area[key]
+        selection_state["candidates"] = selection_state["candidates"][:1]
+        selection_state["candidates"][0]["expansion_searches"] = []
+        assert (
+            check_state(run_script, "discovery-progress", selection_state).returncode
+            == 0
+        )
+        result = check_state(run_script, "discovery", selection_state)
+        assert result.returncode == 1
+        assert "coverage_areas.D2が未探索である" in result.stderr
+
+    def test_discovery_progress_requires_searches_of_started_area(
+        self, run_script, selection_state
+    ):
+        """入口を記録した下位領域には探索記録を求める。"""
+        del selection_state["coverage_areas"][1]["source_searches"]
+        result = check_state(run_script, "discovery-progress", selection_state)
+        assert result.returncode == 1
+        assert "coverage_areas.D2.source_searches" in result.stderr
+
     def test_discovery_progress_requires_candidate_source_link(
         self, run_script, selection_state
     ):
@@ -884,8 +1292,176 @@ class TestDiscoveryProgressState:
         )
 
 
+def add_descriptive_name(state, *, review_status="passed"):
+    """名称が対象の説明そのものであることを理由に除外した候補と、その検査結果を加える。"""
+    state["coverage_areas"][0]["source_searches"][0]["found_candidate_ids"].append("K3")
+    state["candidates"].append(
+        {
+            "id": "K3",
+            "label": "炭酸ナトリウム製造法",
+            "coverage_area_ids": ["D1"],
+            "discovery_entry_point_ids": ["E1"],
+            "name_use_note": "分類表で炭酸ナトリウムを製造する方法の総称として使われている",
+            "disposition": "excluded",
+            "exclusion_code": "descriptive_name",
+            "exclusion_reason": "炭酸ナトリウムを製造する方法という説明がそのまま名称になっている",
+        }
+    )
+    review = {
+        "candidate_id": "K3",
+        "status": review_status,
+        "reason": "名称の語を使わずに対象を特定する説明がない",
+    }
+    if review_status == "failed":
+        review["fix_data"] = ["ledger"]
+    state["descriptive_name_reviews"] = [review]
+    state["execution"]["assignments"].append(
+        {
+            "role": "descriptive_name_review",
+            "agent_id": "agent-descriptive-name-review",
+            "artifact_refs": ["descriptive_name_review.json"],
+        }
+    )
+
+
 class TestSelectionState:
     """題材探索の完了状態を検査する。"""
+
+    @pytest.mark.parametrize(
+        ("field", "value", "message"),
+        [
+            ("core_candidate_ids", [], "core_check.core_candidate_idsが空である"),
+            ("added_candidate_ids", ["K9"], "存在しないIDを参照している"),
+            ("reason", "", "core_check.reasonがない"),
+        ],
+    )
+    def test_saturation_requires_core_object_check(
+        self, run_script, selection_state, field, value, message
+    ):
+        """反証調査では中核級の対象が台帳にあるかを確かめた記録を要する。"""
+        selection_state["saturation_challenge"]["core_check"][field] = value
+        result = check_state(run_script, "discovery", selection_state)
+        assert result.returncode == 1
+        assert message in result.stderr
+
+    def test_core_objects_must_be_eligible(self, run_script, selection_state):
+        """中核的に扱われる対象は、選択対象として台帳にあることを確かめる。"""
+        add_descriptive_name(selection_state)
+        selection_state["saturation_challenge"]["core_check"][
+            "core_candidate_ids"
+        ].append("K3")
+        result = check_state(run_script, "discovery", selection_state)
+        assert result.returncode == 1
+        assert "core_candidate_idsに選択対象でない候補がある" in result.stderr
+
+    def test_candidate_outside_facets_is_recorded_only(
+        self, run_script, selection_state
+    ):
+        """選んだノードに属さないことが明らかな候補は台帳に記録し、選択対象にしない。"""
+        add_descriptive_name(selection_state)
+        candidate = selection_state["candidates"][-1]
+        candidate.update(
+            exclusion_code="outside_facets",
+            exclusion_reason="化学工業ではなく、計量の単位を指す名称である",
+        )
+        del selection_state["descriptive_name_reviews"]
+        drop_assignment(selection_state, "descriptive_name_review")
+        assert check_state(run_script, "discovery", selection_state).returncode == 0
+
+    def test_candidate_outside_difficulty_is_recorded_only(
+        self, run_script, selection_state
+    ):
+        """難易度の帯から大きく外れる候補は台帳に記録し、選択対象にしない。"""
+        add_descriptive_name(selection_state)
+        candidate = selection_state["candidates"][-1]
+        candidate.update(
+            exclusion_code="outside_difficulty",
+            exclusion_reason="工業化学を学び始めて1〜2年の人の基礎・概説知識に入らない",
+        )
+        del selection_state["descriptive_name_reviews"]
+        drop_assignment(selection_state, "descriptive_name_review")
+        assert check_state(run_script, "discovery", selection_state).returncode == 0
+
+    def test_accepts_reviewed_descriptive_name(self, run_script, selection_state):
+        """名称が説明そのものである候補は、検査に合格すれば探索段階で除外できる。"""
+        add_descriptive_name(selection_state)
+        assert check_state(run_script, "discovery", selection_state).returncode == 0
+
+    def test_descriptive_name_requires_passed_review(self, run_script, selection_state):
+        """名称が説明そのものであることによる除外は、検査担当の合格を要する。"""
+        add_descriptive_name(selection_state, review_status="failed")
+        result = check_state(run_script, "discovery", selection_state)
+        assert result.returncode == 1
+        assert "descriptive_name_reviewsに不合格の項目がある" in result.stderr
+
+    def test_descriptive_name_requires_reviewer(self, run_script, selection_state):
+        """名称が説明そのものであることによる除外には、検査担当の起動の記録を要する。"""
+        add_descriptive_name(selection_state)
+        drop_assignment(selection_state, "descriptive_name_review")
+        result = check_state(run_script, "discovery", selection_state)
+        assert result.returncode == 1
+        assert "担当の記録がない: ['descriptive_name_review']" in result.stderr
+
+    def test_reinstated_descriptive_name_keeps_failed_review(
+        self, run_script, selection_state
+    ):
+        """不合格で選択対象へ戻した候補の検査結果が残っていても受け付ける。"""
+        add_descriptive_name(selection_state, review_status="failed")
+        candidate = selection_state["candidates"][-1]
+        for key in ("exclusion_code", "exclusion_reason"):
+            del candidate[key]
+        candidate.update(
+            disposition="eligible",
+            expanded=True,
+            expansion_searches=[
+                {
+                    "source_or_query": "炭酸ナトリウム製造法の関連項目",
+                    "relation_checked": "同じ製品の別の製法",
+                    "found_candidate_ids": [],
+                }
+            ],
+        )
+        assignment_of(selection_state, "nearby_exploration")["items"].append("K3")
+        assert check_state(run_script, "discovery", selection_state).returncode == 0
+
+    def test_every_area_needs_exploration_assignment(self, run_script, selection_state):
+        """下位領域ごとに題材探索担当を割り当てる。"""
+        selection_state["execution"]["assignments"] = [
+            item
+            for item in selection_state["execution"]["assignments"]
+            if item.get("items") != ["D2"]
+        ]
+        result = check_state(run_script, "discovery", selection_state)
+        assert result.returncode == 1
+        assert "explorationの担当に割り当てていない項目がある: ['D2']" in result.stderr
+
+    def test_every_eligible_candidate_needs_nearby_assignment(
+        self, run_script, selection_state
+    ):
+        """選択対象の候補ごとに近接探索担当を割り当てる。"""
+        assignment_of(selection_state, "nearby_exploration")["items"] = ["K1"]
+        result = check_state(run_script, "discovery", selection_state)
+        assert result.returncode == 1
+        assert (
+            "nearby_explorationの担当に割り当てていない項目がある: ['K2']"
+            in result.stderr
+        )
+
+    @pytest.mark.parametrize(
+        ("role", "items", "message"),
+        [
+            ("exploration", ["D1", "D2"], "itemsが担当表の件数を超えている"),
+            ("saturation_review", ["D1"], "項目で分割しない担当である"),
+        ],
+    )
+    def test_assignment_items_follow_table(
+        self, run_script, selection_state, role, items, message
+    ):
+        """起動の記録の項目は担当表の分割に従う。"""
+        assignment_of(selection_state, role)["items"] = items
+        result = check_state(run_script, "discovery", selection_state)
+        assert result.returncode == 1
+        assert message in result.stderr
 
     def test_selection_requires_candidate_source_link(
         self, run_script, selection_state
@@ -923,45 +1499,122 @@ class TestSelectionState:
         assert check_state(run_script, "selection", selection_state).returncode == 1
 
     def test_discovery_precedes_exposure_precheck(self, run_script, selection_state):
-        """露出予備検査の前に題材探索の完了だけを検査できる。"""
-        for candidate in selection_state["candidates"]:
-            candidate.pop("exposure_precheck", None)
-            del candidate["exposure_screen"]
+        """露出予備検査の前に題材探索と所属判定だけを検査できる。"""
+        del selection_state["exposure_prechecks"]
         assert check_state(run_script, "discovery", selection_state).returncode == 0
+        assert check_state(run_script, "membership", selection_state).returncode == 0
         assert check_state(run_script, "selection", selection_state).returncode == 1
 
-    def test_selection_accepts_screen_without_detailed_precheck(
+    def test_selection_requires_precheck_of_every_member(
         self, run_script, selection_state
     ):
-        """露出の疑いがない候補には全説明案の詳細分析を要求しない。"""
-        assert "exposure_precheck" not in selection_state["candidates"][1]
-        assert check_state(run_script, "selection", selection_state).returncode == 0
-
-    def test_selection_requires_two_descriptions_for_suspected_exposure(
-        self, run_script, selection_state
-    ):
-        """露出の疑いがある候補では複数の代表説明を検査する。"""
-        precheck = selection_state["candidates"][0]["exposure_precheck"]
-        precheck["representative_descriptions"] = precheck[
-            "representative_descriptions"
-        ][:1]
-        precheck["formations"] = precheck["formations"][:1]
+        """所属する選択対象ごとに露出の予備検査を要求する。"""
+        selection_state["exposure_prechecks"].pop()
         result = check_state(run_script, "selection", selection_state)
         assert result.returncode == 1
-        assert "異なる代表説明を十分に調べていない" in result.stderr
+        assert "予備検査のない候補がある: ['K2']" in result.stderr
 
-    def test_selection_requires_screen(self, run_script, selection_state):
-        """選択対象の中心的説明と露出の疑いの記録を要求する。"""
-        del selection_state["candidates"][0]["exposure_screen"]
-        assert check_state(run_script, "selection", selection_state).returncode == 1
-
-    def test_selection_requires_detail_for_suspected_exposure(
+    def test_groups_must_cover_pickable_candidates_once(
         self, run_script, selection_state
     ):
-        """疑いを記録した候補は詳細な名称形成分析なしに通さない。"""
-        candidate = selection_state["candidates"][0]
-        del candidate["exposure_precheck"]
-        assert check_state(run_script, "selection", selection_state).returncode == 1
+        """まとまりは抽選の対象の候補を一度ずつ含む。"""
+        selection_state["topic_groups"][1]["candidate_ids"] = ["K1"]
+        result = check_state(run_script, "selection", selection_state)
+        assert result.returncode == 1
+        assert "topic_groupsが抽選の対象の候補を一度ずつ含んでいない" in result.stderr
+
+    def test_several_groups_need_group_weights(self, run_script, selection_state):
+        """まとまりが複数あれば、まとまり同士のweightを要する。"""
+        del selection_state["group_weights"]
+        result = check_state(run_script, "selection", selection_state)
+        assert result.returncode == 1
+        assert "group_weightsが空である" in result.stderr
+
+    def test_candidate_weight_must_be_positive(self, run_script, selection_state):
+        """抽選の対象の候補には正のweightを付ける。"""
+        selection_state["candidate_weights"][0]["weight"] = 0
+        result = check_state(run_script, "selection", selection_state)
+        assert result.returncode == 1
+        assert "candidate_weights[0].weightが正の数ではない" in result.stderr
+
+    @pytest.mark.parametrize(
+        ("key", "index", "message"),
+        [
+            (
+                "topic_group_reviews",
+                0,
+                "topic_group_reviewsに不合格の項目がある: ['G1']",
+            ),
+            (
+                "topic_weight_reviews",
+                2,
+                "topic_weight_reviewsに不合格の項目がある: ['groups']",
+            ),
+            (
+                "topic_distribution_reviews",
+                0,
+                "topic_distribution_reviewsに不合格の項目がある: ['all']",
+            ),
+        ],
+    )
+    def test_grouping_and_weights_require_passed_reviews(
+        self, run_script, selection_state, key, index, message
+    ):
+        """まとまりの切り方とweightは検査担当の合格を要する。"""
+        selection_state[key][index].update(status="failed", fix_data=["topic_groups"])
+        result = check_state(run_script, "selection", selection_state)
+        assert result.returncode == 1
+        assert message in result.stderr
+
+    def test_every_group_needs_weighting_assignment(self, run_script, selection_state):
+        """まとまりごとに、まとまりの中のweight担当を割り当てる。"""
+        selection_state["execution"]["assignments"] = [
+            item
+            for item in selection_state["execution"]["assignments"]
+            if item.get("items") != ["G2"]
+        ]
+        result = check_state(run_script, "selection", selection_state)
+        assert result.returncode == 1
+        assert (
+            "topic_weightingの担当に割り当てていない項目がある: ['G2']" in result.stderr
+        )
+
+    def test_excluded_candidate_requires_passed_review(
+        self, run_script, selection_state
+    ):
+        """予備検査で除外した候補は、別の担当の検査に合格して除外する。"""
+        selection_state["exposure_prechecks"][1]["result"] = "exclude"
+        drop_from_weights(selection_state, "K2")
+        result = check_state(run_script, "selection", selection_state)
+        assert result.returncode == 1
+        assert "exposure_precheck_reviewsは配列でなければならない" in result.stderr
+        selection_state["exposure_precheck_reviews"] = [
+            {"candidate_id": "K2", "status": "passed", "reason": "どの説明でも露出する"}
+        ]
+        result = check_state(run_script, "selection", selection_state)
+        assert result.returncode == 1
+        assert "担当の記録がない: ['exposure_precheck_review']" in result.stderr
+        selection_state["execution"]["assignments"].append(
+            {
+                "role": "exposure_precheck_review",
+                "agent_id": "agent-precheck-review",
+                "artifact_refs": ["exposure_precheck_review.json"],
+            }
+        )
+        assert check_state(run_script, "selection", selection_state).returncode == 0
+
+    @pytest.mark.parametrize(
+        ("field", "value", "message"),
+        [("result", "unclear", "resultが不正である"), ("reason", "", "reasonがない")],
+    )
+    def test_precheck_requires_result_and_reason(
+        self, run_script, selection_state, field, value, message
+    ):
+        """予備検査は残すか除外するかと、その理由を記録する。"""
+        selection_state["exposure_prechecks"][0][field] = value
+        result = check_state(run_script, "selection", selection_state)
+        assert result.returncode == 1
+        assert message in result.stderr
 
     def test_selection_requires_opened_source(self, run_script, selection_state):
         """本文を開いていない資料を候補の発見元にできない。"""
@@ -975,10 +1628,35 @@ class TestSelectionState:
         del selection_state["candidates"][0]["name_use_note"]
         assert check_state(run_script, "selection", selection_state).returncode == 1
 
-    def test_selection_requires_facet_membership(self, run_script, selection_state):
-        """四軸への所属理由を欠く候補を拒否する。"""
-        del selection_state["candidates"][0]["facet_membership_reason"]
-        assert check_state(run_script, "selection", selection_state).returncode == 1
+    def test_membership_requires_every_candidate(self, run_script, selection_state):
+        """所属判定のない選択対象を残さない。"""
+        selection_state["memberships"].pop()
+        result = check_state(run_script, "membership", selection_state)
+        assert result.returncode == 1
+        assert "所属判定のない候補がある: ['K2']" in result.stderr
+
+    @pytest.mark.parametrize("field", ["belongs", "reason"])
+    def test_membership_requires_each_axis(self, run_script, selection_state, field):
+        """4軸それぞれについて所属と理由を記録する。"""
+        del selection_state["memberships"][0]["axes"]["time"][field]
+        result = check_state(run_script, "membership", selection_state)
+        assert result.returncode == 1
+        assert f"memberships[0].axes.time.{field}" in result.stderr
+
+    def test_membership_requires_passed_review(self, run_script, selection_state):
+        """所属判定は検査担当の合格を要する。"""
+        selection_state["membership_reviews"][1].update(
+            status="failed", fix_data=["memberships"]
+        )
+        result = check_state(run_script, "membership", selection_state)
+        assert result.returncode == 1
+        assert "membership_reviewsに不合格の項目がある: ['K2']" in result.stderr
+
+    def test_membership_is_not_required_at_discovery(self, run_script, selection_state):
+        """探索の段階では所属判定を要求しない。"""
+        del selection_state["memberships"]
+        del selection_state["membership_reviews"]
+        assert check_state(run_script, "discovery", selection_state).returncode == 0
 
     def test_selection_requires_independent_review(self, run_script, selection_state):
         """別経路の探索が欠けた下位領域を拒否する。"""
@@ -1039,465 +1717,389 @@ class TestSelectionState:
             exclusion_reason="日本語資料中で対象の名称として確認できない",
         )
         del candidate["name_use_note"]
+        drop_from_weights(selection_state, "K1")
+        selection_state["saturation_challenge"]["core_check"]["core_candidate_ids"] = [
+            "K2"
+        ]
         assert check_state(run_script, "discovery", selection_state).returncode == 0
         assert check_state(run_script, "selection", selection_state).returncode == 0
 
-    def test_selection_rejects_exposed_eligible_candidate(
-        self, run_script, selection_state, exposed_precheck
-    ):
-        """異なる代表説明がすべて露出する候補を採用対象にしない。"""
-        selection_state["candidates"][0]["exposure_precheck"] = exposed_precheck
-        result = check_state(run_script, "selection", selection_state)
-        assert result.returncode == 1
-        assert "選択対象にできない" in result.stderr
 
-    def test_selection_accepts_exposure_as_explicit_exclusion(
-        self, run_script, selection_state, exposed_precheck
-    ):
-        """解答露出を記録した候補を探索台帳に残して除外できる。"""
-        candidate = selection_state["candidates"][0]
-        candidate.update(disposition="excluded", exclusion_code="unavoidable_exposure")
-        candidate["exclusion_reason"] = "自然な代表説明から正答名を形成できる"
-        candidate["exposure_precheck"] = exposed_precheck
-        assert check_state(run_script, "selection", selection_state).returncode == 0
+PREJUDGMENT_KEYS = (
+    "prejudgment_scope",
+    "prejudgment_membership",
+    "prejudgment_difficulty",
+    "prejudgment_otoshi",
+)
 
-    def test_precheck_requires_every_name_description_pair(
-        self, run_script, selection_state
-    ):
-        """調べた説明案と許容名称の組合せを漏らせない。"""
-        precheck = selection_state["candidates"][0]["exposure_precheck"]
-        precheck["representative_descriptions"].append("別の中心的な特徴の説明")
-        result = check_state(run_script, "selection", selection_state)
-        assert result.returncode == 1
-        assert "各説明案と正答名・別名の組合せ" in result.stderr
 
-    def test_precheck_requires_one_description_per_formation(
-        self, run_script, selection_state
-    ):
-        """名称形成の記録を複数の説明案で兼用させない。"""
-        formation = selection_state["candidates"][0]["exposure_precheck"]["formations"][
-            0
-        ]
-        formation["description_index"] = [0, 1]
-        result = check_state(run_script, "selection", selection_state)
-        assert result.returncode == 1
-        assert "description_indexが不正" in result.stderr
-
-    def test_precheck_requires_accepted_name_index(self, run_script, selection_state):
-        """名称形成の記録を許容名称の添字で対応付ける。"""
-        formation = selection_state["candidates"][0]["exposure_precheck"]["formations"][
-            0
-        ]
-        formation["name_index"] = 1
-        result = check_state(run_script, "selection", selection_state)
-        assert result.returncode == 1
-        assert "name_indexが不正" in result.stderr
-
-    def test_accepted_alias_can_expose_every_description(
-        self, run_script, selection_state, exposed_precheck
-    ):
-        """代表解が露出しなくても許容別名が全案で露出すれば除外する。"""
-        exposed_precheck["accepted_names"].insert(0, "アキレス腱")
-        for formation in exposed_precheck["formations"]:
-            formation["name_index"] = 1
-        for index, description in enumerate(
-            exposed_precheck["representative_descriptions"]
-        ):
-            exposed_precheck["formations"].append(
+def add_prejudgments(state, candidate_id, excluded=()):
+    """抽選した候補について、四つの予備判定と担当の起動の記録を加える。"""
+    for key in PREJUDGMENT_KEYS:
+        state.setdefault(key, []).append(
+            {
+                "candidate_id": candidate_id,
+                "result": "exclude" if key in excluded else "pass",
+                "reason": f"{candidate_id}について{key}の観点から判定した",
+            }
+        )
+        if not any(item["role"] == key for item in state["execution"]["assignments"]):
+            state["execution"]["assignments"].append(
                 {
-                    "name": "アキレス腱",
-                    "description_index": index,
-                    "name_index": 0,
-                    "formation_rule": "対象との既知の対応から人名由来の名称を選ぶ",
-                    "components": [
-                        {
-                            "form": "アキレス",
-                            "source": "対象との既知の対応",
-                            "knowledge": "answer_side",
-                            "answer_side_reason": "人名との対応は想定プレイヤー層にとって明白に既習ではない",
-                        },
-                        {
-                            "form": "腱",
-                            "source": description,
-                            "knowledge": "surface",
-                        },
-                    ],
-                    "formation_requires_answer_side_knowledge": True,
-                    "standard_name_confirmation_requires_answer_side_knowledge": True,
+                    "role": key,
+                    "agent_id": f"agent-{key}",
+                    "artifact_refs": [f"{key}.json"],
                 }
             )
-        selection_state["candidates"][0]["exposure_precheck"] = exposed_precheck
-        result = check_state(run_script, "selection", selection_state)
+
+
+class TestPrejudgmentState:
+    """抽選後の四つの予備判定を検査する。"""
+
+    def test_all_passed_candidate_proceeds(self, run_script, selection_state):
+        """四つの予備判定に合格した候補が一つあれば作問へ進める。"""
+        add_prejudgments(selection_state, "K1")
+        assert check_state(run_script, "prejudgment", selection_state).returncode == 0
+
+    def test_each_aspect_is_required(self, run_script, selection_state):
+        """四つの観点それぞれの予備判定を要求する。"""
+        add_prejudgments(selection_state, "K1")
+        selection_state["prejudgment_otoshi"] = [
+            {"candidate_id": "K2", "result": "pass", "reason": "落としを作れる"}
+        ]
+        result = check_state(run_script, "prejudgment", selection_state)
         assert result.returncode == 1
-        assert "選択対象にできない" in result.stderr
+        assert "K1の予備判定がない: ['prejudgment_otoshi']" in result.stderr
 
-    def test_selection_rejects_confirmation_knowledge_as_formation_knowledge(
-        self, run_script, selection_state
-    ):
-        """標準名の確認に必要な知識で名称形成を安全扱いしない。"""
-        formation = selection_state["candidates"][0]["exposure_precheck"]["formations"][
-            0
-        ]
-        formation["components"] = [
-            {
-                "form": "候補1",
-                "source": "問題文の一般語から複合する",
-                "knowledge": "audience_known",
-            }
-        ]
-        assert check_state(run_script, "selection", selection_state).returncode == 1
-
-    def test_selection_keeps_public_project_with_alternative_description(
-        self, run_script, selection_state
-    ):
-        """説明案ごとに露出が異なる制度候補は予備検査だけでは除外しない。"""
-        precheck = selection_state["candidates"][0]["exposure_precheck"]
-        exposed_description = "土地の区画を整理する事業"
-        alternative_description = (
-            "土地所有者が減歩で公共施設用地を出し、換地を受ける都市整備事業"
-        )
-        answer = "土地区画整理事業"
-        precheck.update(
-            representative_descriptions=[exposed_description, alternative_description],
-            accepted_names=[answer],
-            formations=[
-                {
-                    "name": answer,
-                    "description_index": 0,
-                    "name_index": 0,
-                    "formation_rule": "説明にある一般語を複合する",
-                    "components": [
-                        {
-                            "form": part,
-                            "source": exposed_description,
-                            "knowledge": "audience_known",
-                        }
-                        for part in ("土地", "区画", "整理", "事業")
-                    ],
-                    "formation_requires_answer_side_knowledge": False,
-                    "standard_name_confirmation_requires_answer_side_knowledge": True,
-                },
-                {
-                    "name": answer,
-                    "description_index": 1,
-                    "name_index": 0,
-                    "formation_rule": "説明と対象の対応から名称を選ぶ",
-                    "components": [
-                        {
-                            "form": answer,
-                            "source": alternative_description,
-                            "knowledge": "answer_side",
-                            "answer_side_reason": "説明と名称の対応を知っている必要がある",
-                        }
-                    ],
-                    "formation_requires_answer_side_knowledge": True,
-                    "standard_name_confirmation_requires_answer_side_knowledge": True,
-                },
-            ],
-            status="passed",
-        )
-        assert check_state(run_script, "selection", selection_state).returncode == 0
-        selection_state["candidates"][0].update(
-            disposition="excluded",
-            exclusion_code="unavoidable_exposure",
-            exclusion_reason="第1案では名称を形成できる",
-        )
-        assert check_state(run_script, "selection", selection_state).returncode == 1
-
-    def test_selection_requires_formation_for_every_accepted_name(
-        self, run_script, selection_state
-    ):
-        """許容する各名称の形成分析を要求する。"""
-        selection_state["candidates"][0]["exposure_precheck"]["accepted_names"].append(
-            "別名"
-        )
-        assert check_state(run_script, "selection", selection_state).returncode == 1
+    def test_exclusion_is_recorded_before_repick(self, run_script, selection_state):
+        """除外した候補は品質棄却を記録し、再抽選した候補の判定へ進む。"""
+        add_prejudgments(selection_state, "K1", excluded={"prejudgment_membership"})
+        result = check_state(run_script, "prejudgment", selection_state)
+        assert result.returncode == 1
+        assert "candidates.K1に予備判定の除外を記録していない" in result.stderr
+        selection_state["candidates"][0]["quality_rejection_reason"] = "記号である"
+        result = check_state(run_script, "prejudgment", selection_state)
+        assert result.returncode == 1
+        assert "作問へ進む候補が一つではない: []" in result.stderr
+        add_prejudgments(selection_state, "K2")
+        assert check_state(run_script, "prejudgment", selection_state).returncode == 0
 
 
 class TestWorkState:
-    """生成・監査・最終出力の作業状態を検査する。"""
+    """解答対象を決めた後の作業状態を検査する。"""
 
-    def test_generation_start_accepts_target_state(self, run_script, complete_state):
-        """生成担当の起動後に解答対象だけの状態を検査できる。"""
-        assert (
-            check_state(run_script, "generation-start", complete_state).returncode == 0
-        )
-
-    def test_generation_start_rejects_selection_ledger(
-        self, run_script, complete_state
+    @pytest.mark.parametrize(
+        ("key", "message"),
+        [
+            ("proposition_support", "裏取りの記録のない命題がある: ['P1']"),
+            ("proposition_certainty", "確実性の判定のない命題がある: ['P1']"),
+        ],
+    )
+    def test_active_proposition_needs_support_and_certainty(
+        self, run_script, writing_state, key, message
     ):
+        """採用中の命題ごとに裏取りと確実性の判定を要する。"""
+        writing_state[key][0]["proposition_id"] = "P9"
+        result = check_state(run_script, "writing", writing_state)
+        assert result.returncode == 1
+        assert message in result.stderr
+
+    @pytest.mark.parametrize("key", ["corroboration_reviews", "certainty_reviews"])
+    def test_proposition_judgments_require_passed_review(
+        self, run_script, complete_state, key
+    ):
+        """裏取りと確実性の判定は、それぞれ検査担当の合格を要する。"""
+        complete_state[key][0].update(status="failed", fix_data=["proposition_support"])
+        result = check_state(run_script, "material", complete_state)
+        assert result.returncode == 1
+        assert f"{key}に不合格の項目がある: ['P1']" in result.stderr
+
+    @pytest.mark.parametrize(
+        ("field", "value", "message"),
+        [
+            ("proposition_id", None, "proposition_idが採用中の命題を参照していない"),
+            ("strength_matches", False, "断定の強さが確実性と一致していない"),
+        ],
+    )
+    def test_extracted_propositions_must_match(
+        self, run_script, complete_state, field, value, message
+    ):
+        """問題文から取り出した命題は、裏取り済みの命題と断定の強さまで一致させる。"""
+        complete_state["proposition_matching_reviews"][0][field] = value
+        result = check_state(run_script, "material", complete_state)
+        assert result.returncode == 1
+        assert message in result.stderr
+
+    def test_every_proposition_needs_extracted_match(self, run_script, complete_state):
+        """問題文から取り出した命題に対応しない採用命題を残さない。"""
+        complete_state["propositions"].append(
+            {"id": "P2", "claim": "矢羽は線分の端に付く"}
+        )
+        complete_state["realized_propositions"].append(
+            {"proposition_id": "P2", "draft_version": 2, "passage": "矢羽"}
+        )
+        for key in ("proposition_support", "proposition_certainty"):
+            complete_state[key].append(
+                {**complete_state[key][0], "proposition_id": "P2"}
+            )
+        for key in ("corroboration_reviews", "certainty_reviews"):
+            complete_state[key].append(
+                {**complete_state[key][0], "proposition_id": "P2"}
+            )
+        result = check_state(run_script, "material", complete_state)
+        assert result.returncode == 1
+        assert "対応しない命題がある: ['P2']" in result.stderr
+
+    def test_active_clue_needs_centrality(self, run_script, writing_state):
+        """採用中の手掛かりごとに中核性の評価を要する。"""
+        writing_state["clue_centrality"][0]["clue_id"] = "C9"
+        result = check_state(run_script, "writing", writing_state)
+        assert result.returncode == 1
+        assert "clue_centrality[0].clue_idが手掛かりにない" in result.stderr
+
+    @pytest.mark.parametrize(
+        "key",
+        [
+            "structure_review",
+            "clue_order_review",
+            "naturalness_review",
+            "incremental_comprehension_review",
+        ],
+    )
+    def test_expression_requires_passed_review(self, run_script, complete_state, key):
+        """構造、順序、自然さ、理解しやすさは、それぞれ検査担当の合格を要する。"""
+        complete_state[key]["status"] = "failed"
+        result = check_state(run_script, "material", complete_state)
+        assert result.returncode == 1
+        assert f"{key}が合格していない" in result.stderr
+
+    @pytest.mark.parametrize(
+        ("field", "value", "message"),
+        [
+            ("question_form", "OV", "question_formが作る側の区分と一致しない"),
+            ("otoshi_clue_ids", [], "otoshi_clue_idsが空である"),
+        ],
+    )
+    def test_structure_review_must_agree_with_writer(
+        self, run_script, complete_state, field, value, message
+    ):
+        """独立に取り出した構文型と落としが作る側の区分と食い違えば合格させない。"""
+        complete_state["structure_review"][field] = value
+        result = check_state(run_script, "material", complete_state)
+        assert result.returncode == 1
+        assert message in result.stderr
+
+    def test_familiarity_requires_passed_review(self, run_script, complete_state):
+        """各手掛かりの知名度は検査担当の合格を要する。"""
+        complete_state["familiarity_reviews"][0].update(
+            status="failed", fix_data=["clues"]
+        )
+        result = check_state(run_script, "material", complete_state)
+        assert result.returncode == 1
+        assert "familiarity_reviewsに不合格の項目がある: ['C1']" in result.stderr
+
+    def test_centrality_requires_passed_review(self, run_script, complete_state):
+        """中核性の評価は検査担当の合格を要する。"""
+        complete_state["centrality_reviews"][0].update(
+            status="failed", fix_data=["clue_centrality"]
+        )
+        result = check_state(run_script, "material", complete_state)
+        assert result.returncode == 1
+        assert "centrality_reviewsに不合格の項目がある: ['C1']" in result.stderr
+
+    def test_every_source_needs_assessment(self, run_script, writing_state):
+        """資料ごとに信頼性の評価を要する。"""
+        writing_state["source_assessments"] = []
+        result = check_state(run_script, "writing", writing_state)
+        assert result.returncode == 1
+        assert "source_assessmentsが空である" in result.stderr
+
+    def test_usage_only_source_cannot_support_proposition(
+        self, run_script, writing_state
+    ):
+        """用例にしか使えない資料の引用を命題の根拠にしない。"""
+        writing_state["source_assessments"][0]["uses"] = ["usage_example"]
+        result = check_state(run_script, "writing", writing_state)
+        assert result.returncode == 1
+        assert "事実の根拠に使えない資料の引用を根拠にしている: ['Q1']" in result.stderr
+
+    def test_source_assessment_requires_passed_review(self, run_script, complete_state):
+        """資料の信頼性の評価は検査担当の合格を要する。"""
+        complete_state["source_reliability_reviews"][0].update(
+            status="failed", fix_data=["source_assessments"]
+        )
+        result = check_state(run_script, "material", complete_state)
+        assert result.returncode == 1
+        assert "source_reliability_reviewsに不合格の項目がある: ['S1']" in result.stderr
+
+    def test_writing_start_accepts_target_state(self, run_script, complete_state):
+        """作文担当の起動後に解答対象だけの状態を検査できる。"""
+        assert check_state(run_script, "target-start", complete_state).returncode == 0
+
+    def test_writing_start_rejects_selection_ledger(self, run_script, complete_state):
         """題材探索の台帳を解答対象ごとの状態に混ぜない。"""
         complete_state["candidates"] = []
-        result = check_state(run_script, "generation-start", complete_state)
+        result = check_state(run_script, "target-start", complete_state)
         assert result.returncode == 1
         assert "題材探索台帳が混入" in result.stderr
 
-    def test_generation_start_requires_spawn_record(self, run_script, complete_state):
-        """生成担当の起動時記録がない状態を拒否する。"""
-        del complete_state["execution"]["assignment_log"]["generation"]
-        result = check_state(run_script, "generation-start", complete_state)
+    @pytest.mark.parametrize("group", ["beginner", "general"])
+    def test_review_requires_difficulty_review(self, run_script, complete_state, group):
+        """初学者側と一般層側の難易度の検査を、それぞれ省けない。"""
+        del complete_state[f"{group}_difficulty_review"]
+        result = check_state(run_script, "material", complete_state)
         assert result.returncode == 1
-        assert "assignment_log.generation" in result.stderr
+        assert f"{group}_difficulty_reviewがない" in result.stderr
 
-    def test_audit_requires_evidence_challenge(self, run_script, complete_state):
-        """難易度と手掛かりの独立した反証確認を省けない。"""
-        del complete_state["evidence_challenge"]
-        result = check_state(run_script, "audit", complete_state)
-        assert result.returncode == 1
-        assert "evidence_challengeがない" in result.stderr
-
-    def test_generation_does_not_require_evidence_challenge(
-        self, run_script, generation_state
+    def test_writing_does_not_require_difficulty_review(
+        self, run_script, writing_state
     ):
-        """生成工程の合格後に反証確認を追加できる。"""
-        assert check_state(run_script, "generation", generation_state).returncode == 0
+        """生成工程の合格後に難易度の検査を加えられる。"""
+        assert check_state(run_script, "writing", writing_state).returncode == 0
 
-    def test_generation_rejects_premature_evidence_challenge(
-        self, run_script, generation_state, complete_state
-    ):
-        """生成工程の検査前に反証確認の結果を混ぜない。"""
-        generation_state["evidence_challenge"] = complete_state["evidence_challenge"]
-        result = check_state(run_script, "generation", generation_state)
-        assert result.returncode == 1
-        assert "監査前の反証確認が混入" in result.stderr
-
-    def test_audit_rejects_challenge_for_other_knowledge(
+    def test_review_rejects_challenge_for_other_knowledge(
         self, run_script, complete_state
     ):
-        """別の問う知識についての反証記録を現行問題へ使わない。"""
-        complete_state["evidence_challenge"]["asked_knowledge"] = "別の問う知識"
-        result = check_state(run_script, "audit", complete_state)
+        """別の問う知識についての難易度の検査を現行問題へ使わない。"""
+        complete_state["beginner_difficulty_review"]["asked_knowledge"] = "別の問う知識"
+        result = check_state(run_script, "material", complete_state)
         assert result.returncode == 1
         assert "asked_knowledgeが問う知識と一致しない" in result.stderr
 
-    def test_audit_rejects_challenge_for_other_clue(self, run_script, complete_state):
-        """別の手掛かりIDについての反証記録を現行問題へ使わない。"""
-        complete_state["evidence_challenge"]["clues"][0]["id"] = "C2"
-        result = check_state(run_script, "audit", complete_state)
+    def test_review_rejects_review_of_unknown_pair(self, run_script, complete_state):
+        """作る側の照合にも逆引きの結果にもない組の照合結果を使わない。"""
+        complete_state["competitor_comparison_reviews"][0]["competitor_id"] = "R9"
+        result = check_state(run_script, "material", complete_state)
         assert result.returncode == 1
-        assert "evidence_challenge.cluesが採用手掛かりと一致しない" in result.stderr
+        assert "作る側の照合にも逆引きで見つけた候補にもない" in result.stderr
 
-    def test_audit_rejects_unresolved_competitor(self, run_script, complete_state):
-        """対抗候補が未解決のまま監査を通さない。"""
-        comparison = complete_state["evidence_challenge"]["clues"][0][
-            "competitor_comparisons"
-        ][0]
-        comparison["remaining"] = True
-        result = check_state(run_script, "audit", complete_state)
+    def test_review_rejects_unresolved_competitor(self, run_script, complete_state):
+        """条件照合の検査が不合格の対抗候補を残さない。"""
+        complete_state["competitor_comparison_reviews"][0]["status"] = "failed"
+        result = check_state(run_script, "material", complete_state)
         assert result.returncode == 1
-        assert "未解決" in result.stderr
+        assert "competitor_comparison_reviewsに不合格の項目がある" in result.stderr
 
-    def test_audit_rejects_excluding_matching_competitor(
+    def test_review_rejects_excluding_matching_competitor(
         self, run_script, complete_state
     ):
         """全条件に一致する対抗候補を除外しない。"""
-        comparison = complete_state["evidence_challenge"]["clues"][0][
-            "competitor_comparisons"
-        ][0]
-        comparison["conditions"][0]["match"] = "一致"
-        result = check_state(run_script, "audit", complete_state)
+        review = complete_state["competitor_comparison_reviews"][0]
+        review["conditions"][0]["match"] = "一致"
+        result = check_state(run_script, "material", complete_state)
         assert result.returncode == 1
         assert "相違する条件なしに候補を除外" in result.stderr
 
-    def test_audit_rejects_excluding_near_competitor(self, run_script, complete_state):
+    def test_review_rejects_excluding_near_competitor(self, run_script, complete_state):
         """近接するだけの条件を相違として候補を除外しない。"""
-        comparison = complete_state["evidence_challenge"]["clues"][0][
-            "competitor_comparisons"
-        ][0]
-        comparison["conditions"][0]["match"] = "近接"
-        result = check_state(run_script, "audit", complete_state)
+        review = complete_state["competitor_comparison_reviews"][0]
+        review["conditions"][0]["match"] = "近接"
+        result = check_state(run_script, "material", complete_state)
         assert result.returncode == 1
         assert "相違する条件なしに候補を除外" in result.stderr
 
-    def test_audit_accepts_additional_excluded_competitor(
+    def test_review_accepts_additional_excluded_competitor(
         self, run_script, complete_state
     ):
-        """独立調査で見つけた別対象も反証記録に加えられる。"""
-        comparisons = complete_state["evidence_challenge"]["clues"][0][
-            "competitor_comparisons"
-        ]
-        additional = copy.deepcopy(comparisons[0])
-        additional.update(id="R2", name="追加の対抗候補")
-        comparisons.append(additional)
-        assert check_state(run_script, "audit", complete_state).returncode == 0
+        """逆引きで新しく見つけた別対象も、除外として照合できる。"""
+        found = copy.deepcopy(
+            complete_state["competitor_search_reviews"][0]["found"][0]
+        )
+        found.update(id="R2", name="追加の対抗候補")
+        complete_state["competitor_search_reviews"][0]["found"].append(found)
+        review = copy.deepcopy(complete_state["competitor_comparison_reviews"][0])
+        review["competitor_id"] = "R2"
+        complete_state["competitor_comparison_reviews"].append(review)
+        assert check_state(run_script, "material", complete_state).returncode == 0
 
-    def test_audit_rejects_omitted_generated_competitor(
+    def test_review_rejects_omitted_generated_competitor(
         self, run_script, complete_state
     ):
-        """生成側が挙げた対抗候補の照合漏れを拒否する。"""
-        competitors = complete_state["clues"][0]["checks"]["quasi_uniqueness"][
-            "competitors"
-        ]
-        additional = copy.deepcopy(competitors[0])
-        additional.update(id="R2", name="別の対抗候補")
-        competitors.append(additional)
-        result = check_state(run_script, "audit", complete_state)
+        """作る側が挙げた対抗候補の照合を検査から漏らさない。"""
+        competitor = copy.deepcopy(complete_state["competitors"][0])
+        competitor.update(id="R2", name="別の対抗候補")
+        complete_state["competitors"].append(competitor)
+        comparison = copy.deepcopy(complete_state["competitor_comparisons"][0])
+        comparison["competitor_id"] = "R2"
+        complete_state["competitor_comparisons"].append(comparison)
+        result = check_state(run_script, "material", complete_state)
         assert result.returncode == 1
-        assert "生成側の対抗候補が不足" in result.stderr
+        assert (
+            "条件の照合を検査していない対抗候補がある: [('C1', 'R2')]" in result.stderr
+        )
 
-    def test_audit_rejects_conflicting_competitor_judgment(
+    def test_review_rejects_conflicting_competitor_judgment(
         self, run_script, complete_state
     ):
-        """生成側と独立反証の候補採否が食い違う場合は合格させない。"""
-        comparison = complete_state["evidence_challenge"]["clues"][0][
-            "competitor_comparisons"
-        ][0]
-        comparison["disposition"] = "same_target"
-        result = check_state(run_script, "audit", complete_state)
+        """作る側と検査側の候補の採否が食い違う場合は合格させない。"""
+        review = complete_state["competitor_comparison_reviews"][0]
+        review["disposition"] = "same_target"
+        result = check_state(run_script, "material", complete_state)
         assert result.returncode == 1
-        assert "生成側の判断と一致しない" in result.stderr
+        assert "作る側の判断と一致しない" in result.stderr
 
-    def test_generation_requires_current_exposure_assignment(
-        self, run_script, generation_state
+    def test_review_requires_current_exposure_assignment(
+        self, run_script, complete_state
     ):
         """現行版に対応する露出検査担当の起動記録を要求する。"""
-        generation_state["execution"]["exposure_assignments"][0]["draft_version"] = 1
-        result = check_state(run_script, "generation", generation_state)
+        assignment_of(complete_state, "exposure")["draft_version"] = 1
+        result = check_state(run_script, "material", complete_state)
         assert result.returncode == 1
-        assert "現行版の露出検査担当" in result.stderr
+        assert "現行版の解答を伏せた名称候補の担当" in result.stderr
 
-    @pytest.mark.parametrize(
-        ("field", "value", "message"),
-        [
-            ("task_label", "", "task_labelがない"),
-            ("recorded_at_spawn", False, "起動時に記録されていない"),
-        ],
-    )
-    def test_generation_requires_exposure_assignment_metadata(
-        self, run_script, generation_state, field, value, message
-    ):
-        """版別の露出検査記録に依頼名と起動時の記録を要求する。"""
-        generation_state["execution"]["exposure_assignments"][0][field] = value
-        result = check_state(run_script, "generation", generation_state)
+    def test_review_requires_exposure_draft_version(self, run_script, complete_state):
+        """露出検査担当の起動の記録に対象の版を要求する。"""
+        del assignment_of(complete_state, "exposure")["draft_version"]
+        result = check_state(run_script, "material", complete_state)
         assert result.returncode == 1
-        assert message in result.stderr
+        assert "draft_versionが不正である" in result.stderr
 
-    def test_generation_rejects_duplicate_exposure_assignment_version(
-        self, run_script, generation_state
+    def test_review_accepts_new_exposure_agent_for_same_version(
+        self, run_script, complete_state
     ):
-        """同じ問題文の版に複数の露出検査記録を置かない。"""
-        assignment = copy.deepcopy(
-            generation_state["execution"]["exposure_assignments"][0]
-        )
+        """同じ版を新しい露出検査担当が再検査した記録を認める。"""
+        assignment = copy.deepcopy(assignment_of(complete_state, "exposure"))
         assignment["agent_id"] = "agent-new-exposure"
-        generation_state["execution"]["exposure_assignments"].append(assignment)
-        result = check_state(run_script, "generation", generation_state)
-        assert result.returncode == 1
-        assert "draft_versionが重複" in result.stderr
+        complete_state["execution"]["assignments"].append(assignment)
+        assert check_state(run_script, "material", complete_state).returncode == 0
 
-    def test_generation_rejects_reused_exposure_agent(
-        self, run_script, generation_state
-    ):
+    def test_review_rejects_reused_exposure_agent(self, run_script, complete_state):
         """問題文の版を変えた露出検査に同じ担当を再利用しない。"""
-        assignment = copy.deepcopy(
-            generation_state["execution"]["exposure_assignments"][0]
-        )
+        assignment = copy.deepcopy(assignment_of(complete_state, "exposure"))
         assignment["draft_version"] = 1
-        generation_state["execution"]["exposure_assignments"].append(assignment)
-        result = check_state(run_script, "generation", generation_state)
+        complete_state["execution"]["assignments"].append(assignment)
+        result = check_state(run_script, "material", complete_state)
         assert result.returncode == 1
-        assert "agent_idを再利用" in result.stderr
+        assert "別の版の露出検査に再利用" in result.stderr
 
-    def test_audit_requires_independent_exposure_record(
+    def test_review_requires_independent_answer_review(
         self, run_script, complete_state
-    ):
-        """監査担当が正答範囲と照合した露出検査結果を省けない。"""
-        del complete_state["exposure_review"]
-        result = check_state(run_script, "audit", complete_state)
-        assert result.returncode == 1
-        assert "exposure_reviewがない" in result.stderr
-
-    @pytest.mark.parametrize(
-        ("field", "value", "message"),
-        [
-            ("reviewer_id", "agent-other", "監査担当と一致しない"),
-            ("draft_version", 1, "問題文と一致しない"),
-            ("question_sha256", "0" * 64, "問題文と一致しない"),
-            ("checked_answer_ids", [], "正答範囲と一致しない"),
-            ("status", "pending", "合格していない"),
-        ],
-    )
-    def test_audit_rejects_invalid_exposure_record(
-        self, run_script, complete_state, field, value, message
-    ):
-        """露出検査記録を現行問題と監査担当へ対応させる。"""
-        complete_state["exposure_review"][field] = value
-        result = check_state(run_script, "audit", complete_state)
-        assert result.returncode == 1
-        assert message in result.stderr
-
-    def test_audit_requires_reason_when_exposure_candidates_are_empty(
-        self, run_script, complete_state
-    ):
-        """露出候補がない場合も判断理由を記録する。"""
-        del complete_state["exposure_review"]["no_candidate_reason"]
-        result = check_state(run_script, "audit", complete_state)
-        assert result.returncode == 1
-        assert "no_candidate_reason" in result.stderr
-
-    def test_audit_rejects_unrecorded_exposure_candidate(
-        self, run_script, complete_state
-    ):
-        """監査で見つけた候補を生成側の露出検査へ反映する。"""
-        candidate = copy.deepcopy(
-            next(
-                check
-                for check in complete_state["checks"]
-                if check["id"] == "answer_exposure"
-            )["semantic_candidates"][0]
-        )
-        del candidate["id"]
-        candidate.update(exposure_candidate_id="X9", name="別の名称候補")
-        candidate["components"][0]["form"] = "別の名称候補"
-        complete_state["exposure_review"]["candidates"] = [candidate]
-        result = check_state(run_script, "audit", complete_state)
-        assert result.returncode == 1
-        assert "露出検査に反映されていない" in result.stderr
-
-    def test_audit_accepts_reflected_exposure_candidate(
-        self, run_script, complete_state
-    ):
-        """生成側にもある候補の独立した照合記録を受け付ける。"""
-        exposure = next(
-            check
-            for check in complete_state["checks"]
-            if check["id"] == "answer_exposure"
-        )
-        candidate = copy.deepcopy(exposure["semantic_candidates"][0])
-        del candidate["id"]
-        candidate.update(exposure_candidate_id="X1")
-        complete_state["exposure_review"]["candidates"] = [candidate]
-        assert check_state(run_script, "audit", complete_state).returncode == 0
-
-    def test_generation_requires_independent_answer_review(
-        self, run_script, generation_state
     ):
         """解答候補ごとの独立した判定を省けない。"""
-        del generation_state["answer_review"]
-        result = check_state(run_script, "generation", generation_state)
+        del complete_state["answer_review"]
+        result = check_state(run_script, "material", complete_state)
         assert result.returncode == 1
         assert "answer_reviewがない" in result.stderr
 
     @pytest.mark.parametrize(
         ("field", "value", "message"),
         [
-            ("reviewer_id", "agent-other", "露出検査担当と一致しない"),
             ("draft_version", 1, "問題文と一致しない"),
         ],
     )
-    def test_generation_rejects_invalid_answer_review(
-        self, run_script, generation_state, field, value, message
+    def test_review_rejects_invalid_answer_review(
+        self, run_script, complete_state, field, value, message
     ):
-        """正誤判定を現行問題と露出検査担当へ対応させる。"""
-        generation_state["answer_review"][field] = value
-        result = check_state(run_script, "generation", generation_state)
+        """正誤判定を現行問題へ対応させる。"""
+        complete_state["answer_review"][field] = value
+        result = check_state(run_script, "material", complete_state)
         assert result.returncode == 1
         assert message in result.stderr
 
-    def test_generation_requires_all_answer_reviews(self, run_script, generation_state):
+    def test_review_requires_all_answer_reviews(self, run_script, complete_state):
         """採用した解答候補を一名称ずつ判定する。"""
-        generation_state["answer_review"]["answers"] = []
-        result = check_state(run_script, "generation", generation_state)
+        complete_state["answer_review"]["answers"] = []
+        result = check_state(run_script, "material", complete_state)
         assert result.returncode == 1
         assert "answer_review.answersが空である" in result.stderr
 
@@ -1510,50 +2112,50 @@ class TestWorkState:
             ("scope_matches", False, "正答判定と対象・指定・適用範囲が一致しない"),
         ],
     )
-    def test_generation_rejects_inconsistent_correct_answer_review(
-        self, run_script, generation_state, field, value, message
+    def test_review_rejects_inconsistent_correct_answer_review(
+        self, run_script, complete_state, field, value, message
     ):
         """正答判定を対象・指定・誤り・適用範囲の判断と一致させる。"""
-        generation_state["answer_review"]["answers"][0][field] = value
-        result = check_state(run_script, "generation", generation_state)
+        complete_state["answer_review"]["answers"][0][field] = value
+        result = check_state(run_script, "material", complete_state)
         assert result.returncode == 1
         assert message in result.stderr
 
-    def test_generation_requires_exposure_candidate_judgment(
-        self, run_script, generation_state
+    def test_writing_requires_exposure_candidate_judgment(
+        self, run_script, complete_state
     ):
         """露出検査で挙がった名称候補の正誤判定を要求する。"""
-        generation_state["answer_review"]["candidate_reviews"] = []
-        result = check_state(run_script, "generation", generation_state)
+        complete_state["answer_review"]["candidate_reviews"] = []
+        result = check_state(run_script, "material", complete_state)
         assert result.returncode == 1
         assert "candidate_reviewsが露出候補と一致しない" in result.stderr
 
-    def test_generation_rejects_inconsistent_exposure_candidate_judgment(
-        self, run_script, generation_state
+    def test_writing_rejects_inconsistent_exposure_candidate_judgment(
+        self, run_script, complete_state
     ):
         """露出候補の誤答判定を対象・誤り・適用範囲の判断と一致させる。"""
-        candidate = generation_state["answer_review"]["candidate_reviews"][0]
+        candidate = complete_state["answer_review"]["candidate_reviews"][0]
         candidate.update(same_target=True, scope_matches=True)
-        result = check_state(run_script, "generation", generation_state)
+        result = check_state(run_script, "material", complete_state)
         assert result.returncode == 1
         assert "誤答判定に対象・適用範囲の相違がない" in result.stderr
 
-    def test_generation_requires_correct_exposure_candidate_in_answer_range(
-        self, run_script, generation_state
+    def test_review_requires_correct_exposure_candidate_in_answer_range(
+        self, run_script, complete_state
     ):
         """正答と判定した露出候補を解答範囲へ追加する。"""
-        candidate = generation_state["answer_review"]["candidate_reviews"][0]
+        candidate = complete_state["answer_review"]["candidate_reviews"][0]
         candidate.update(
             judgment="correct",
             same_target=True,
             specified_enough=True,
             scope_matches=True,
         )
-        result = check_state(run_script, "generation", generation_state)
+        result = check_state(run_script, "material", complete_state)
         assert result.returncode == 1
         assert "正答が解答範囲に対応付けられていない" in result.stderr
 
-    def test_audit_requires_all_facet_paths_in_topic_selection(
+    def test_review_requires_all_facet_paths_in_topic_selection(
         self, run_script, complete_state
     ):
         """抽選した題材では四軸の分類経路を完成稿の題材選択へ含める。"""
@@ -1561,33 +2163,33 @@ class TestWorkState:
         material["topic_selection"] = material["topic_selection"].replace(
             "地域指定なし／", ""
         )
-        result = check_state(run_script, "audit", complete_state)
+        result = check_state(run_script, "material", complete_state)
         assert result.returncode == 1
         assert "placeの分類経路がない" in result.stderr
 
-    def test_audit_rejects_internal_facet_key_in_topic_selection(
+    def test_review_rejects_internal_facet_key_in_topic_selection(
         self, run_script, complete_state
     ):
         """完成稿の題材選択に内部ノードIDを出さない。"""
         complete_state["final_input"]["material"]["topic_selection"] += " subject::66"
-        result = check_state(run_script, "audit", complete_state)
+        result = check_state(run_script, "material", complete_state)
         assert result.returncode == 1
         assert "内部ノードID" in result.stderr
 
-    @pytest.mark.parametrize("stage", ["audit", "final"])
+    @pytest.mark.parametrize("stage", ["review", "material", "final"])
     def test_complete_state_passes(
         self, run_script, complete_state, reviewed_state, stage
     ):
         """各項目が完了した状態は指定工程で合格する。"""
-        state = complete_state if stage == "audit" else reviewed_state
+        state = reviewed_state if stage == "final" else complete_state
         assert check_state(run_script, stage, state).returncode == 0
 
-    @pytest.mark.parametrize("stage", ["audit", "final"])
+    @pytest.mark.parametrize("stage", ["review", "material", "final"])
     def test_specified_target_skips_exploration_assignments(
         self, run_script, complete_state, reviewed_state, stage
     ):
-        """解答対象が直接指定された場合は題材探索の担当記録を要しない。"""
-        state = complete_state if stage == "audit" else reviewed_state
+        """解答対象が直接指定された場合も、同じ記録で合格する。"""
+        state = reviewed_state if stage == "final" else complete_state
         state["selection_mode"] = "specified"
         state["user_specified_target"] = state["answer_target"]
         topic = state["final_input"]["topic_selection"]
@@ -1596,91 +2198,35 @@ class TestWorkState:
         state["final_input"]["material"]["topic_selection"] = (
             f"ユーザー指定の解答対象：{state['answer_target']}。履歴補正なし。"
         )
-        for role in ("exploration", "alternate_exploration", "saturation_review"):
-            del state["execution"]["agents"][role]
-            del state["execution"]["assignment_log"][role]
         if stage == "final":
-            state["final_review"]["output_sha256"] = hashlib.sha256(
-                final_output_text(state).encode()
-            ).hexdigest()
+            set_reviewed_output(state, final_output_text(state))
         assert check_state(run_script, stage, state).returncode == 0
 
     def test_work_state_requires_selection_mode(self, run_script, complete_state):
         """対象ごとの作業状態では選択方法を明示する。"""
         del complete_state["selection_mode"]
-        result = check_state(run_script, "audit", complete_state)
+        result = check_state(run_script, "material", complete_state)
         assert result.returncode == 1
         assert "selection_modeが不正である" in result.stderr
 
-    def test_difficulty_review_requires_assigned_agent(
+    def test_difficulty_assessment_requires_assigned_agent(
         self, run_script, complete_state
     ):
-        """難易度の独立検査には起動時に記録した担当者を要する。"""
-        del complete_state["execution"]["agents"]["difficulty_review"]
-        result = check_state(run_script, "audit", complete_state)
+        """難易度の判断には起動の記録を要する。"""
+        drop_assignment(complete_state, "difficulty_assessment")
+        result = check_state(run_script, "material", complete_state)
         assert result.returncode == 1
-        assert "execution.agents.difficulty_reviewがない" in result.stderr
+        assert "担当の記録がない: ['difficulty_assessment']" in result.stderr
 
-    def test_difficulty_checkpoint_passes_without_draft(
-        self, run_script, complete_state
+    def test_difficulty_assessment_matches_asked_knowledge(
+        self, run_script, writing_state
     ):
-        """作文前に問題文なしで難易度を検査できる。"""
-        keys = {
-            "selection_mode",
-            "execution",
-            "answer_target",
-            "asked_knowledge",
-            "sources",
-            "difficulty_review",
-        }
-        state = {key: copy.deepcopy(complete_state[key]) for key in keys}
-        roles = {
-            "exploration",
-            "alternate_exploration",
-            "saturation_review",
-            "generation",
-            "difficulty_review",
-        }
-        for key in ("agents", "assignment_log"):
-            state["execution"][key] = {
-                role: item
-                for role, item in state["execution"][key].items()
-                if role in roles
-            }
-        state["difficulty_review"]["audit"] = "pending"
-        assert check_state(run_script, "difficulty", state).returncode == 0
-
-    def test_difficulty_review_matches_asked_knowledge(
-        self, run_script, complete_state
-    ):
-        """問う知識を変更したら以前の難易度判定を通さない。"""
-        complete_state["asked_knowledge"] = "考案年から錯視の名称を答える"
-        complete_state["difficulty_review"]["audit"] = "pending"
-        result = check_state(run_script, "difficulty", complete_state)
+        """問う知識を変更したら以前の難易度の判断を通さない。"""
+        writing_state["asked_knowledge"] = "考案年から錯視の名称を答える"
+        result = check_state(run_script, "writing", writing_state)
         assert result.returncode == 1
         assert (
-            "difficulty_review.asked_knowledgeが問う知識と一致しない" in result.stderr
-        )
-
-    def test_difficulty_review_requires_audit(self, run_script, complete_state):
-        """難易度担当の判定も監査担当の確認を要する。"""
-        complete_state["difficulty_review"]["audit"] = "pending"
-        result = check_state(run_script, "audit", complete_state)
-        assert result.returncode == 1
-        assert "difficulty_reviewが監査に合格していない" in result.stderr
-
-    def test_difficulty_checks_match_asked_knowledge(self, run_script, complete_state):
-        """完成稿の難易度検査は作文前に確認した問う知識と対応する。"""
-        check = next(
-            item
-            for item in complete_state["checks"]
-            if item["id"] == "difficulty.beginner"
-        )
-        check["asked_knowledge"] = "考案年から錯視の名称を答える"
-        result = check_state(run_script, "audit", complete_state)
-        assert result.returncode == 1
-        assert (
-            "checks.difficulty.beginner.asked_knowledgeが問う知識と一致しない"
+            "difficulty_assessment.asked_knowledgeが問う知識と一致しない"
             in result.stderr
         )
 
@@ -1689,19 +2235,13 @@ class TestWorkState:
         self, run_script, complete_state, group
     ):
         """難易度の独立検査は両参照集団の合格を要する。"""
-        complete_state["difficulty_review"][group]["status"] = "missing"
-        result = check_state(run_script, "audit", complete_state)
+        complete_state["difficulty_assessment"][group]["status"] = "missing"
+        result = check_state(run_script, "material", complete_state)
         assert result.returncode == 1
-        assert f"difficulty_review.{group}が独立検査に合格していない" in result.stderr
-
-    def test_difficulty_review_requires_matching_reviewer(
-        self, run_script, complete_state
-    ):
-        """難易度検査の記録は割り当てられた担当者に対応する。"""
-        complete_state["difficulty_review"]["reviewer_id"] = "別の担当者"
-        result = check_state(run_script, "audit", complete_state)
-        assert result.returncode == 1
-        assert "difficulty_review.reviewer_idが担当記録と一致しない" in result.stderr
+        assert (
+            f"difficulty_assessment.{group}が難易度の帯に入ると判断されていない"
+            in result.stderr
+        )
 
     @pytest.mark.parametrize(
         "aspect", ["name_learning", "relation_learning", "learning_connection"]
@@ -1710,10 +2250,10 @@ class TestWorkState:
         self, run_script, complete_state, aspect
     ):
         """名称・関係の学習と両者の接続を別々に記録する。"""
-        del complete_state["difficulty_review"]["beginner"][aspect]
-        result = check_state(run_script, "audit", complete_state)
+        del complete_state["difficulty_assessment"]["beginner"][aspect]
+        result = check_state(run_script, "material", complete_state)
         assert result.returncode == 1
-        assert f"difficulty_review.beginner.{aspect}がない" in result.stderr
+        assert f"difficulty_assessment.beginner.{aspect}がない" in result.stderr
 
     @pytest.mark.parametrize(
         "aspect", ["name_learning", "relation_learning", "learning_connection"]
@@ -1722,10 +2262,10 @@ class TestWorkState:
         self, run_script, complete_state, aspect
     ):
         """初学者側の各判断に理由を要求する。"""
-        del complete_state["difficulty_review"]["beginner"][aspect]["reason"]
-        result = check_state(run_script, "audit", complete_state)
+        del complete_state["difficulty_assessment"]["beginner"][aspect]["reason"]
+        result = check_state(run_script, "material", complete_state)
         assert result.returncode == 1
-        assert f"difficulty_review.beginner.{aspect}.reason" in result.stderr
+        assert f"difficulty_assessment.beginner.{aspect}.reason" in result.stderr
 
     def test_beginner_review_accepts_distinct_learning_sources(
         self, run_script, complete_state
@@ -1736,7 +2276,8 @@ class TestWorkState:
             "矢羽は線分の端に付く斜線である。"
             "同じ長さの線分が矢羽の向きで異なる長さに見える錯視は入門教材で扱う"
         )
-        complete_state["sources"].append(
+        add_source(
+            complete_state,
             {
                 "id": "S2",
                 "citation": "基礎資料",
@@ -1747,15 +2288,15 @@ class TestWorkState:
                         "location": "第二節",
                     }
                 ],
-            }
+            },
         )
-        beginner = complete_state["difficulty_review"]["beginner"]
+        beginner = complete_state["difficulty_assessment"]["beginner"]
         beginner["evidence_ids"] = ["Q1", "Q2"]
         beginner["relation_learning"]["evidence_ids"] = ["Q2"]
         beginner["learning_connection"]["evidence_ids"] = ["Q1", "Q2"]
         complete_state["final_input"]["quote_ids"] = ["Q1", "Q2"]
         refresh_material_quotes(complete_state)
-        assert check_state(run_script, "audit", complete_state).returncode == 0
+        assert check_state(run_script, "material", complete_state).returncode == 0
 
     @pytest.mark.parametrize(
         "aspect", ["name_learning", "relation_learning", "learning_connection"]
@@ -1767,8 +2308,10 @@ class TestWorkState:
         complete_state["sources"][0]["quotes"].append(
             {"id": "Q2", "text": "名称を扱う教材", "location": "第二節"}
         )
-        complete_state["difficulty_review"]["beginner"][aspect]["evidence_ids"] = ["Q2"]
-        result = check_state(run_script, "audit", complete_state)
+        complete_state["difficulty_assessment"]["beginner"][aspect]["evidence_ids"] = [
+            "Q2"
+        ]
+        result = check_state(run_script, "material", complete_state)
         assert result.returncode == 1
         assert f"{aspect}.evidence_idsが初学者側の根拠に含まれない" in result.stderr
 
@@ -1776,21 +2319,23 @@ class TestWorkState:
         self, run_script, complete_state
     ):
         """一般層に名称が共有される別経路の調査を省略しない。"""
-        del complete_state["difficulty_review"]["general"]["other_access_paths"]
-        result = check_state(run_script, "audit", complete_state)
+        del complete_state["difficulty_assessment"]["general"]["other_access_paths"]
+        result = check_state(run_script, "material", complete_state)
         assert result.returncode == 1
-        assert "difficulty_review.general.other_access_paths" in result.stderr
+        assert "difficulty_assessment.general.other_access_paths" in result.stderr
 
     def test_difficulty_review_requires_evidence_for_other_access_paths(
         self, run_script, complete_state
     ):
         """接触を確認した経路の調査結果を引用に対応させる。"""
-        path = complete_state["difficulty_review"]["general"]["other_access_paths"][0]
+        path = complete_state["difficulty_assessment"]["general"]["other_access_paths"][
+            0
+        ]
         del path["evidence_ids"]
-        result = check_state(run_script, "audit", complete_state)
+        result = check_state(run_script, "material", complete_state)
         assert result.returncode == 1
         assert (
-            "difficulty_review.general.other_access_paths[0].evidence_ids"
+            "difficulty_assessment.general.other_access_paths[0].evidence_ids"
             in result.stderr
         )
 
@@ -1798,43 +2343,47 @@ class TestWorkState:
         self, run_script, complete_state
     ):
         """接触を確認できない経路に存在しない逐語引用を要求しない。"""
-        path = complete_state["difficulty_review"]["general"]["other_access_paths"][0]
+        path = complete_state["difficulty_assessment"]["general"]["other_access_paths"][
+            0
+        ]
         path["search_record"] = "一般向けの紹介資料を調べた"
         path["outcome"] = "not_confirmed"
         path["result"] = "調べた範囲では名称への接触を確認できなかった"
         path["evidence_ids"] = []
-        assert check_state(run_script, "audit", complete_state).returncode == 0
+        assert check_state(run_script, "material", complete_state).returncode == 0
 
     def test_access_path_requires_search_record(self, run_script, complete_state):
         """接触を確認できない経路にも調べた内容を残す。"""
-        path = complete_state["difficulty_review"]["general"]["other_access_paths"][0]
+        path = complete_state["difficulty_assessment"]["general"]["other_access_paths"][
+            0
+        ]
         path["outcome"] = "not_confirmed"
         path["evidence_ids"] = []
         del path["search_record"]
-        result = check_state(run_script, "audit", complete_state)
+        result = check_state(run_script, "material", complete_state)
         assert result.returncode == 1
         assert (
-            "difficulty_review.general.other_access_paths[0].search_record"
+            "difficulty_assessment.general.other_access_paths[0].search_record"
             in result.stderr
         )
 
-    def test_final_input_includes_difficulty_review_evidence(
+    def test_final_input_includes_difficulty_assessment_evidence(
         self, run_script, complete_state
     ):
         """難易度の独立検査だけに使う引用も最終入力へ渡す。"""
         complete_state["sources"][0]["quotes"].append(
             {"id": "Q2", "text": "初学者向け資料の記述", "location": "第二節"}
         )
-        complete_state["difficulty_review"]["beginner"]["evidence_ids"] = [
+        complete_state["difficulty_assessment"]["beginner"]["evidence_ids"] = [
             "Q1",
             "Q2",
         ]
-        result = check_state(run_script, "audit", complete_state)
+        result = check_state(run_script, "material", complete_state)
         assert result.returncode == 1
         assert "final_input.quote_idsが判断に用いた引用と一致しない" in result.stderr
         complete_state["final_input"]["quote_ids"].append("Q2")
         refresh_material_quotes(complete_state)
-        assert check_state(run_script, "audit", complete_state).returncode == 0
+        assert check_state(run_script, "material", complete_state).returncode == 0
 
     def test_final_input_excludes_other_access_path_evidence(
         self, run_script, complete_state
@@ -1843,28 +2392,28 @@ class TestWorkState:
         complete_state["sources"][0]["quotes"].append(
             {"id": "Q2", "text": "一般向け資料の記述", "location": "第二節"}
         )
-        paths = complete_state["difficulty_review"]["general"]["other_access_paths"]
+        paths = complete_state["difficulty_assessment"]["general"]["other_access_paths"]
         paths[0]["evidence_ids"] = ["Q2"]
-        assert check_state(run_script, "audit", complete_state).returncode == 0
+        assert check_state(run_script, "material", complete_state).returncode == 0
 
-    def test_specified_target_requires_generation_assignment(
+    def test_specified_target_requires_writer_assignment(
         self, run_script, complete_state
     ):
-        """直接指定でも生成以降の担当は省略できない。"""
+        """直接指定でも作文以降の担当は省略できない。"""
         complete_state["selection_mode"] = "specified"
         complete_state["user_specified_target"] = complete_state["answer_target"]
-        del complete_state["execution"]["agents"]["generation"]
-        result = check_state(run_script, "audit", complete_state)
+        drop_assignment(complete_state, "writer")
+        result = check_state(run_script, "material", complete_state)
         assert result.returncode == 1
-        assert "execution.agents.generationがない" in result.stderr
+        assert "担当の記録がない: ['writer']" in result.stderr
 
     def test_clue_rejects_quasi_uniqueness_depending_on_another_clue(
         self, run_script, complete_state
     ):
         """他の手掛かりに依存する準一意性を単独の評価として認めない。"""
-        check = complete_state["clues"][0]["checks"]["quasi_uniqueness"]
+        check = complete_state["clue_checks"][0]["quasi_uniqueness"]
         check["depends_on_clue_ids"] = ["C2"]
-        assert check_state(run_script, "audit", complete_state).returncode == 1
+        assert check_state(run_script, "material", complete_state).returncode == 1
 
     @pytest.mark.parametrize(
         "invalid_part",
@@ -1883,94 +2432,77 @@ class TestWorkState:
         self, run_script, complete_state, invalid_part
     ):
         """対抗候補の資料と問題文中の区別条件を欠く記録を拒否する。"""
-        check = complete_state["clues"][0]["checks"]["quasi_uniqueness"]
-        competitor = check["competitors"][0]
+        competitor = complete_state["competitors"][0]
+        comparison = complete_state["competitor_comparisons"][0]
         if invalid_part == "name":
             competitor["name"] = ""
         elif invalid_part == "evidence_ids":
             competitor["evidence_ids"] = []
         elif invalid_part == "conditions":
-            competitor["conditions"] = []
+            comparison["conditions"] = []
         elif invalid_part == "passage":
-            competitor["conditions"][0]["passage"] = "問題文にない条件"
+            comparison["conditions"][0]["passage"] = "問題文にない条件"
         elif invalid_part == "matches":
-            competitor["conditions"][0]["matches"] = "未確認"
+            comparison["conditions"][0]["matches"] = "未確認"
         elif invalid_part == "condition_evidence_ids":
-            competitor["conditions"][0]["evidence_ids"] = []
+            comparison["conditions"][0]["evidence_ids"] = []
         elif invalid_part == "exclusion_passage":
-            competitor["exclusion_passage"] = "同じ長さの線分"
+            comparison["exclusion_passage"] = "同じ長さの線分"
         else:
-            competitor["reason"] = ""
-        assert check_state(run_script, "audit", complete_state).returncode == 1
-
-    def test_competitor_evidence_belongs_to_clue_judgment(
-        self, run_script, complete_state
-    ):
-        """対抗候補の引用を準一意性の判断根拠にも対応させる。"""
-        complete_state["sources"][0]["quotes"].append(
-            {"id": "Q2", "text": "対抗候補の記述", "location": "第二節"}
-        )
-        competitor = complete_state["clues"][0]["checks"]["quasi_uniqueness"][
-            "competitors"
-        ][0]
-        competitor["evidence_ids"] = ["Q2"]
-        assert check_state(run_script, "audit", complete_state).returncode == 1
+            comparison["reason"] = ""
+        assert check_state(run_script, "material", complete_state).returncode == 1
 
     def test_condition_evidence_belongs_to_competitor(self, run_script, complete_state):
         """条件の引用を対抗候補の引用にも対応させる。"""
         complete_state["sources"][0]["quotes"].append(
             {"id": "Q2", "text": "条件についての記述", "location": "第二節"}
         )
-        competitor = complete_state["clues"][0]["checks"]["quasi_uniqueness"][
-            "competitors"
-        ][0]
-        competitor["conditions"][0]["evidence_ids"] = ["Q2"]
-        assert check_state(run_script, "audit", complete_state).returncode == 1
+        complete_state["competitor_comparisons"][0]["conditions"][0]["evidence_ids"] = [
+            "Q2"
+        ]
+        result = check_state(run_script, "material", complete_state)
+        assert result.returncode == 1
+        assert "evidence_idsが候補の引用に含まれていない" in result.stderr
 
     def test_competitor_with_all_matching_conditions_cannot_be_excluded(
         self, run_script, complete_state
     ):
         """問題文の条件に相違がない別対象を退けない。"""
-        competitor = complete_state["clues"][0]["checks"]["quasi_uniqueness"][
-            "competitors"
-        ][0]
-        competitor["conditions"][0]["matches"] = True
-        assert check_state(run_script, "audit", complete_state).returncode == 1
+        complete_state["competitor_comparisons"][0]["conditions"][0]["matches"] = True
+        result = check_state(run_script, "material", complete_state)
+        assert result.returncode == 1
+        assert "exclusion_passageが相違する条件ではない" in result.stderr
 
     def test_same_target_name_does_not_need_exclusion_passage(
         self, run_script, complete_state
     ):
         """同一対象の別名に別対象を退ける表現を要求しない。"""
-        competitor = complete_state["clues"][0]["checks"]["quasi_uniqueness"][
-            "competitors"
-        ][0]
-        competitor["disposition"] = "same_target"
-        competitor["conditions"][0]["matches"] = True
-        del competitor["exclusion_passage"]
-        comparison = complete_state["evidence_challenge"]["clues"][0][
-            "competitor_comparisons"
-        ][0]
+        comparison = complete_state["competitor_comparisons"][0]
         comparison["disposition"] = "same_target"
-        comparison["conditions"][0]["match"] = "一致"
-        assert check_state(run_script, "audit", complete_state).returncode == 0
+        comparison["conditions"][0]["matches"] = True
+        del comparison["exclusion_passage"]
+        review = complete_state["competitor_comparison_reviews"][0]
+        review["disposition"] = "same_target"
+        review["conditions"][0]["match"] = "一致"
+        assert check_state(run_script, "material", complete_state).returncode == 0
 
     def test_same_target_name_cannot_have_different_condition(
         self, run_script, complete_state
     ):
         """異なる条件を記録した候補を同一対象の別名として通さない。"""
-        competitor = complete_state["clues"][0]["checks"]["quasi_uniqueness"][
-            "competitors"
-        ][0]
-        competitor["disposition"] = "same_target"
-        del competitor["exclusion_passage"]
-        assert check_state(run_script, "audit", complete_state).returncode == 1
+        comparison = complete_state["competitor_comparisons"][0]
+        comparison["disposition"] = "same_target"
+        del comparison["exclusion_passage"]
+        result = check_state(run_script, "material", complete_state)
+        assert result.returncode == 1
+        assert "同一対象の別名として扱う条件と矛盾している" in result.stderr
 
     def test_otoshi_requires_directly_descriptive_clue(
         self, run_script, complete_state
     ):
         """落としに含む手掛かりは対象を直接説明する。"""
-        complete_state["clues"][0]["directly_describes_target"] = False
-        assert check_state(run_script, "audit", complete_state).returncode == 1
+        complete_state["clue_uses"][0]["directly_describes_target"] = False
+        assert check_state(run_script, "material", complete_state).returncode == 1
 
     def test_structure_accepts_ov_post_limiter(self, run_script, complete_state):
         """OV型では落としの後に名称を限定する表現を置ける。"""
@@ -1981,13 +2513,11 @@ class TestWorkState:
             check for check in complete_state["checks"] if check["id"] == "structure"
         )
         structure.update(question_form="OV", question_phrase="何というでしょう？")
-        complete_state["exposure_review"]["question_sha256"] = hashlib.sha256(
-            complete_state["draft"]["text"].encode()
-        ).hexdigest()
+        complete_state["structure_review"]["question_form"] = "OV"
         complete_state["final_input"]["material"]["problem"] = complete_state["draft"][
             "text"
         ]
-        assert check_state(run_script, "audit", complete_state).returncode == 0
+        assert check_state(run_script, "material", complete_state).returncode == 0
 
     def test_structure_requires_connective_scan(self, run_script, complete_state):
         """接続箇所がない場合も走査結果を要求する。"""
@@ -1995,7 +2525,7 @@ class TestWorkState:
             check for check in complete_state["checks"] if check["id"] == "structure"
         )
         del structure["connective_scan"]
-        assert check_state(run_script, "audit", complete_state).returncode == 1
+        assert check_state(run_script, "material", complete_state).returncode == 1
 
     def test_structure_requires_prefuri_segments(self, run_script, complete_state):
         """前フリがない問題でも検査済みの空配列を要求する。"""
@@ -2003,7 +2533,7 @@ class TestWorkState:
             check for check in complete_state["checks"] if check["id"] == "structure"
         )
         del structure["prefuri_segments"]
-        assert check_state(run_script, "audit", complete_state).returncode == 1
+        assert check_state(run_script, "material", complete_state).returncode == 1
 
     def test_structure_rejects_prefuri_after_otoshi(self, run_script, complete_state):
         """落としの後の表現を前フリとして記録できない。"""
@@ -2017,7 +2547,7 @@ class TestWorkState:
                 "reason": "対象の属性を述べる",
             }
         ]
-        result = check_state(run_script, "audit", complete_state)
+        result = check_state(run_script, "material", complete_state)
         assert result.returncode == 1
         assert "passageが落としより前の問題文にない" in result.stderr
 
@@ -2032,7 +2562,7 @@ class TestWorkState:
         structure["prefuri_segments"] = [
             {"passage": "1889年に発表された", "reason": "対象の属性を述べる"}
         ]
-        result = check_state(run_script, "audit", complete_state)
+        result = check_state(run_script, "material", complete_state)
         assert result.returncode == 1
         assert "target_predication" in result.stderr
 
@@ -2055,24 +2585,16 @@ class TestWorkState:
                 "reason": "同じ制度の別属性である",
             }
         ]
-        assert check_state(run_script, "audit", complete_state).returncode == 1
+        assert check_state(run_script, "material", complete_state).returncode == 1
 
-    def test_generation_requires_pending_audit(self, run_script, generation_state):
-        """生成工程では各項目の監査結果が未判定でなければならない。"""
-        assert check_state(run_script, "generation", generation_state).returncode == 0
-        generation_state["checks"][0]["audit"] = "passed"
-        result = check_state(run_script, "generation", generation_state)
-        assert result.returncode == 1
-        assert "生成工程の時点で監査済み" in result.stderr
-
-    def test_audit_requires_answer_exposure_check(self, run_script, complete_state):
-        """解答露出の検査項目を欠く状態を監査で拒否する。"""
+    def test_review_requires_answer_exposure_check(self, run_script, complete_state):
+        """解答露出の検査項目を欠く状態を拒否する。"""
         complete_state["checks"] = [
             check
             for check in complete_state["checks"]
             if check["id"] != "answer_exposure"
         ]
-        result = check_state(run_script, "audit", complete_state)
+        result = check_state(run_script, "material", complete_state)
         assert result.returncode == 1
         assert "必須検査がない" in result.stderr
 
@@ -2080,28 +2602,12 @@ class TestWorkState:
         self, run_script, complete_state
     ):
         """名称形成自体に解答側の知識が要る候補は受け付ける。"""
-        exposure = next(
-            check
-            for check in complete_state["checks"]
-            if check["id"] == "answer_exposure"
-        )
-        exposure["blind_candidates"] = [
-            {
-                "id": "X2",
-                "name": "ミュラー・リヤー錯視",
-                "formation_rule": "既知の名称を想起する",
-                "components": [
-                    {
-                        "form": "ミュラー・リヤー錯視",
-                        "source": "対象と名称の既知の対応",
-                        "knowledge": "answer_side",
-                        "answer_side_reason": "名称そのものを知っている必要がある",
-                    }
-                ],
-                "formation_requires_answer_side_knowledge": True,
-                "standard_name_confirmation_requires_answer_side_knowledge": True,
-            }
+        complete_state["blind_candidates"] = [
+            {"id": "X2", "name": "ミュラー・リヤー錯視", "draft_version": 2}
         ]
+        analysis = copy.deepcopy(complete_state["exposure_analysis"][0])
+        analysis.update(candidate_id="X2", name="ミュラー・リヤー錯視")
+        complete_state["exposure_analysis"].append(analysis)
         complete_state["answer_review"]["candidate_reviews"].append(
             {
                 "candidate_id": "X2",
@@ -2116,21 +2622,16 @@ class TestWorkState:
                 "evidence_ids": ["Q1"],
             }
         )
-        assert check_state(run_script, "audit", complete_state).returncode == 0
+        assert check_state(run_script, "material", complete_state).returncode == 0
 
     def test_blind_candidate_rejects_mapping_before_disclosure(
         self, run_script, complete_state
     ):
         """解答を伏せて挙げた候補に、開示前の解答との対応付けを置かない。"""
-        exposure = next(
-            check
-            for check in complete_state["checks"]
-            if check["id"] == "answer_exposure"
-        )
-        candidate = copy.deepcopy(exposure["semantic_candidates"][0])
-        candidate.update(id="X2", answer_id=None)
-        exposure["blind_candidates"] = [candidate]
-        result = check_state(run_script, "audit", complete_state)
+        complete_state["blind_candidates"] = [
+            {"id": "X2", "name": "錯視", "draft_version": 2, "answer_id": None}
+        ]
+        result = check_state(run_script, "material", complete_state)
         assert result.returncode == 1
         assert "解答開示前の対応付けがある" in result.stderr
 
@@ -2144,7 +2645,7 @@ class TestWorkState:
             if check["id"] == "answer_exposure"
         )
         del exposure["semantic_candidates"][0]["answer_id"]
-        result = check_state(run_script, "audit", complete_state)
+        result = check_state(run_script, "material", complete_state)
         assert result.returncode == 1
         assert "answer_idが解答候補を参照していない" in result.stderr
 
@@ -2152,21 +2653,36 @@ class TestWorkState:
         self, run_script, complete_state
     ):
         """解答を伏せて挙げた候補は、開示後の判定で解答との対応付けを要求する。"""
-        exposure = next(
-            check
-            for check in complete_state["checks"]
-            if check["id"] == "answer_exposure"
-        )
-        candidate = copy.deepcopy(exposure["semantic_candidates"][0])
-        del candidate["answer_id"]
-        candidate["id"] = "X2"
-        exposure["blind_candidates"] = [candidate]
+        complete_state["blind_candidates"] = [
+            {"id": "X2", "name": "錯視", "draft_version": 2}
+        ]
+        analysis = copy.deepcopy(complete_state["exposure_analysis"][0])
+        analysis.update(candidate_id="X2", name="錯視")
+        complete_state["exposure_analysis"].append(analysis)
         review = copy.deepcopy(complete_state["answer_review"]["candidate_reviews"][0])
         review["candidate_id"] = "X2"
         complete_state["answer_review"]["candidate_reviews"].append(review)
-        result = check_state(run_script, "audit", complete_state)
+        result = check_state(run_script, "material", complete_state)
         assert result.returncode == 1
         assert "answer_idがない" in result.stderr
+
+    def test_every_exposure_candidate_needs_passed_analysis(
+        self, run_script, complete_state
+    ):
+        """解答を伏せた候補と意味から挙げた候補のすべてに、合格した露出の分析を要する。"""
+        complete_state["blind_candidates"] = [
+            {"id": "X2", "name": "錯視", "draft_version": 2}
+        ]
+        result = check_state(run_script, "material", complete_state)
+        assert result.returncode == 1
+        assert "exposure_analysisに検査のない項目がある: ['X2']" in result.stderr
+        complete_state["blind_candidates"] = []
+        complete_state["exposure_analysis"][0].update(
+            status="failed", fix_data=["exposure_candidates"]
+        )
+        result = check_state(run_script, "material", complete_state)
+        assert result.returncode == 1
+        assert "exposure_analysisに不合格の項目がある: ['X1']" in result.stderr
 
     def test_answer_side_component_requires_reason(self, run_script, complete_state):
         """解答側の知識とした名称要素には理由を要求する。"""
@@ -2176,7 +2692,7 @@ class TestWorkState:
             if check["id"] == "answer_exposure"
         )
         del exposure["semantic_candidates"][0]["components"][0]["answer_side_reason"]
-        result = check_state(run_script, "audit", complete_state)
+        result = check_state(run_script, "material", complete_state)
         assert result.returncode == 1
         assert "answer_side_reasonがない" in result.stderr
 
@@ -2190,29 +2706,29 @@ class TestWorkState:
             if check["id"] == "answer_exposure"
         )
         exposure["semantic_candidates"] = ["ミュラー・リヤー錯視"]
-        assert check_state(run_script, "audit", complete_state).returncode == 1
+        assert check_state(run_script, "material", complete_state).returncode == 1
 
-    def test_audit_rejects_old_draft_version(self, run_script, complete_state):
-        """現行稿より古い版の検査結果を監査で拒否する。"""
+    def test_review_rejects_old_draft_version(self, run_script, complete_state):
+        """現行稿より古い版の検査結果を拒否する。"""
         complete_state["checks"][0]["draft_version"] = 1
-        result = check_state(run_script, "audit", complete_state)
+        result = check_state(run_script, "material", complete_state)
         assert result.returncode == 1
         assert "問題文の版が一致しない" in result.stderr
 
-    def test_audit_rejects_unknown_quote(self, run_script, complete_state):
-        """存在しない引用を根拠にした命題を監査で拒否する。"""
-        complete_state["propositions"][0]["evidence_ids"] = ["Q2"]
-        result = check_state(run_script, "audit", complete_state)
+    def test_review_rejects_unknown_quote(self, run_script, complete_state):
+        """存在しない引用を根拠にした命題を拒否する。"""
+        complete_state["proposition_support"][0]["evidence_ids"] = ["Q2"]
+        result = check_state(run_script, "material", complete_state)
         assert result.returncode == 1
         assert "存在しないIDを参照" in result.stderr
 
     @pytest.mark.parametrize("invalid_id", [{}, []])
-    def test_audit_rejects_nonstring_quote_id(
+    def test_review_rejects_nonstring_quote_id(
         self, run_script, complete_state, invalid_id
     ):
         """引用IDに文字列以外を指定しても追跡表示を出さない。"""
-        complete_state["propositions"][0]["evidence_ids"] = [invalid_id]
-        result = check_state(run_script, "audit", complete_state)
+        complete_state["proposition_support"][0]["evidence_ids"] = [invalid_id]
+        result = check_state(run_script, "material", complete_state)
         assert result.returncode == 1
         assert "空でない文字列ID" in result.stderr
         assert "Traceback" not in result.stderr
@@ -2221,8 +2737,8 @@ class TestWorkState:
         self, run_script, complete_state
     ):
         """単純な命題には形式的な検証要素を要求しない。"""
-        assert "verification_elements" not in complete_state["propositions"][0]
-        assert check_state(run_script, "audit", complete_state).returncode == 0
+        assert "verification_elements" not in complete_state["proposition_support"][0]
+        assert check_state(run_script, "material", complete_state).returncode == 0
 
     def test_recorded_verification_elements_require_valid_evidence(
         self, run_script, complete_state
@@ -2232,7 +2748,7 @@ class TestWorkState:
         proposition["claim"] = "市が住民に賞状を贈った"
         proposition["passage"] = "市が住民に賞状を贈った"
         complete_state["sources"][0]["quotes"][0]["text"] = proposition["claim"]
-        proposition["verification_elements"] = [
+        complete_state["proposition_support"][0]["verification_elements"] = [
             {
                 "text": "贈った主体は市",
                 "reason": "引用が直接述べる",
@@ -2246,28 +2762,14 @@ class TestWorkState:
                 "evidence_ids": ["Q2"],
             },
         ]
-        result = check_state(run_script, "audit", complete_state)
+        result = check_state(run_script, "material", complete_state)
         assert result.returncode == 1
         assert "verification_elements[1].evidence_ids" in result.stderr
-
-    def test_audit_requires_passed_check(self, run_script, complete_state):
-        """未合格の検査項目を含む状態を監査で拒否する。"""
-        complete_state["checks"][0]["audit"] = "missing"
-        result = check_state(run_script, "audit", complete_state)
-        assert result.returncode == 1
-        assert "監査に合格していない" in result.stderr
-
-    def test_audit_requires_passed_term(self, run_script, complete_state):
-        """未合格の専門用語を含む状態を監査で拒否する。"""
-        complete_state["terms"][0]["audit"] = "missing"
-        result = check_state(run_script, "audit", complete_state)
-        assert result.returncode == 1
-        assert "terms.T1が監査に合格していない" in result.stderr
 
     def test_term_must_appear_in_current_draft(self, run_script, complete_state):
         """問題文にない語を専門用語の検査記録に含めない。"""
         complete_state["terms"][0]["term"] = "問題文にない専門用語"
-        result = check_state(run_script, "audit", complete_state)
+        result = check_state(run_script, "material", complete_state)
         assert result.returncode == 1
         assert "terms.T1.termが問題文にない" in result.stderr
 
@@ -2285,7 +2787,7 @@ class TestWorkState:
     ):
         """語義と既習性をそれぞれ根拠に結び付ける。"""
         del complete_state["terms"][0][field]
-        result = check_state(run_script, "audit", complete_state)
+        result = check_state(run_script, "material", complete_state)
         assert result.returncode == 1
         assert field in result.stderr
 
@@ -2297,9 +2799,6 @@ class TestWorkState:
             "「ブレンターノ型」という変形版も知られる、"
             + complete_state["draft"]["text"]
         )
-        complete_state["exposure_review"]["question_sha256"] = hashlib.sha256(
-            complete_state["draft"]["text"].encode()
-        ).hexdigest()
         complete_state["final_input"]["material"]["problem"] = complete_state["draft"][
             "text"
         ]
@@ -2313,158 +2812,132 @@ class TestWorkState:
             "audience_evidence_ids",
         ):
             del term[field]
-        review_term = complete_state["terminology_review"]["terms"][0]
-        review_term["term"] = "ブレンターノ型"
-        review_term["meaning_needed"] = False
-        for field in (
-            "meaning_status",
-            "meaning_reason",
-            "meaning_evidence_ids",
-            "audience_status",
-            "audience_reason",
-            "audience_evidence_ids",
-        ):
-            del review_term[field]
-        review_term["understanding_without_meaning"] = (
-            "変形版の名称だと分かれば、図形の詳細を知らなくても文意が通る"
-        )
-        result = check_state(run_script, "audit", complete_state)
+        complete_state["term_listing"]["terms"][0]["term"] = "ブレンターノ型"
+        complete_state["term_necessity_reviews"][0]["meaning_needed"] = False
+        complete_state["term_sense_reviews"] = []
+        complete_state["term_audience_reviews"] = []
+        result = check_state(run_script, "material", complete_state)
         assert result.returncode == 1
         assert "understanding_without_meaning" in result.stderr
         term["understanding_without_meaning"] = (
             "変形版の名称だと分かれば、図形の詳細を知らなくても文意が通る"
         )
-        assert check_state(run_script, "audit", complete_state).returncode == 0
-        del review_term["understanding_without_meaning"]
-        result = check_state(run_script, "audit", complete_state)
-        assert result.returncode == 1
-        assert (
-            "terminology_review.terms.T1.understanding_without_meaning" in result.stderr
-        )
+        assert check_state(run_script, "material", complete_state).returncode == 0
 
     @pytest.mark.parametrize(
         ("change", "expected"),
         [
-            ("missing", "terminology_review.termsが専門用語の記録と一致しない"),
-            ("meaning_needed", "terminology_review.terms.T1.meaning_needed"),
+            ("missing", "term_listing.termsが専門用語の記録と一致しない"),
+            ("extra", "term_listing.termsが専門用語の記録と一致しない"),
+            ("meaning_needed", "meaning_neededが作る側の判断と一致しない"),
         ],
     )
-    def test_terminology_review_checks_terms_and_meaning_need(
+    def test_term_reviews_check_terms_and_meaning_need(
         self, run_script, complete_state, change, expected
     ):
-        """独立検査で語の範囲と意味内容の要否を生成側と照合する。"""
-        review = complete_state["terminology_review"]["terms"]
+        """独立に列挙した語と意味内容の要否を作る側と照合する。"""
+        listed = complete_state["term_listing"]["terms"]
         if change == "missing":
-            review.clear()
+            listed.clear()
+        elif change == "extra":
+            listed.append({"id": "T2", "term": "線分"})
         else:
-            review[0]["meaning_needed"] = False
-        result = check_state(run_script, "audit", complete_state)
+            complete_state["term_necessity_reviews"][0]["meaning_needed"] = False
+        result = check_state(run_script, "material", complete_state)
         assert result.returncode == 1
         assert expected in result.stderr
 
-    @pytest.mark.parametrize("audit", ["pending", "missing", "failed"])
-    def test_audit_requires_passed_terminology_review(
-        self, run_script, complete_state, audit
-    ):
-        """専門用語の独立検査自体が監査に合格していることを確認する。"""
-        complete_state["terminology_review"]["audit"] = audit
-        result = check_state(run_script, "audit", complete_state)
+    @pytest.mark.parametrize(
+        "key", ["term_necessity_reviews", "term_sense_reviews", "term_audience_reviews"]
+    )
+    def test_review_requires_passed_term_reviews(self, run_script, complete_state, key):
+        """意味内容の要否、語義、既習性は、それぞれ検査担当の合格を要する。"""
+        complete_state[key][0].update(status="failed", fix_data=["terms"])
+        result = check_state(run_script, "material", complete_state)
         assert result.returncode == 1
-        assert "terminology_reviewが監査に合格していない" in result.stderr
+        assert f"{key}に不合格の項目がある: ['T1']" in result.stderr
 
-    @pytest.mark.parametrize("kind", ["meaning", "audience"])
+    @pytest.mark.parametrize(
+        ("kind", "key"),
+        [("meaning", "term_sense_reviews"), ("audience", "term_audience_reviews")],
+    )
     def test_term_evidence_is_included_in_final_input(
-        self, run_script, complete_state, kind
+        self, run_script, complete_state, kind, key
     ):
         """専門用語の判断に使う引用を最終入力の引用集合にも含める。"""
         complete_state["sources"][0]["quotes"].append(
             {"id": "Q2", "text": "矢羽の説明", "location": "用語解説"}
         )
-        field = f"{kind}_evidence_ids"
-        complete_state["terms"][0][field] = ["Q2"]
-        complete_state["terminology_review"]["terms"][0][field] = ["Q2"]
-        result = check_state(run_script, "audit", complete_state)
+        complete_state["terms"][0][f"{kind}_evidence_ids"] = ["Q2"]
+        complete_state[key][0]["evidence_ids"] = ["Q2"]
+        result = check_state(run_script, "material", complete_state)
         assert result.returncode == 1
         assert "final_input.quote_idsが判断に用いた引用と一致しない" in result.stderr
         complete_state["final_input"]["quote_ids"].append("Q2")
         refresh_material_quotes(complete_state)
-        assert check_state(run_script, "audit", complete_state).returncode == 0
+        assert check_state(run_script, "material", complete_state).returncode == 0
 
-    @pytest.mark.parametrize("kind", ["meaning", "audience"])
-    def test_terminology_review_covers_all_adopted_evidence(
-        self, run_script, complete_state, kind
+    @pytest.mark.parametrize(
+        ("kind", "key"),
+        [("meaning", "term_sense_reviews"), ("audience", "term_audience_reviews")],
+    )
+    def test_term_reviews_cover_all_adopted_evidence(
+        self, run_script, complete_state, kind, key
     ):
-        """生成側が採用した専門用語の引用を独立検査で残さず確認する。"""
+        """作る側が採用した専門用語の引用を検査担当が残さず確認する。"""
         complete_state["sources"][0]["quotes"].append(
             {"id": "Q2", "text": "矢羽の別の説明", "location": "第二節"}
         )
-        field = f"{kind}_evidence_ids"
-        complete_state["terms"][0][field].append("Q2")
+        complete_state["terms"][0][f"{kind}_evidence_ids"].append("Q2")
         complete_state["final_input"]["quote_ids"].append("Q2")
-        result = check_state(run_script, "audit", complete_state)
+        result = check_state(run_script, "material", complete_state)
         assert result.returncode == 1
-        assert f"terminology_review.terms.T1.{field}" in result.stderr
-        complete_state["terminology_review"]["terms"][0][field].append("Q2")
+        assert f"{key}.T1.evidence_idsが採用引用と一致しない" in result.stderr
+        complete_state[key][0]["evidence_ids"].append("Q2")
         refresh_material_quotes(complete_state)
-        assert check_state(run_script, "audit", complete_state).returncode == 0
+        assert check_state(run_script, "material", complete_state).returncode == 0
 
     @pytest.mark.parametrize(
         ("change", "expected"),
         [
-            ("missing", "terminology_reviewがない"),
-            ("failed", "terminology_review.terms.T1.audience_status"),
-            ("stale", "terminology_review.draft_version"),
-            ("same_agent", "工程を別々のagentへ割り当てていない"),
-            ("audited", "terminology_reviewは生成工程の時点で監査済み"),
+            ("missing", "term_listingがない"),
+            ("stale", "term_listing.draft_version"),
+            ("same_agent", "agent_idを別の役割にも割り当てている"),
         ],
     )
-    def test_generation_requires_independent_terminology_review(
-        self, run_script, generation_state, change, expected
+    def test_review_requires_independent_term_listing(
+        self, run_script, complete_state, change, expected
     ):
-        """独立した担当が現行版の語義と既習性を検査する。"""
-        assert check_state(run_script, "generation", generation_state).returncode == 0
+        """独立した担当が現行版から専門用語を列挙する。"""
         if change == "missing":
-            del generation_state["terminology_review"]
-        elif change == "failed":
-            generation_state["terminology_review"]["terms"][0]["audience_status"] = (
-                "missing"
-            )
+            del complete_state["term_listing"]
         elif change == "stale":
-            generation_state["terminology_review"]["draft_version"] = 1
-        elif change == "audited":
-            generation_state["terminology_review"]["audit"] = "passed"
+            complete_state["term_listing"]["draft_version"] = 1
         else:
-            generation_state["execution"]["agents"]["terminology_review"] = (
-                generation_state["execution"]["agents"]["generation"]
-            )
-        result = check_state(run_script, "generation", generation_state)
+            assignment_of(complete_state, "term_listing")["agent_id"] = assignment_of(
+                complete_state, "writer"
+            )["agent_id"]
+        result = check_state(run_script, "material", complete_state)
         assert result.returncode == 1
         assert expected in result.stderr
 
-    def test_audit_requires_passed_answer(self, run_script, complete_state):
-        """未合格の解答候補を含む状態を監査で拒否する。"""
-        complete_state["answers"][0]["audit"] = "missing"
-        result = check_state(run_script, "audit", complete_state)
-        assert result.returncode == 1
-        assert "answers.A1が監査に合格していない" in result.stderr
-
-    def test_audit_requires_verbatim_quote(self, run_script, complete_state):
-        """引用本文を欠く資料を監査で拒否する。"""
+    def test_review_requires_verbatim_quote(self, run_script, complete_state):
+        """引用本文を欠く資料を拒否する。"""
         del complete_state["sources"][0]["quotes"][0]["text"]
-        result = check_state(run_script, "audit", complete_state)
+        result = check_state(run_script, "material", complete_state)
         assert result.returncode == 1
         assert "quotes.Q1.textがない" in result.stderr
 
-    def test_audit_rejects_quote_missing_from_final_input(
+    def test_review_rejects_quote_missing_from_final_input(
         self, run_script, complete_state
     ):
         """採用した判断に使う引用を最終入力から落とせない。"""
         complete_state["final_input"]["quote_ids"] = []
-        result = check_state(run_script, "audit", complete_state)
+        result = check_state(run_script, "material", complete_state)
         assert result.returncode == 1
         assert "final_input.quote_idsが判断に用いた引用と一致しない" in result.stderr
 
-    def test_audit_rejects_unused_quote_in_final_input(
+    def test_review_rejects_unused_quote_in_final_input(
         self, run_script, complete_state
     ):
         """採用した判断に使わない引用を最終入力へ加えない。"""
@@ -2472,55 +2945,55 @@ class TestWorkState:
             {"id": "Q2", "text": "不採用の記述", "location": "第二節"}
         )
         complete_state["final_input"]["quote_ids"].append("Q2")
-        result = check_state(run_script, "audit", complete_state)
+        result = check_state(run_script, "material", complete_state)
         assert result.returncode == 1
         assert "final_input.quote_idsが判断に用いた引用と一致しない" in result.stderr
 
-    def test_audit_rejects_duplicate_quote_in_final_input(
+    def test_review_rejects_duplicate_quote_in_final_input(
         self, run_script, complete_state
     ):
         """同じ引用IDを重複して最終入力へ置かない。"""
         complete_state["final_input"]["quote_ids"].append("Q1")
-        result = check_state(run_script, "audit", complete_state)
+        result = check_state(run_script, "material", complete_state)
         assert result.returncode == 1
         assert "final_input.quote_idsが判断に用いた引用と一致しない" in result.stderr
 
-    def test_audit_requires_relative_clause_records(self, run_script, complete_state):
-        """連体修飾節の関係を記録せずに監査を通さない。"""
-        del complete_state["final_input"]["relative_clauses"]
-        result = check_state(run_script, "audit", complete_state)
+    def test_review_requires_relative_clause_records(self, run_script, complete_state):
+        """連体修飾節の関係を記録せずに検査を通さない。"""
+        del complete_state["relative_clauses"]
+        result = check_state(run_script, "material", complete_state)
         assert result.returncode == 1
-        assert "final_input.relative_clauses" in result.stderr
+        assert "relative_clauses" in result.stderr
 
-    def test_audit_accepts_empty_relative_clauses(self, run_script, complete_state):
+    def test_review_accepts_empty_relative_clauses(self, run_script, complete_state):
         """連体修飾節がない問題文では空配列を認める。"""
-        complete_state["final_input"]["relative_clauses"] = []
-        assert check_state(run_script, "audit", complete_state).returncode == 0
+        complete_state["relative_clauses"] = []
+        assert check_state(run_script, "material", complete_state).returncode == 0
 
-    def test_audit_requires_proposition_for_outer_clause(
+    def test_review_requires_proposition_for_outer_clause(
         self, run_script, complete_state
     ):
         """外の関係では修飾節が表す内容と解答対象を結ぶ命題を要求する。"""
-        complete_state["final_input"]["relative_clauses"][0][
-            "relation_proposition_ids"
-        ] = []
-        result = check_state(run_script, "audit", complete_state)
+        complete_state["relative_clauses"][0]["relation_proposition_ids"] = []
+        result = check_state(run_script, "material", complete_state)
         assert result.returncode == 1
         assert "relation_proposition_ids" in result.stderr
 
-    def test_audit_rejects_proposition_for_inner_clause(
+    def test_review_rejects_proposition_for_inner_clause(
         self, run_script, complete_state
     ):
         """内の関係に外の関係用の命題を付けない。"""
-        complete_state["final_input"]["relative_clauses"][0]["relation"] = "inner"
-        result = check_state(run_script, "audit", complete_state)
+        complete_state["relative_clauses"][0]["relation"] = "inner"
+        result = check_state(run_script, "material", complete_state)
         assert result.returncode == 1
         assert "relation_proposition_idsが内の関係にある" in result.stderr
 
-    def test_audit_requires_clause_from_current_draft(self, run_script, complete_state):
-        """現行問題文にない連体修飾節を監査入力に使わない。"""
-        complete_state["final_input"]["relative_clauses"][0]["passage"] = "別の文章"
-        result = check_state(run_script, "audit", complete_state)
+    def test_review_requires_clause_from_current_draft(
+        self, run_script, complete_state
+    ):
+        """現行問題文にない連体修飾節を検査の入力に使わない。"""
+        complete_state["relative_clauses"][0]["passage"] = "別の文章"
+        result = check_state(run_script, "material", complete_state)
         assert result.returncode == 1
         assert "passageが問題文にない" in result.stderr
 
@@ -2533,43 +3006,45 @@ class TestWorkState:
             "answer_ids",
         ],
     )
-    def test_audit_rejects_duplicate_final_input_id(
+    def test_review_rejects_duplicate_final_input_id(
         self, run_script, complete_state, key
     ):
         """最終入力の各ID配列で重複を認めない。"""
         complete_state["final_input"][key].append(complete_state["final_input"][key][0])
-        result = check_state(run_script, "audit", complete_state)
+        result = check_state(run_script, "material", complete_state)
         assert result.returncode == 1
         assert f"final_input.{key}が検査済みの現行項目と一致しない" in result.stderr
 
-    def test_audit_ignores_unchecked_clue_field(self, run_script, complete_state):
+    def test_review_ignores_unchecked_clue_field(self, run_script, complete_state):
         """手掛かりの必須検査以外の値を引用収集の対象にしない。"""
-        complete_state["clues"][0]["checks"]["note"] = "補足"
-        result = check_state(run_script, "audit", complete_state)
+        complete_state["clue_checks"][0]["note"] = "補足"
+        result = check_state(run_script, "material", complete_state)
         assert result.returncode == 0
 
     @pytest.mark.parametrize(
         "label", ["ACCEPTANCE\t0.9", "DRAW\t0.4", "VERDICT\tACCEPT"]
     )
-    def test_audit_rejects_length_judge_labels(self, run_script, complete_state, label):
+    def test_review_rejects_length_judge_labels(
+        self, run_script, complete_state, label
+    ):
         """問題文の長さへ判定器の内部表記を渡さない。"""
         complete_state["final_input"]["material"]["length"] = label
-        result = check_state(run_script, "audit", complete_state)
+        result = check_state(run_script, "material", complete_state)
         assert result.returncode == 1
         assert "内部表記" in result.stderr
 
-    def test_audit_requires_original_passage_in_accuracy(
+    def test_review_requires_original_passage_in_accuracy(
         self, run_script, complete_state
     ):
         """確認した内容との一致に命題の原文箇所を示す。"""
         complete_state["final_input"]["material"]["expression.accuracy"] = (
             "資料名（第一節）の表現と照合する。"
         )
-        result = check_state(run_script, "audit", complete_state)
+        result = check_state(run_script, "material", complete_state)
         assert result.returncode == 1
         assert "原文箇所がない" in result.stderr
 
-    def test_audit_rejects_unadopted_quote_in_material(
+    def test_review_rejects_unadopted_quote_in_material(
         self, run_script, complete_state
     ):
         """採用していない引用を最終入力へ追加しない。"""
@@ -2577,14 +3052,14 @@ class TestWorkState:
             {"id": "Q2", "text": "未採用の資料記述", "location": "第二節"}
         )
         complete_state["final_input"]["material"]["verification"] += "未採用の資料記述"
-        result = check_state(run_script, "audit", complete_state)
+        result = check_state(run_script, "material", complete_state)
         assert result.returncode == 1
         assert "不採用の引用Q2" in result.stderr
 
-    def test_audit_rejects_invalid_source_url(self, run_script, complete_state):
+    def test_review_rejects_invalid_source_url(self, run_script, complete_state):
         """資料のURL欄へURLではない値を置かない。"""
         complete_state["sources"][0]["url"] = "資料の場所"
-        result = check_state(run_script, "audit", complete_state)
+        result = check_state(run_script, "material", complete_state)
         assert result.returncode == 1
         assert "urlが資料URLではない" in result.stderr
 
@@ -2685,78 +3160,76 @@ class TestWorkState:
         assert result.returncode == 1
         assert "問題文が現行版と一致しない" in result.stderr
 
+    @pytest.mark.parametrize("key", FINAL_REVIEW_ROLES)
     @pytest.mark.parametrize(
-        ("field", "value", "message"),
+        ("change", "message"),
         [
-            ("status", "pending", "final_review.statusが合格していない"),
-            (
-                "reviewer_id",
-                "別の担当者",
-                "final_review.reviewer_idが最終照合担当と一致しない",
-            ),
-            (
-                "output_sha256",
-                "0" * 64,
-                "final_review.output_sha256が完成稿と一致しない",
-            ),
+            ({"status": "failed"}, ".statusが合格していない"),
+            ({"output_sha256": "0" * 64}, ".output_sha256が完成稿と一致しない"),
         ],
     )
     def test_final_requires_review_of_current_output(
-        self, run_script, reviewed_state, field, value, message
+        self, run_script, reviewed_state, key, change, message
     ):
-        """完成稿の照合結果は最終照合担当と現行ファイルに対応する。"""
-        reviewed_state["final_review"][field] = value
+        """完成稿の照合結果は現行ファイルに対応する。"""
+        reviewed_state[key].update(change)
         result = check_state(run_script, "final", reviewed_state)
         assert result.returncode == 1
-        assert message in result.stderr
+        assert key + message in result.stderr
 
-    def test_final_requires_review_record(self, run_script, reviewed_state):
-        """照合記録がない完成稿は確定しない。"""
-        del reviewed_state["final_review"]
+    @pytest.mark.parametrize("key", FINAL_REVIEW_ROLES)
+    def test_final_requires_review_record(self, run_script, reviewed_state, key):
+        """反映の照合と混入の検査のどちらかがない完成稿は確定しない。"""
+        del reviewed_state[key]
         result = check_state(run_script, "final", reviewed_state)
         assert result.returncode == 1
-        assert "final_reviewがない" in result.stderr
+        assert f"{key}がない" in result.stderr
+
+    @pytest.mark.parametrize("key", FINAL_REVIEW_ROLES)
+    def test_final_requires_reviewer_of_current_output(
+        self, run_script, reviewed_state, key
+    ):
+        """現行の完成稿について起動した担当の記録を要する。"""
+        assignment_of(reviewed_state, key)["output_sha256"] = "0" * 64
+        result = check_state(run_script, "final", reviewed_state)
+        assert result.returncode == 1
+        assert f"{key}の担当が現行の完成稿について起動されていない" in result.stderr
 
     def test_final_requires_independent_reviewer(self, run_script, reviewed_state):
-        """最終照合担当を監査担当と兼任させない。"""
-        audit_agent = reviewed_state["execution"]["agents"]["audit"]
-        reviewed_state["execution"]["agents"]["final_review"] = audit_agent
-        reviewed_state["execution"]["assignment_log"]["final_review"]["agent_id"] = (
-            audit_agent
+        """完成稿の照合担当を作文担当と兼任させない。"""
+        assignment_of(reviewed_state, "final_reflection_review")["agent_id"] = (
+            assignment_of(reviewed_state, "writer")["agent_id"]
         )
-        reviewed_state["final_review"]["reviewer_id"] = audit_agent
         result = check_state(run_script, "final", reviewed_state)
         assert result.returncode == 1
-        assert "工程を別々のagentへ割り当てていない" in result.stderr
+        assert "agent_idを別の役割にも割り当てている" in result.stderr
 
-    def test_final_requires_all_review_checks(self, run_script, reviewed_state):
-        """完成稿の照合で未合格の判断を残さない。"""
-        reviewed_state["final_review"]["checks"]["exposure"] = "pending"
-        result = check_state(run_script, "final", reviewed_state)
-        assert result.returncode == 1
-        assert "final_review.checksに未合格の項目がある" in result.stderr
-
-    def test_final_rejects_duplicate_reviewed_quote(self, run_script, reviewed_state):
-        """最終照合の対象引用を重複させない。"""
-        reviewed_state["final_review"]["quote_ids"].append("Q1")
-        result = check_state(run_script, "final", reviewed_state)
-        assert result.returncode == 1
-        assert "final_review.quote_idsが最終入力と一致しない" in result.stderr
-
-    def test_final_accepts_self_review_without_delegation(
+    def test_final_rejects_reviewer_reused_for_other_output(
         self, run_script, reviewed_state
     ):
-        """委譲できない環境では自分の照合記録を使う。"""
-        reviewed_state["execution"]["delegation_available"] = False
-        reviewed_state["execution"]["unavailable_reason"] = "委譲機能がない"
-        del reviewed_state["execution"]["agents"]
-        del reviewed_state["execution"]["assignment_log"]
-        reviewed_state["difficulty_review"]["reviewer_id"] = "self"
-        reviewed_state["evidence_challenge"]["reviewer_id"] = "self"
-        reviewed_state["terminology_review"]["reviewer_id"] = "self"
-        reviewed_state["exposure_review"]["reviewer_id"] = "self"
-        reviewed_state["answer_review"]["reviewer_id"] = "self"
-        reviewed_state["final_review"]["reviewer_id"] = "self"
+        """組み直した完成稿を前の完成稿の照合担当に照合させない。"""
+        previous = dict(assignment_of(reviewed_state, "final_contamination_review"))
+        previous["output_sha256"] = "0" * 64
+        reviewed_state["execution"]["assignments"].insert(0, previous)
+        result = check_state(run_script, "final", reviewed_state)
+        assert result.returncode == 1
+        assert "agent_idを別の完成稿の照合に再利用している" in result.stderr
+
+    def test_final_rejects_duplicate_reviewed_quote(self, run_script, reviewed_state):
+        """反映の照合の対象引用を重複させない。"""
+        reviewed_state["final_reflection_review"]["quote_ids"].append("Q1")
+        result = check_state(run_script, "final", reviewed_state)
+        assert result.returncode == 1
+        assert (
+            "final_reflection_review.quote_idsが最終入力と一致しない" in result.stderr
+        )
+
+    def test_final_accepts_state_without_delegation(self, run_script, reviewed_state):
+        """委譲できない環境では起動の記録なしで確定できる。"""
+        reviewed_state["execution"] = {
+            "delegation_available": False,
+            "unavailable_reason": "委譲機能がない",
+        }
         result = check_state(run_script, "final", reviewed_state)
         assert result.returncode == 0
 
@@ -2775,30 +3248,19 @@ class TestWorkState:
             stdin=json.dumps(reviewed_state, ensure_ascii=False),
         )
         assert result.returncode == 1
-        assert "final_review.output_sha256が完成稿と一致しない" in result.stderr
-
-    def test_audit_requires_matching_assignment(self, run_script, complete_state):
-        """起動時に記録した担当者と実際の担当者の不一致を監査で拒否する。"""
-        complete_state["execution"]["assignment_log"]["exploration"]["agent_id"] = (
-            "別の担当"
-        )
-        result = check_state(run_script, "audit", complete_state)
-        assert result.returncode == 1
         assert (
-            "assignment_log.exploration.agent_idが担当記録と一致しない" in result.stderr
+            "final_reflection_review.output_sha256が完成稿と一致しない" in result.stderr
         )
 
     def test_final_requires_all_checked_answers(self, run_script, reviewed_state):
-        """最終入力が監査済みの別解を欠けば出力を拒否する。"""
-        reviewed_state["answers"].append(
+        """最終入力が検査済みの別解を欠けば出力を拒否する。"""
+        reviewed_state["answers"].append({"id": "A2", "answer": "別解"})
+        reviewed_state["answer_judgments"].append(
             {
-                "id": "A2",
-                "answer": "別解",
+                "answer_id": "A2",
                 "judgment": "prompt",
                 "reason": "別名である",
                 "evidence_ids": ["Q1"],
-                "generation": "complete",
-                "audit": "passed",
             }
         )
         reviewed_state["answer_review"]["answers"].append(
@@ -2831,39 +3293,37 @@ class TestWorkState:
 
     def test_final_rejects_rejected_clue(self, run_script, reviewed_state):
         """棄却済みの手掛かりを最終入力で参照できないことを確認する。"""
-        reviewed_state["clues"].append({"id": "C2", "status": "rejected"})
+        reviewed_state["clues"].append(
+            {"id": "C2", "fact": "矢羽は線分の端に付く", "proposition_ids": ["P1"]}
+        )
+        reviewed_state["clue_uses"].append({"clue_id": "C2", "status": "rejected"})
         reviewed_state["final_input"]["clue_ids"].append("C2")
         result = check_state(run_script, "final", reviewed_state)
         assert result.returncode == 1
         assert "final_input.clue_idsが検査済みの現行項目と一致しない" in result.stderr
 
-    def test_audit_uses_only_assigned_agents(self, run_script, complete_state):
-        """担当工程を同一agentへ集中させた状態を監査で拒否する。"""
-        complete_state["execution"]["agents"] = dict.fromkeys(
-            complete_state["execution"]["agents"], "agent-1"
-        )
-        complete_state["execution"]["exposure_assignments"][0]["agent_id"] = "agent-1"
-        result = check_state(run_script, "audit", complete_state)
+    def test_review_uses_only_assigned_agents(self, run_script, complete_state):
+        """担当工程を同一agentへ集中させた状態を拒否する。"""
+        for item in complete_state["execution"]["assignments"]:
+            item["agent_id"] = "agent-1"
+        result = check_state(run_script, "material", complete_state)
         assert result.returncode == 1
-        assert "工程を別々のagentへ割り当てていない" in result.stderr
+        assert "agent_idを別の役割にも割り当てている" in result.stderr
 
     def test_finalization_agent_needed_only_for_final(
         self, run_script, complete_state, reviewed_state
     ):
-        """最終化の担当は監査時には不要だが最終出力時には必要となる。"""
+        """最終化の担当は検査のステップでは不要だが最終出力時には必要となる。"""
         for state in (complete_state, reviewed_state):
-            del state["execution"]["agents"]["finalization"]
-            del state["execution"]["assignment_log"]["finalization"]
-        assert check_state(run_script, "audit", complete_state).returncode == 0
+            drop_assignment(state, "finalization")
+        assert check_state(run_script, "material", complete_state).returncode == 0
         result = check_state(run_script, "final", reviewed_state)
         assert result.returncode == 1
-        assert "execution.agents.finalizationがない" in result.stderr
+        assert "担当の記録がない: ['finalization']" in result.stderr
 
     def test_invalid_json_is_input_error(self, run_script):
         """解析できないJSONは作業状態の不合格とは異なる入力エラーとする。"""
-        result = run_script(
-            "work_state_check.py", "--stage", "generation", stdin="{不正"
-        )
+        result = run_script("work_state_check.py", "--stage", "writing", stdin="{不正")
         assert result.returncode == 2
         assert "入力エラー" in result.stderr
         assert "Traceback" not in result.stderr

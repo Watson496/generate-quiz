@@ -25,7 +25,7 @@ REF_DIR = Path(__file__).resolve().parent.parent / "references"
 
 BLOCK_RE_TMPL = r"^## FACET_(?:NODE|ROOT) `{key}`$"
 END_RE = re.compile(r"^<!-- END_FACET_(?:NODE|ROOT) -->$")
-CHILD_RE = re.compile(r"^- `([^`]+)` \| CODE `([^`]*)` \| (.+)$")
+CHILD_RE = re.compile(r"^- `(.+?)` \| CODE `(.*?)` \| (.+)$")
 
 EXIT_OK, EXIT_NOT_FOUND, EXIT_USAGE = 0, 1, 2
 
@@ -66,6 +66,14 @@ def find_block(key):
                         return path, out
                 return path, out
     return None, None
+
+
+def child_keys(key):
+    """ノードの直接の子のキーを返す。ノードがなければNoneを返す。"""
+    _, block = find_block(key)
+    if block is None:
+        return None
+    return [match.group(1) for line in block if (match := CHILD_RE.match(line))]
 
 
 def grep_labels(needle, limit):

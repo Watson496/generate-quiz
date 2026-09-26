@@ -2,13 +2,25 @@
 
 ## 目的
 
-作問中の調査記録と、人間へ示す最終出力を分ける。生成と監査は同じ検査単位を使い、必要な判断が完了したことを確認してから次の工程へ進む。
+作問中の調査記録と、人間へ示す最終出力を分ける。作る側の判断と観点別の検査を記録し、必要な判断が完了したことを確認してから次の工程へ進む。
 
-引用、推論、候補比較はMarkdownで保持する。ID、問題文の版、採否、完了状態、参照関係はJSON manifestでも保持し、`scripts/work_state_check.py`で確定的に検査する。JSON manifestだけを判断根拠にせず、対応するMarkdownの内容を生成担当と監査担当が評価する。
+引用、推論、候補比較はMarkdownで保持する。ID、問題文の版、採否、完了状態、参照関係はJSON manifestでも保持し、`scripts/work_state_check.py`で確定的に検査する。JSON manifestだけを判断根拠にせず、対応するMarkdownの内容を作る側と検査側の担当が評価する。
+
+## 担当の起動の記録
+
+委譲機能の有無を`execution.delegation_available`に記録する。利用できない場合は、その理由を`execution.unavailable_reason`に記録する。
+
+利用できる場合は、担当を起動するたびに`execution.assignments`へ一件を加える。担当表の役割を`role`、起動toolが返した正規IDを`agent_id`、回収した成果物の場所を`artifact_refs`に置く。解答を伏せた名称候補の担当の記録には、対象とした問題文の版を`draft_version`に置く。完成稿への反映の照合担当と作業用記録の混入の検査担当の記録には、照合した完成稿のファイル内容のSHA-256を`output_sha256`に置く。担当表で件数を定めて分割する担当の記録には、受け持つ項目のIDを`items`に置く。一つのagentを複数の役割に使わない。解答を伏せた名称候補の担当は版ごとに、完成稿の照合担当は完成稿ごとに別のagentとし、同じ版を新しい担当が再検査した場合も一件を加える。解答対象を替えた後も、既存の記録を消したり、別の担当の記録へ書き換えたりしない。
+
+## ファセットの選択
+
+ファセットの選択は、題材探索状態とは別のJSONに記録し、`work_state_check.py --stage facet-selection`で検査する。`facet_levels`には、判断した階層ごとに`id`、軸を`axis`、現在のノードを`node`、停止か子へ進むかを`decision`（`stop`・`descend`）、判断理由を`reason`として、判断した順に置く。子へ進む階層については、`facet_weights`に階層の`level_id`と、兄弟ノードごとの`candidates`を置く。各候補には、ノードの`key`と`label`、基礎weightを`weight`、文化的共有度・コミュニケーション場面での重要性・文化的背景知識としての機能の評価を`viewpoints`の`sharing`・`communication`・`background`、三観点をweightへまとめた根拠を`reason`、履歴距離を`history_distances`として置く。subjectのカタログの最下層より下へ分けた場合は、`facet_subdivisions`に、分けたノードを`parent`、区分の原理にした特性を`characteristic`、区分の根拠を`basis`、根拠にした資料のURLを`source_urls`、区分を`children`として置く。各区分には、UDCの記号法に従い、`parent`に`*`（`parent`がすでに`*`を含む場合は`.`）と1からの連番を付けたキーを`key`、名前を`label`、入る対象の範囲を`scope`として置く。区分をさらに分けた場合は、その区分を`parent`とする記録を加える。区分のweightには`history_distances`を置かない。粒度判断の検査結果は`facet_level_reviews`、区分の分け方の検査結果は`facet_subdivision_reviews`、weightの検査結果は`facet_weight_reviews`、weightの分布の検査結果は`facet_distribution_reviews`に、検査した階層の`level_id`、判定を`status`（`passed`・`failed`）、理由を`reason`として置く。反論を新しい検査担当が再検査した場合は、記録を書き換えずに後ろへ加える。統括役は抽選結果を`facet_picks`に`level_id`と`key`として記録する。選び終えた4軸のノードは`facet_nodes`に置く。
+
+`work_state_check.py`は、各軸が最上位ノードから子が一つだけのノードをたどった先で始まって抽選結果のノードへ続き、停止で終わること、カタログの最下層から子へ進む階層に`facet_subdivisions`の記録があり、その親がsubjectの最下層か分けた区分であること、weightの候補が現在のノードの直接の子（分けた場合は区分）と一致すること、抽選結果が正のweightを持つ候補であること、`facet_nodes`が停止した階層のノードと一致すること、各階層の最後の検査結果が合格であることを確認する。粒度とweightの判断の妥当性は判定しない。
 
 ## ファセットの交差領域
 
-ファセット選択後、題材探索前に4軸の正規ノードキーと交差領域の確認記録をJSONへ保存し、`work_state_check.py --stage intersection-checkpoint`で検査する。確認記録には、開いた資料のURL、交差領域の広さを判断した理由、資料中に実名がある異なる候補二つ以上と各資料のURL、うち一件以上の初級学習資料と扱いの根拠、成立の判定を含める。広さの理由には、選択範囲に入る大区分と、異なる用途の資料で確かめた対象の種類・下位領域を対応させ、候補探索の経路を設けられるかを記す。委譲機能の有無は`execution.delegation_available`に記録する。別agentが確認する場合は、その正規IDと起動時の記録を`execution.agents`と`execution.assignment_log`へ保存する。委譲機能がない場合は、利用できない理由を記録して親agentが確認する。形式検査は資料の独立性や判断の妥当性を保証しない。
+ファセット選択後、題材探索前に4軸の正規ノードキーと交差領域の確認記録をJSONへ保存し、区分に分けたノードを選んだ場合は`facet_subdivisions`も写して、`work_state_check.py --stage intersection-checkpoint`で検査する。確認記録には、開いた資料のURL、交差領域の広さを判断した理由、資料中に実名がある異なる候補二つ以上と各資料のURL、うち一件以上の初級学習資料と扱いの根拠、成立の判定を含める。広さの理由には、選択範囲に入る大区分と、異なる用途の資料で確かめた対象の種類・下位領域を対応させ、候補探索の経路を設けられるかと、下位領域ごとの選択対象の数の見積もりを記す。探索する下位領域は、`coverage_areas`に`id`、名前を`label`、区分の根拠を`basis`、含まれる解答対象の種類を`target_kinds`として記録する。担当の起動は「担当の起動の記録」節に従って記録する。形式検査は資料の独立性や判断の妥当性を保証しない。
 
 ## 題材候補の探索状態
 
@@ -18,29 +30,36 @@
 - 資料から分けた下位領域、そこに含まれる解答対象の種類、各領域を探索したか
 - 各領域で候補名を含めず入口を探した検索語・観点と、候補名から近接対象を探した経路
 - 本文を開いた資料のURL・確認箇所と、そこで発見した候補
-- 各候補の名称の使用箇所（資料で名称を確認できず除外した候補を除く）、選択範囲への所属理由、発見元、選択対象か、選択対象なら近接探索の記録
-- 別経路の探索で各下位領域に開いた入口、元の探索と異なる観点、得た候補、親agentが元の資料と台帳を照合した結果
+- 各候補の名称の使用箇所（資料で名称を確認できず除外した候補を除く）、発見元、選択対象か、選択対象なら近接探索の記録
+- 各選択対象の4軸の各ノードへの所属判定と、その検査結果
+- 別経路の探索で各下位領域に開いた入口、元の探索と異なる観点、得た候補、元の資料と台帳を照合した結果
 - 探索完了の反証調査で使った観点・検索語・開いた資料、得た候補と未探索経路の処理結果
-- 各選択対象の代表説明、正答名・許容別名、説明案ごとの名称形成の分析、解答露出の予備判定
+- 所属する各選択対象の解答露出の予備検査の結果
 - 探索段階で選択対象となるか、除外する場合はその理由
 - 抽選後に題材品質ゲートで棄却した場合は、満たせなかった条件
 - 新しい有力候補が増えなくなったか
 
-一つの解答対象を棄却しても、この状態は同じ問題番号で題材を再選定するために保持する。棄却した対象に固有の引用、推論、問題文、監査履歴は、新しい解答対象の作業状態へ渡さない。
+一つの解答対象を棄却しても、この状態は同じ問題番号で題材を再選定するために保持する。棄却した対象に固有の引用、推論、問題文、検査の記録は、新しい解答対象の作業状態へ渡さない。
 
-題材候補の探索状態は最終出力へ含めない。探索が飽和したら露出予備検査の前に`work_state_check.py --stage discovery`で検査する。抽選に使う探索状態は`--stage selection`で確認する。解答対象を決めた後は探索台帳を含まない作問状態を別に作り、生成担当の起動時記録とともに`--stage generation-start`で確認する。
+題材候補の探索状態は最終出力へ含めない。探索が飽和したら所属判定の前に`work_state_check.py --stage discovery`で検査する。抽選に使う探索状態は`--stage selection`で確認する。解答対象を決めた後は探索台帳を含まない作問状態を別に作り、作文担当の起動の記録とともに`--stage target-start`で確認する。
 
-探索状態は、題材を抽選する前に `topic_pick.py` へ渡す。入口には本文を開いたURL、`opened: true`、確認箇所を`access_note`として記録する。下位領域の`source_searches`には、候補名を含めない入口探しを`mode: open`、既知候補からの近接探索を`mode: nearby`として記録する。候補の`discovery_entry_point_ids`と`coverage_area_ids`は、同じ`source_searches`の`entry_point_ids`と`found_candidate_ids`に対応させる。最初の候補を記録した時点と入口・候補を追加した節目に`--stage discovery-progress`でこの対応を検査する。内部知識から挙げ、まだ資料で確認していない候補は、途中状態では`discovery_entry_point_ids`を空配列にできる。資料の探索記録にその候補を加えたら発見元も記録し、`--stage discovery`までに対応を確定する。途中検査では探索の完了や露出予備検査の記録を要求しない。資料で名称を確認できず除外する候補を除き、`name_use_note`には名称の使用箇所を記す。`facet_membership_reason`には四軸の範囲に属すると判断した理由を記す。選択対象の`expansion_searches`には近接探索の検索先・調べた関係・得た候補IDを残す。検査を通った後で候補を追加した場合は、その候補からも探索を展開し、再度検査する。
+探索状態は、題材を抽選する前に `topic_pick.py` へ渡す。入口には本文を開いたURL、`opened: true`、確認箇所を`access_note`として記録する。下位領域の`source_searches`には、候補名を含めない入口探しを`mode: open`、既知候補からの近接探索を`mode: nearby`として記録する。候補の`discovery_entry_point_ids`と`coverage_area_ids`は、同じ`source_searches`の`entry_point_ids`と`found_candidate_ids`に対応させる。最初の候補を記録した時点と入口・候補を追加した節目に`--stage discovery-progress`でこの対応を検査する。内部知識から挙げ、まだ資料で確認していない候補は、途中状態では`discovery_entry_point_ids`を空配列にできる。資料の探索記録にその候補を加えたら発見元も記録し、`--stage discovery`までに対応を確定する。途中検査では探索の完了や露出予備検査の記録を要求しない。資料で名称を確認できず除外する候補を除き、`name_use_note`には名称の使用箇所を記す。選択対象の`expansion_searches`には近接探索の検索先・調べた関係・得た候補IDを残す。検査を通った後で候補を追加した場合は、その候補からも探索を展開し、再度検査する。
 
-`independent_review`には下位領域IDごとに、最初の探索と異なる観点、候補名を含めない検索語、別経路で開いた入口IDと候補ID、親agentが照合した元の入口IDと結果を記録する。`saturation_challenge`には別の立場・用途からの検索、開いた入口ID、得た候補ID、未探索経路の処理と完了状態を残す。形式検査の合格は資料の内容と記録が対応することや、探索の十分さを保証しない。
+`independent_review`には下位領域IDごとに、最初の探索と異なる観点、候補名を含めない検索語、別経路で開いた入口IDと候補ID、照合した元の入口IDと結果を記録する。`saturation_challenge`には別の立場・用途からの検索、開いた入口ID、得た候補ID、未探索経路の処理と完了状態を残す。選択範囲の概説・入門資料が中核的に扱う対象が選択対象として台帳にあるかを確かめた結果は、`core_check`に、開いた資料の入口IDを`source_entry_point_ids`、確かめた候補IDを`core_candidate_ids`、台帳になく加えた候補IDを`added_candidate_ids`、判断理由を`reason`として置く。形式検査の合格は資料の内容と記録が対応することや、探索の十分さを保証しない。
 
-`disposition`は探索段階で選択対象となるかを表す。抽選後に題材品質ゲートで棄却した候補は`eligible`のまま、満たせなかった条件を`quality_rejection_reason`へ記録する。再抽選では、この記録がある全候補のIDを`topic_pick.py --exclude`へ渡す。
+所属判定は`memberships`に、候補IDを`candidate_id`、4軸ごとの判定を`axes`の`subject`・`place`・`time`・`type`として置き、それぞれに所属するかを`belongs`、理由を`reason`として記録する。検査結果は`membership_reviews`に、候補IDを`candidate_id`、判定を`status`（`passed`・`failed`）、理由を`reason`として置く。所属判定は`--stage membership`で検査する。
 
-各選択対象と解答露出を理由に除外する候補の`exposure_screen`には、資料にある中心的説明を`central_description`、開いた資料の入口IDを`source_entry_point_ids`、名称形成の疑いを`formation_risk`（`suspected`または`none_detected`）、判断理由を`reason`として記録する。`suspected`なら`exposure_precheck`で異なる中核的な代表説明を少なくとも二つ調べ、許容名称と詳しく照合する。`formations`は名称と代表説明の組合せごとに一件作り、対応する許容名称の添字を`name_index`、代表説明の添字を`description_index`で記録する。調べた説明案と許容名称の各組合せを照合し、一つの説明で名称を形成できても、ほかの説明で形成できなければ選択対象に残す。`status: passed`は露出がないという意味ではなく、抽選前に回避不能な露出を立証できなかったことを表す。`unavoidable_exposure`で除外するには、調べたすべての代表説明で正答名または許容別名を解答側の知識なしに形成できる必要がある。形式検査は説明の妥当性を保証しないため、候補名を言い換えただけの説明を複数並べて除外しない。
+抽選後の予備判定は、観点ごとに`prejudgment_scope`・`prejudgment_membership`・`prejudgment_difficulty`・`prejudgment_otoshi`に、候補IDを`candidate_id`、合格か除外かを`result`（`pass`・`exclude`）、理由を`reason`として置く。再抽選した候補の判定は後ろへ加える。`--stage prejudgment`は、判定した各候補に四つの判定があること、除外した候補に`quality_rejection_reason`があること、四つとも合格して作問へ進む候補が一つであることを確認する。
+
+`disposition`は探索段階で選択対象となるかを表す。探索段階で除外する候補は`excluded`とし、除外の理由の種類を`exclusion_code`（ユーザー条件の範囲外は`out_of_scope`、選んだ4軸のノードに属さないことが明らかなものは`outside_facets`、同一対象の重複は`duplicate`、日本語文化圏との関係を想定できないものは`no_japanese_context`、禁止された問題形式は`prohibited_format`、名称を確認できない仮称は`unverified_name`、名称が対象の説明そのものであるものは`descriptive_name`、難易度の帯から上側に大きく外れることが明らかなものは`outside_difficulty`）、理由を`exclusion_reason`として置く。`duplicate`では統合先の候補IDを`merged_into`に置く。`descriptive_name`で除外した候補の検査結果は`descriptive_name_reviews`に、候補IDを`candidate_id`、判定を`status`（`passed`・`failed`）、理由を`reason`として置く。抽選後に題材品質ゲートで棄却した候補は`eligible`のまま、満たせなかった条件を`quality_rejection_reason`へ記録する。再抽選では、この記録がある全候補のIDを`topic_pick.py --exclude`へ渡す。
+
+解答露出の予備検査は`exposure_prechecks`に、候補IDを`candidate_id`、残すか除外するかを`result`（`keep`・`exclude`）、判断理由を`reason`として置く。除外した候補の検査結果は`exposure_precheck_reviews`に、候補IDを`candidate_id`、判定を`status`（`passed`・`failed`）、理由を`reason`として置く。所属する選択対象のうち、`keep`とした候補だけを抽選の対象にする。
+
+抽選の対象の候補のまとまりは`topic_groups`に、`id`、名前を`label`、含む候補IDを`candidate_ids`、切り方の理由を`reason`として置く。まとまりが複数あれば、まとまり同士のweightを`group_weights`に、まとまりの`group_id`と、ファセットのweightと同じ`weight`・`viewpoints`・`reason`として置く。まとまりの中の各候補のweightは`candidate_weights`に、`candidate_id`と`weight`・`viewpoints`・`reason`、対象再出現の履歴距離を`history_distances`として置く。まとまりの切り方の検査結果は`topic_group_reviews`に、まとまりの`group_id`、判定を`status`（`passed`・`failed`）、理由を`reason`として置く。weightの検査結果は`topic_weight_reviews`に、検査したまとまりのIDまたはまとまり同士のweightを表す`groups`を`target`として、`status`と`reason`を置く。weightの分布全体の検査結果は`topic_distribution_reviews`に、`target`を`all`として`status`と`reason`を置く。`topic_pick.py`は二つのweightの積を基礎weightとして抽選する。
 
 ## 解答対象ごとの作業状態
 
-ユーザーが解答対象を直接指定した場合は`selection_mode: specified`と`user_specified_target`を記録し、題材探索担当の割当記録を要求しない。ファセットから抽選した場合は`selection_mode: random`とし、探索担当の割当記録を保持する。どちらの場合も、決まった解答対象について生成以降の検査を省かない。
+ユーザーが解答対象を直接指定した場合は`selection_mode: specified`と`user_specified_target`を記録する。ファセットから抽選した場合は`selection_mode: random`とする。題材探索の担当の起動の記録は題材探索状態に残し、作業状態へ写さない。どちらの場合も、決まった解答対象について生成以降の検査を省かない。
 
 解答対象が決まったら、その対象だけに属する作業状態を新しく作る。次を互いに識別できる形で保持する。
 
@@ -53,41 +72,38 @@
 - 解答、別解、正誤判定
 - 問題文の各版
 - 問題文の構造、表現、解答露出、文字数判定
-- 監査結果と未解決の指摘
+- 検査結果と未解決の指摘
 - 最終出力を組み立てるための限定入力
 
-資料には資料IDを付け、同じ資料の引用箇所を別に識別する。命題と手掛かりにはそれぞれIDを付け、根拠となる資料と引用箇所をIDで参照する。
+資料には資料IDを付け、同じ資料の引用箇所を別に識別する。資料の信頼性の評価は`source_assessments`に、資料IDを`source_id`、信頼性の水準を`level`、明白な誤りを`clear_errors`（なければ空配列）、使ってよい用途を`uses`（事実の根拠は`fact`、名称が使われていることの用例は`usage_example`）、理由を`reason`として置く。`uses`に`fact`がない資料の引用は、命題の根拠にしない。評価の検査結果は`source_reliability_reviews`に、資料IDを`source_id`、判定を`status`（`passed`・`failed`）、理由を`reason`として置く。命題と手掛かりにはそれぞれIDを付け、根拠となる資料と引用箇所をIDで参照する。
 
 ## 問題文の版
 
-問題文の表現を変更するたびに版を更新する。文字数判定、実現命題、前フリ・落とし・後限定、表現品質、解答露出、監査結果には対象とした版を付ける。
+問題文の表現を変更するたびに版を更新する。文字数判定、実現命題、前フリ・落とし・後限定、表現品質、解答露出、検査結果には対象とした版を付ける。
 
 言い換えだけで真偽条件が変わらない命題は同じIDを維持する。主体、関係、条件、時点、断定の強さなどが変わり、真偽条件が変わった場合は新しい命題IDを付ける。
 
 同じ手掛かり情報の表現だけを変えた場合は、手掛かりIDを維持する。情報を差し替えた場合と、複数の手掛かりを統合・分割した場合は、新しい手掛かりIDを付ける。
 
-旧版に対する文字数判定、表現評価、解答露出検査、監査結果を新しい版へ流用しない。
+旧版に対する文字数判定、表現評価、解答露出検査、検査結果を新しい版へ流用しない。
 
 ## 現行状態と不採用履歴
 
-生成、修正、監査の間で常時渡す現行状態は、次に限る。
+生成、修正、検査の間で常時渡す現行状態は、次に限る。
 
 - 採用中または未評価の命題、手掛かり、資料
 - 現行問題文と、その版に対応する検査
-- 未解決の監査指摘
+- 未解決の検査の指摘
 
-不採用になった命題、手掛かり、表現は、ID、不採用理由、再検討できる条件、必要な場合の資料IDだけを再試行防止用の記録へ残す。旧問題文の全文、解消済みの監査説明、使わなくなった引用全文を常時引き継がない。
+不採用になった命題、手掛かり、表現は、ID、不採用理由、再検討できる条件、必要な場合の資料IDだけを再試行防止用の記録へ残す。旧問題文の全文、解消済みの指摘の説明、使わなくなった引用全文を常時引き継がない。
 
 詳細を保存できる環境では、必要になったときだけ保存先から読み直す。
 
-## 生成と監査に共通する検査単位
+## 作る側の検査単位
 
-生成側と監査側は、次を同じ単位で検査する。
+作文担当は、次を検査単位として記録する。各単位は、`workflow_spec.md`で定めた観点別の検査担当が検査する。
 
-- 各実現命題
-- 難易度の二つの参照集団
 - 問題文にある各専門用語と、その意味内容が命題理解に必要かの判断
-- 前フリ・落としを構成する各手掛かりの中核性・代表性、準一意性、知名度
 - 複数の手掛かり順序案
 - 別解候補と各正誤判定
 - 解答露出
@@ -103,13 +119,15 @@
 
 見出しが存在することだけで、その内部の検査単位を完了扱いにしない。
 
-構造の検査記録には`prefuri_segments`を置き、完成稿の各前フリを`passage`、解答対象について述べる内容を平叙文に戻した`target_predication`、独立した事実の累加として読める`reason`とともに記録する。前フリがなければ空配列とする。`work_state_check.py`は各`passage`が落としより前の問題文にあるかを確認し、叙述として読めるかは監査agentが完成稿から判定する。
+構造の検査記録には`prefuri_segments`を置き、完成稿の各前フリを`passage`、解答対象について述べる内容を平叙文に戻した`target_predication`、独立した事実の累加として読める`reason`とともに記録する。前フリがなければ空配列とする。`work_state_check.py`は各`passage`が落としより前の問題文にあるかを確認し、叙述として読めるかは構造の検査担当が完成稿から判定する。
 
 連用中止・テ形接続がない場合も、完成稿を走査した結果として「該当なし」と記録する。接続がある場合は、左右の述定をそれぞれ省略のない形に戻し、並列、継起、理由、対立、手段、条件のどの関係が成立するかと、その判断理由を一箇所ずつ記録する。
 
-構文型は問題文の質問表現から判定する。落としは作問時の予定ではなく、完成稿で核名詞句の直前に実際にある表現を記録する。核名詞は、解答対象の種類を表す上位分類とする。落としを構成する手掛かりIDと、各手掛かりが対象を直接説明するかも記録する。上位分類だけ、作品や人物の列挙だけ、付随的性質だけになっていないか、前フリと後限定を除いた文でも解答対象の直接的な説明と準一意性が成立するかを監査する。`work_state_check.py`は記録した文字列が問題文にあることと手掛かりとの参照関係を検査するが、構文型、落としの位置、核名詞が上位分類に当たるかは判定しない。
+構造、手掛かりの順序、日本語の自然さ、前から読んだときの理解しやすさの検査結果は、`structure_review`、`clue_order_review`、`naturalness_review`、`incremental_comprehension_review`に、問題文の版を`draft_version`、判定を`status`、理由を`reason`として置く。`structure_review`には、独立に判定した構文型を`question_form`、落としを構成する手掛かりIDを`otoshi_clue_ids`として置き、`work_state_check.py`は作る側の区分との一致を確認する。
 
-## 生成側の完了条件
+構文型は問題文の質問表現から判定する。落としは作問時の予定ではなく、完成稿で核名詞句の直前に実際にある表現を記録する。核名詞は、解答対象の種類を表す上位分類とする。落としを構成する手掛かりIDと、各手掛かりが対象を直接説明するかも記録する。上位分類だけ、作品や人物の列挙だけ、付随的性質だけになっていないか、前フリと後限定を除いた文でも解答対象の直接的な説明と準一意性が成立するかは、構造の検査担当が検査する。`work_state_check.py`は記録した文字列が問題文にあることと手掛かりとの参照関係を検査するが、構文型、落としの位置、核名詞が上位分類に当たるかは判定しない。
+
+## 作る側の完了条件
 
 外部資料によって評価する検査単位は、次が揃ったときに完了とする。
 
@@ -120,44 +138,25 @@
 - 直接記載、演繹、解釈、複数資料の総合の別
 - 未解決の反例または対抗候補がないこと
 
-日本語としての自然さなど、通常は外部資料を必要としない項目では、資料中の情報に代えて、実際に比較した二つ以上の問題文案と判断理由を記録する。解答露出では、解答を伏せた検査で挙がった候補と、問題文の意味および語形成から生じる候補を分ける。各候補について、名称を形成する要素、その入手元、形成規則、名称候補の形成に解答側の知識が必要か、形成後に標準名称だと確認するためだけに解答側の知識が必要かを別々に記録する。各要素を得るのに使う知識は、`quiz_generation_spec.md`第18節の区分に従い、`knowledge`（`surface`・`audience_known`・`answer_side`）に記録する。各値は、問題文の表層、想定層の既習知識、解答側の知識に当たる。`answer_side`とした要素には、その知識が想定プレイヤー層にとって明白に既習でない理由を`answer_side_reason`に記録する。
+日本語としての自然さなど、通常は外部資料を必要としない項目では、資料中の情報に代えて、実際に比較した二つ以上の問題文案と判断理由を記録する。解答露出では、作文担当が問題文の意味および語形成から生じる候補を`answer_exposure`の`semantic_candidates`に記録し、解答を伏せた名称候補の担当が挙げた候補は`blind_candidates`に記録する。露出の分析担当は、両方の候補を`exposure_analysis`に候補の`candidate_id`ごとに分析し、判定を`status`（`passed`・`failed`）、理由を`reason`として置く。作文担当と露出の分析担当は、各候補について、名称を形成する要素、その入手元、形成規則、名称候補の形成に解答側の知識が必要か、形成後に標準名称だと確認するためだけに解答側の知識が必要かを別々に記録する。各要素を得るのに使う知識は、`quiz_generation_spec.md`第18節の区分に従い、`knowledge`（`surface`・`audience_known`・`answer_side`）に記録する。各値は、問題文の表層、想定層の既習知識、解答側の知識に当たる。`answer_side`とした要素には、その知識が想定プレイヤー層にとって明白に既習でない理由を`answer_side_reason`に記録する。
 
-露出検査担当は問題文の版ごとに新しく割り当て、`execution.exposure_assignments`に版、正規ID、解答名を含まない依頼名、起動時の記録を残す。依頼名は`task_label`に記録する。`execution.assignment_log.exposure`の依頼名と成果物経路にも解答名を含めない。
+対抗候補、露出候補、回答はIDで照合する。候補を最初に挙げた担当が、記録する時点でIDを付ける。後から候補を挙げる担当は、既存の候補と同じ対象なら既存のIDに対応付け、別の対象なら新しいIDを付ける。担当の記録にある名称を、ほかの担当、親、統括役が書き換えない。
 
-対抗候補、露出候補、回答はIDで照合する。候補を最初に挙げた担当が、記録する時点でIDを付ける。後から候補を挙げる担当は、既存の候補と同じ対象なら既存のIDに対応付け、別の対象なら新しいIDを付ける。担当の記録にある名称を、ほかの担当や親agentが書き換えない。
+露出候補には`id`を付ける。問題文の意味から挙げた候補には、挙げた担当がどの回答と同じ名称かを`answer_id`（該当がなければ`null`）で対応付ける。解答を伏せて挙げた候補は`blind_candidates`に`id`、名称を`name`、問題文の版を`draft_version`として置き、`answer_id`を置かない。対応付けは、解答を開示した後の`answer_review`で行う。
 
-露出候補には`id`を付ける。問題文の意味から挙げた候補には、挙げた担当がどの回答と同じ名称かを`answer_id`（該当がなければ`null`）で対応付ける。解答を伏せて挙げた候補には`answer_id`を置かず、解答を開示した後の`answer_review`で対応付ける。
+解答・別解の候補は`answers`に`id`と`answer`として置き、正誤判定の案は`answer_judgments`に、候補の`answer_id`、判定を`judgment`（`correct`・`prompt`・`incorrect`）、理由を`reason`、引用IDを`evidence_ids`として置く。解答対象の名称と別名は`names`に、`id`、名称を`name`、使われている箇所の説明を`usage`、引用IDを`evidence_ids`として置く。
 
-`answer_review`には露出検査担当が解答を見た後に行う、各回答と露出候補の正誤判定を記録する。回答ごとに同一対象か、指定は十分か、明確な誤りがあるか、名称の適用範囲が一致するかを分け、結論、引用、理由を対応させる。露出候補の判定は`candidate_reviews`に`candidate_id`で置き、解答を伏せて挙げた候補には対応する回答の`answer_id`（該当がなければ`null`）も置く。露出候補を正答と判断した場合は解答一覧にも追加する。
+`answer_review`には正答範囲の検査担当が行う、各回答と露出候補の正誤判定を記録する。回答ごとに同一対象か、指定は十分か、明確な誤りがあるか、名称の適用範囲が一致するかを分け、結論、引用、理由を対応させる。露出候補の判定は`candidate_reviews`に`candidate_id`で置き、解答を伏せて挙げた候補には対応する回答の`answer_id`（該当がなければ`null`）も置く。露出候補を正答と判断した場合は解答一覧にも追加する。
 
-生成側の必要な検査単位がすべて完了するまで、監査へ渡さない。
+作る側の必要な検査単位がすべて完了するまで、検査担当へ渡さない。
 
-## 監査前の反証確認
+## 難易度の検査
 
-生成工程の状態検査に合格した後、監査前に難易度と各手掛かりの準一意性を独立に反証する。`evidence_challenge`には現行問題文の版、問う知識、生成担当とは別の担当者を記録する。問う知識は作業状態の`asked_knowledge`と一致させる。`beginner`と`general`には開いた資料のURL、反証で見つけた事情、採用する引用IDと解決理由を置く。各手掛かりの記録は採用中の手掛かりIDに対応させ、逆引きで確認した対抗候補の`id`と名称、候補自身を扱う資料のURL、問題文の条件との照合、候補の採否と未解決の有無を置く。生成側の対抗候補をすべて照合し、独立調査で新しく見つけた有力候補も記録する。条件の相違を確認できない候補や生成側と採否が食い違う候補は、監査前に解決する。
+初学者側と一般層側の難易度の検査結果は、`beginner_difficulty_review`と`general_difficulty_review`に、現行問題文の版を`draft_version`、問う知識を`asked_knowledge`、開いた資料のURLを`source_urls_checked`、反例として見つけた事情を`adverse_finding`、採用する引用IDを`resolution_evidence_ids`、解決理由を`resolution_reason`、判定を`status`として置く。問う知識は作業状態の`asked_knowledge`と一致させる。
 
-## 監査結果
+## 検査結果
 
-監査担当が解答の開示前に抽出した露出候補は、`exposure_review`へ問題文の版とSHA-256、候補の名称形成、照合した正答IDとともに記録する。解答の開示後に、各候補を生成側の露出候補の`exposure_candidate_id`と、同じ名称の回答の`answer_id`（該当がなければ`null`）に対応付ける。候補を挙げなかった場合も理由を残す。監査候補が生成側の露出検査にない場合は、生成側の判断を更新してから再監査する。
-
-監査側は各検査単位へ次のいずれかを記録する。
-
-- `pending`：未検査
-- `passed`：資料、推論、判断、記載が成立している
-- `missing`：判断を支える資料と推論は成立するが、必要な引用、所在、対応関係、推論が候補出力に欠けている
-- `failed`：資料の対象・役割・範囲・粒度が結論に届かない、反例が残るなど、記載の補充だけでは合格にできない
-
-`missing`または`failed`では、次のどこを修正する必要があるかも記録する。
-
-- 最終出力の記載
-- 根拠資料または推論
-- 問題文の表現
-- 個別の手掛かり
-- 手掛かりの組合せまたは順序
-- 正答範囲または正誤判定
-- 解答対象
-
-監査側の必要な検査単位がすべて`passed`になるまで、問題を確定しない。
+検査担当は、観点ごとの記録に判定を`status`（`passed`・`failed`）と理由を置く。`failed`では、修正が必要な入力を担当表のデータIDで`fix_data`に置く。反論を新しい検査担当が再検査した場合は、記録を書き換えずに後ろへ加え、最後の判定を有効とする。すべての検査が`passed`になるまで、問題を確定しない。
 
 ## 最終出力用の限定入力
 
@@ -177,44 +176,44 @@
 - 問題文の長さと判定
 - 参考文献
 
-棄却候補、検索過程、監査の往復、既出問題との比較過程、不採用の命題・手掛かり・表現は渡さない。
+棄却候補、検索過程、検査の往復、既出問題との比較過程、不採用の命題・手掛かり・表現は渡さない。
 
-外部資料を根拠にした各判断には、監査で確認した逐語引用の本文、所在、資料の書誌情報とURL、引用から判断へ至る推論を添える。引用IDや要約だけを渡さない。必要な引用を限定入力へ収録できない場合は、組立てへ進まない。
+外部資料を根拠にした各判断には、検査で確認した逐語引用の本文、所在、資料の書誌情報とURL、引用から判断へ至る推論を添える。引用IDや要約だけを渡さない。必要な引用を限定入力へ収録できない場合は、組立てへ進まない。
 
 ## JSON manifest
 
 JSON manifestは、検査対象を具体的な内容へ結び付け、確定的な参照整合性と工程境界を検査するために使う。IDだけのレコードや、複数の専門用語・解答候補・出力項目を一つのIDにまとめたレコードを置かない。
 
-資料には書誌情報と逐語引用を置く。命題には問題文の対応箇所、真偽を判定する文、引用ID、引用から判断へ至る理由、推論の種類を置く。一つの命題内に複数の項・限定がある場合は、検証要素ごとにも引用ID、理由、推論の種類を置く。手掛かりには問題文中の文字列と命題IDを置き、中核性、準一意性、知名度の各判断へ結論、理由、引用IDを置く。準一意性には比較範囲、対抗候補、単独で十分に絞れること、依存する他の手掛かりがないことを置く。専門用語と解答候補は一語・一候補ごとにレコードを分ける。最終出力の必須項目も項目ごとに固定IDを使い、内容の保存先を示す。
+資料には書誌情報と逐語引用を置く。命題は`propositions`に、真偽を判定する文を`claim`として置く。作文担当は、問題文で実現した命題を`realized_propositions`に、命題IDを`proposition_id`、問題文の版を`draft_version`、問題文の対応箇所を`passage`として置く。命題の裏取りは`proposition_support`に、命題IDを`proposition_id`、引用IDを`evidence_ids`、引用から判断へ至る理由を`reason`、推論の種類を`inference_type`として置く。一つの命題内に複数の項・限定がある場合は、`verification_elements`に検証要素ごとの`text`、引用ID、理由、推論の種類を置く。命題の確実性は`proposition_certainty`に、`proposition_id`、確実性の水準を`level`、判定理由を`reason`として置く。それぞれの検査結果は`corroboration_reviews`と`certainty_reviews`に、`proposition_id`、`status`（`passed`・`failed`）、`reason`として置く。問題文から独立に取り出した命題は`extracted_propositions`に、`id`、問題文の版を`draft_version`、真偽を判定する文を`claim`、問題文の対応箇所を`passage`として置く。照合結果は`proposition_matching_reviews`に、取り出した命題の`extracted_id`、対応する採用命題の`proposition_id`、断定の強さが確実性と合うかを`strength_matches`、`status`、`reason`として置く。手掛かり候補は`clues`に、事実を`fact`、命題IDを`proposition_ids`として置く。作文担当は、手掛かりの採否を`clue_uses`に、手掛かりIDを`clue_id`、採否を`status`（`active`・`rejected`）、採用した手掛かりの問題文中の文字列を`text`、対象を直接説明するかを`directly_describes_target`として置く。準一意性と知名度の判断は`clue_checks`に、`clue_id`ごとに`quasi_uniqueness`と`familiarity`として、結論、理由、引用IDを置く。手掛かりの中核性・代表性の評価は`clue_centrality`に、手掛かりIDを`clue_id`、結論を`claim`、理由を`reason`、引用IDを`evidence_ids`として置き、検査結果は`centrality_reviews`に`clue_id`、`status`（`passed`・`failed`）、`reason`として置く。知名度の検査結果も`familiarity_reviews`に同じ形で置く。準一意性には比較範囲、単独で十分に絞れること、依存する他の手掛かりがないことを置く。専門用語と解答候補は一語・一候補ごとにレコードを分ける。最終出力の必須項目も項目ごとに固定IDを使い、内容の保存先を示す。
 
-各`competitors`項目には、候補の`id`と`name`、その候補を扱う資料の`evidence_ids`を置く。手掛かりに書かれた条件ごとの`passage`、`matches`（真偽値）、`reason`、`evidence_ids`を`conditions`に置く。候補を別対象として退けるか同一対象の別名として扱うかを`disposition`（`excluded`・`same_target`）と`reason`で示す。別対象を退ける場合だけ、相違する条件の`passage`を`exclusion_passage`へ置く。条件の引用IDは候補の引用IDへ、候補の引用IDは準一意性の引用IDへ含める。
+対抗候補は`competitors`に、候補の`id`と`name`、逆引きの元にした手掛かりの`clue_ids`、その候補を扱う資料の`evidence_ids`を置く。条件の照合は`competitor_comparisons`に、手掛かりの`clue_id`と候補の`competitor_id`の組ごとに置き、手掛かりに書かれた条件ごとの`passage`、`matches`（真偽値）、`reason`、`evidence_ids`を`conditions`に置く。候補を別対象として退けるか同一対象の別名として扱うかを`disposition`（`excluded`・`same_target`）と`reason`で示す。別対象を退ける場合だけ、相違する条件の`passage`を`exclusion_passage`へ置く。条件の引用IDは候補の引用IDへ含める。
 
-問う知識の内容を`asked_knowledge`に記録し、難易度の独立検査は`difficulty_review`に記録する。後者の`asked_knowledge`には検査対象とした問う知識、`answer_granularity`には要求する解答知識の細かさ、`beginner`と`general`には各集団の`status`、`reason`、`evidence_ids`を置く。`reviewer_id`には難易度検査担当の正規識別子を記録し、委譲機能がない場合は`self`とする。一般層側の`other_access_paths`には、定義的な資料とは別に名称と代表情報の対応が共有され得る経路を`path`、実際に調べた内容を`search_record`、その対応への接触を確認できたかを`outcome`、調査結果を`result`、確認した資料の引用IDを`evidence_ids`として置く。`outcome`は`confirmed`または`not_confirmed`とし、前者では引用IDを必須とする。後者では引用IDを空にできるが、調べた範囲を超える不在の根拠とは扱わない。
+逆引き探索の検査結果は`competitor_search_reviews`に、手掛かりの`clue_id`ごとに、見つけた候補を`found`（候補の`id`、`name`、候補を扱う資料の`source_url`、`evidence_ids`）、判定を`status`、理由を`reason`として置く。条件照合の検査結果は`competitor_comparison_reviews`に、`clue_id`と`competitor_id`の組ごとに、条件ごとの`passage`、`match`（`一致`・`近接`・`不一致`）、`reason`を`conditions`に置き、`disposition`、`status`、`reason`を置く。`work_state_check.py`は、作る側の照合と逆引きで見つけた候補のすべてに照合の検査があること、作る側と採否が一致すること、新しく見つけた候補を除外していること、除外には不一致の条件があることを確認する。
+
+問う知識の内容を`asked_knowledge`、要求する解答知識の細かさを`answer_granularity`に記録し、難易度の判断は`difficulty_assessment`に記録する。後者の`asked_knowledge`には判断の対象とした問う知識、`beginner`と`general`には各集団の`status`、`reason`、`evidence_ids`を置く。一般層側の`other_access_paths`には、定義的な資料とは別に名称と代表情報の対応が共有され得る経路を`path`、実際に調べた内容を`search_record`、その対応への接触を確認できたかを`outcome`、調査結果を`result`、確認した資料の引用IDを`evidence_ids`として置く。`outcome`は`confirmed`または`not_confirmed`とし、前者では引用IDを必須とする。後者では引用IDを空にできるが、調べた範囲を超える不在の根拠とは扱わない。
 
 初学者側の`name_learning`には解答対象の名称を学ぶ位置を、`relation_learning`には問う関係を対象の特徴として学ぶ位置を記録する。`learning_connection`には両者を結び付け、要求する粒度の知識を1〜2年以内に学びうると判断する推論を記録する。それぞれに`reason`と`evidence_ids`を置き、引用IDを初学者側の`evidence_ids`にも含める。同じ引用を複数の判断に使えるが、その引用が各判断をどう支えるかは別々に示す。
 
-作文前に`--stage difficulty`で解答対象、問う知識、資料中の逐語引用、難易度の独立検査、担当記録を検査する。問う知識を変更したら難易度を再検査し、`difficulty_review.asked_knowledge`を更新する。完成稿については、`checks`の両参照集団の検査単位に問う知識を記録し、問題文の版、監査結果と対応させる。難易度担当の判定に対する監査結果は`difficulty_review.audit`に記録し、作文前と生成工程では`pending`、監査後は`passed`とする。構造検査は、問う知識と問題文の意味上の一致、資料からの推論の妥当性、工程の実行時刻を保証しない。
+問う知識を変更したら難易度を判断し直し、`difficulty_assessment.asked_knowledge`を更新する。構造検査は、問う知識と問題文の意味上の一致や、資料からの推論の妥当性を保証しない。
 
 専門用語の`term`には、現行問題文にある表記を記録する。命題理解に意味内容が必要かを`meaning_needed`に記録する。必要な場合は、語の意味を確認した引用と理由を`meaning_evidence_ids`・`meaning_reason`、想定プレイヤー層がその意味を明白に知っていると判断する引用と理由を`audience_evidence_ids`・`audience_reason`に分ける。必要ない場合は、意味内容を知らなくても問題文を理解できる理由を`understanding_without_meaning`に記録する。同じ引用を両方に使うときも、語義の確認と既習性の判断をそれぞれ説明する。
 
-`terminology_review`には、生成担当とは別の担当者の`reviewer_id`と`draft_version`を置く。独立検査の担当者は生成側の語IDを知らずに専門用語を抽出し、各語の表記と意味内容が命題理解に必要かを判断する。その後に生成側の用語一覧を受け取り、同じ語の記録へ生成側の語IDを対応付け、生成側にない語には新しい語IDを付ける。必要な語には語義と既習性それぞれの判定・理由・引用IDを、不要な語には意味内容を知らなくても文意が通る理由を記録する。該当語がない場合も空の`terms`を記録する。独立検査で列挙した語と必要性の判断が生成側と一致し、必要な語の両判断が合格し、生成側で採用した引用ID集合の全件を独立検査の記録に含めるまで、生成工程の状態検査を通さない。独立検査の監査結果は`terminology_review.audit`に記録し、生成工程では`pending`、監査後は`passed`とする。監査では語の抽出漏れ、意味内容の要否、語義・既習性の根拠と推論を確認する。構造検査は、問題文からの語の抽出、必要性の判断、引用が判断を実際に支えるかまでは判定しない。
+専門用語の列挙担当は、`term_listing`に`draft_version`と、列挙した語を`terms`（語IDを`id`、表記を`term`）として置く。該当語がない場合も空の`terms`を置く。意味内容の要否の検査結果は`term_necessity_reviews`に、語IDを`term_id`、要否を`meaning_needed`、判定を`status`、理由を`reason`として置く。語義と既習性の検査結果は`term_sense_reviews`と`term_audience_reviews`に、意味内容が必要な語の`term_id`、`status`、`reason`、確認した引用IDを`evidence_ids`として置く。`work_state_check.py`は、列挙した語が作る側の語と一致すること、要否の判断が作る側と一致すること、各検査が合格していること、検査の引用が作る側の採用した引用と一致することを確認する。問題文からの語の抽出、必要性の判断、引用が判断を実際に支えるかまでは判定しない。
 
-`final_input`は監査前に確定する。`final_input.relative_clauses`には、現行問題文の各連体修飾節を`passage`、内の関係か外の関係かを`relation`（`inner`・`outer`）として置き、判断理由を`reason`として記録する。外の関係では、修飾節が表す内容と解答対象を結ぶ命題IDを`relation_proposition_ids`に置く。連体修飾節がなければ空配列とする。`work_state_check.py`は各`passage`が問題文にあって重複しないことと、外の関係だけに命題IDがあることを確認し、節の漏れ、内外関係の判断、命題が関係を表すかは監査担当が判定する。`final_input.quote_ids`には採用中の判断に用いた引用IDを過不足なく置く。`other_access_paths`の調査だけに用いた引用は含めない。
+作文担当は、`relative_clauses`に現行問題文の各連体修飾節を`passage`、内の関係か外の関係かを`relation`（`inner`・`outer`）として置き、判断理由を`reason`として記録する。外の関係では、修飾節が表す内容と解答対象を結ぶ命題IDを`relation_proposition_ids`に置く。連体修飾節がなければ空配列とする。`work_state_check.py`は各`passage`が問題文にあって重複しないことと、外の関係だけに命題IDがあることを確認し、節の漏れ、内外関係の判断、命題が関係を表すかは実現命題の照合担当が判定する。
 
-監査合格後は、組立て担当と最終照合担当の割当記録を加える以外に、採用項目と`final_input`を変更しない。最終段階では、完成したMarkdownと監査に使った状態ファイルそのものを`work_state_check.py --stage final --output 完成稿.md 状態.json`へ渡す。`work_state_check.py`は逐語引用の本文が出力に実在することを確認し、引用と結論の意味上の対応は最終照合担当が資料本文に戻って判定する。
+`final_input`は、本文の執筆担当が検査の合格後に作り、`--stage material`で検査する。`final_input.quote_ids`には採用中の判断に用いた引用IDを過不足なく置く。`other_access_paths`の調査だけに用いた引用は含めない。
 
-最終照合担当が完成稿を確認したら、`final_review`に`status: passed`、担当の正規識別子を`reviewer_id`、照合した引用・回答・手掛かりのIDを`quote_ids`・`answer_ids`・`clue_ids`、各検査の結果を`checks`（`current_draft`・`evidence_and_inference`・`difficulty`・`competitors`・`answer_judging`・`exposure`）、照合した完成稿のファイル内容のSHA-256を`output_sha256`として記録する。委譲機能がない場合の`reviewer_id`は`self`とする。完成稿を直した場合は再照合し、ハッシュも更新する。この記録は照合の対象と結果を検査するもので、判断の妥当性を機械的に証明するものではない。
+検査の合格後は、組立て担当と完成稿の照合担当の起動の記録を加える以外に、採用項目と`final_input`を変更しない。最終段階では、完成したMarkdownと検査に使った状態ファイルそのものを`work_state_check.py --stage final --output 完成稿.md 状態.json`へ渡す。`work_state_check.py`は逐語引用の本文が出力に実在することを確認し、引用と結論の意味上の対応は完成稿への反映の照合担当が資料本文に戻って判定する。
 
-生成工程ではすべての `audit` を `pending` とした状態で `--stage generation` を通す。監査担当だけが結果を更新し、`--stage audit` を通す。これにより、完成後に生成と監査の状態をまとめて作ることを認めない。
-
-委譲機能を利用できる環境では、ファセットの交差領域の確認、探索、生成、難易度と専門用語の独立検査、解答露出検査、監査、最終出力の組立て、最終照合を別々のagentへ割り当てる。親agentは起動toolが返した正規の識別子を起動直後に `execution.agents` へ記録し、各成果物に記載された担当識別子と照合する。候補変更時にも、継続して使う探索担当の識別子を別名へ置き換えない。利用できない環境では、その事実と理由を記録する。
+完成稿への反映の照合結果は`final_reflection_review`に、`status: passed`、理由を`reason`、照合した引用・回答・手掛かりのIDを`quote_ids`・`answer_ids`・`clue_ids`、照合した完成稿のファイル内容のSHA-256を`output_sha256`として置く。作業用記録の混入の検査結果は`final_contamination_review`に、`status`、`reason`、`output_sha256`として置く。`work_state_check.py`は、両方のハッシュが現行の完成稿と一致し、現行の完成稿について起動した担当の記録があることを確認する。この記録は照合の対象と結果を検査するもので、判断の妥当性を機械的に証明するものではない。
 
 具体的なJSONの形は `scripts/work_state_check.py` が検査するフィールドに従う。次は架空のURLを使った題材探索状態の形式例である。
 
 ```json
 {
-  "facet_nodes": {"subject": "subject::66", "place": "place::ROOT", "time": "time::ROOT", "type": "type::ROOT"},
-  "execution": {"delegation_available": true, "agents": {"intersection": "agent-1", "exploration": "agent-2", "alternate_exploration": "agent-3", "saturation_review": "agent-4"}, "assignment_log": {"intersection": {"agent_id": "agent-1", "recorded_at_spawn": true, "artifact_refs": ["intersection.md"]}, "exploration": {"agent_id": "agent-2", "recorded_at_spawn": true, "artifact_refs": ["exploration.md"]}, "alternate_exploration": {"agent_id": "agent-3", "recorded_at_spawn": true, "artifact_refs": ["alternate_exploration.md"]}, "saturation_review": {"agent_id": "agent-4", "recorded_at_spawn": true, "artifact_refs": ["saturation_review.md"]}}},
+  "facet_nodes": {"subject": "subject::66", "place": "place::(1/9)", "time": "time::ROOT", "type": "type::ontology"},
+  "execution": {"delegation_available": true, "assignments": [{"role": "intersection", "agent_id": "agent-1", "artifact_refs": ["intersection.md"]}, {"role": "exploration", "agent_id": "agent-2", "artifact_refs": ["exploration_D1.md"], "items": ["D1"]}, {"role": "exploration", "agent_id": "agent-3", "artifact_refs": ["exploration_D2.md"], "items": ["D2"]}, {"role": "nearby_exploration", "agent_id": "agent-4", "artifact_refs": ["nearby_exploration.md"], "items": ["K1", "K2"]}, {"role": "alternate_exploration", "agent_id": "agent-5", "artifact_refs": ["alternate_exploration.md"]}, {"role": "saturation_review", "agent_id": "agent-6", "artifact_refs": ["saturation_review.md"]}, {"role": "membership", "agent_id": "agent-7", "artifact_refs": ["membership.json"], "items": ["K1", "K2"]}, {"role": "membership_review", "agent_id": "agent-8", "artifact_refs": ["membership_review.json"], "items": ["K1", "K2"]}, {"role": "exposure_precheck", "agent_id": "agent-9", "artifact_refs": ["exposure_precheck.md"], "items": ["K1", "K2"]}, {"role": "topic_grouping", "agent_id": "agent-10", "artifact_refs": ["topic_grouping.json"]}, {"role": "topic_group_review", "agent_id": "agent-11", "artifact_refs": ["topic_group_review.json"]}, {"role": "topic_weighting", "agent_id": "agent-12", "artifact_refs": ["topic_weighting_G1.json"], "items": ["G1"]}, {"role": "topic_weight_review", "agent_id": "agent-13", "artifact_refs": ["topic_weight_review.json"]}, {"role": "topic_distribution_review", "agent_id": "agent-14", "artifact_refs": ["topic_distribution_review.json"]}]},
   "intersection_review": {
     "source_refs": ["https://example.org/outline", "https://example.org/lesson"],
     "candidate_examples": [
@@ -235,17 +234,45 @@ JSON manifestは、検査対象を具体的な内容へ結び付け、確定的�
     {"id": "D2", "label": "有機化学工業", "basis": "化学事典の索引で有機工業化学の製法がまとめて挙げられている", "target_kinds": "工業技術", "explored": true, "entry_point_ids": ["E2"], "source_searches": [{"mode": "open", "query": "有機化学工業 技術", "angle": "事典索引の製法項目を探す", "result": "クメン法を発見", "entry_point_ids": ["E2"], "found_candidate_ids": ["K2"], "next_searches": []}]}
   ],
   "candidates": [
-    {"id": "K1", "label": "アンモニアソーダ法", "coverage_area_ids": ["D1"], "discovery_entry_point_ids": ["E1"], "name_use_note": "化学事典の本文で、炭酸ナトリウムの製法の名称として使われている", "facet_membership_reason": "炭酸ナトリウムを工業的に製造する方法で、化学工業のうち無機化学工業に当たる", "disposition": "eligible", "expanded": true, "expansion_searches": [{"source_or_query": "化学事典のアンモニアソーダ法の項の関連項目", "relation_checked": "炭酸ナトリウムを得る別の製法", "found_candidate_ids": []}], "exposure_screen": {"central_description": "食塩と石灰石から炭酸ナトリウムを工業的に得る製法", "source_entry_point_ids": ["E1"], "formation_risk": "none_detected", "reason": "説明にアンモニアを使うことが現れず、名称の「アンモニア」を説明から得られない"}},
-    {"id": "K2", "label": "クメン法", "coverage_area_ids": ["D2"], "discovery_entry_point_ids": ["E2"], "name_use_note": "化学事典の索引と本文で、フェノールの製法の名称として使われている", "facet_membership_reason": "フェノールとアセトンを工業的に製造する方法で、化学工業のうち有機化学工業に当たる", "disposition": "eligible", "expanded": true, "expansion_searches": [{"source_or_query": "クメン法 原料 製法", "relation_checked": "ベンゼンとプロピレンを原料とする別の製法", "found_candidate_ids": []}], "exposure_screen": {"central_description": "ベンゼンとプロピレンからクメンを経てフェノールとアセトンを得る製法", "source_entry_point_ids": ["E2"], "formation_risk": "suspected", "reason": "説明に現れる「クメン」と、製法を表す「法」から名称を作れる可能性がある"}, "exposure_precheck": {"representative_descriptions": ["ベンゼンとプロピレンからクメンを経てフェノールとアセトンを得る製法", "ベンゼンとプロピレンからフェノールとアセトンを同時に得る製法"], "accepted_names": ["クメン法"], "formations": [{"name": "クメン法", "name_index": 0, "description_index": 0, "formation_rule": "説明中の中間体の名称に、製法を表す「法」を付ける", "components": [{"form": "クメン", "source": "説明中の「クメンを経て」", "knowledge": "surface"}, {"form": "法", "source": "製法を表す接尾要素", "knowledge": "audience_known"}], "formation_requires_answer_side_knowledge": false, "standard_name_confirmation_requires_answer_side_knowledge": true}, {"name": "クメン法", "name_index": 0, "description_index": 1, "formation_rule": "中間体の名称に、製法を表す「法」を付ける", "components": [{"form": "クメン", "source": "中間体がクメンであるという知識", "knowledge": "answer_side", "answer_side_reason": "説明に中間体が現れず、中間体がクメンであることはこの製法そのものについての知識である"}, {"form": "法", "source": "製法を表す接尾要素", "knowledge": "audience_known"}], "formation_requires_answer_side_knowledge": true, "standard_name_confirmation_requires_answer_side_knowledge": true}], "status": "passed"}}
+    {"id": "K1", "label": "アンモニアソーダ法", "coverage_area_ids": ["D1"], "discovery_entry_point_ids": ["E1"], "name_use_note": "化学事典の本文で、炭酸ナトリウムの製法の名称として使われている", "disposition": "eligible", "expanded": true, "expansion_searches": [{"source_or_query": "化学事典のアンモニアソーダ法の項の関連項目", "relation_checked": "炭酸ナトリウムを得る別の製法", "found_candidate_ids": []}]},
+    {"id": "K2", "label": "クメン法", "coverage_area_ids": ["D2"], "discovery_entry_point_ids": ["E2"], "name_use_note": "化学事典の索引と本文で、フェノールの製法の名称として使われている", "disposition": "eligible", "expanded": true, "expansion_searches": [{"source_or_query": "クメン法 原料 製法", "relation_checked": "ベンゼンとプロピレンを原料とする別の製法", "found_candidate_ids": []}]}
   ],
   "independent_review": [
     {"id": "D1", "difference_from_exploration": "工場の工程を実務者が説明する記事から探す", "source_discovery_query": "無機化学工業 実務者 利用", "checked_entry_point_ids": ["E3"], "found_candidate_ids": [], "spotchecked_entry_point_ids": ["E1"], "spotcheck_result": "分類表の無機化学工業の項目とアンモニアソーダ法の記載を照合した"},
     {"id": "D2", "difference_from_exploration": "産業誌が扱う製造プロセスから探す", "source_discovery_query": "有機化学工業 産業誌", "checked_entry_point_ids": ["E4"], "found_candidate_ids": [], "spotchecked_entry_point_ids": ["E2"], "spotcheck_result": "事典索引の有機工業化学の項目とクメン法の記載を照合した"}
   ],
-  "saturation_challenge": {"search_perspective": "工場見学や業界団体による一般向けの解説", "query": "化学工業 現場 使用", "opened_entry_point_ids": ["E3", "E4"], "found_candidate_ids": [], "resolution": "開いた資料に新しい製法名はなく、既存の候補と一致した", "resolved": true},
+  "saturation_challenge": {"search_perspective": "工場見学や業界団体による一般向けの解説", "query": "化学工業 現場 使用", "opened_entry_point_ids": ["E3", "E4"], "found_candidate_ids": [], "resolution": "開いた資料に新しい製法名はなく、既存の候補と一致した", "resolved": true, "core_check": {"source_entry_point_ids": ["E2"], "core_candidate_ids": ["K1", "K2"], "added_candidate_ids": [], "reason": "化学事典の工業化学の概説が代表的な製法として挙げるアンモニアソーダ法とクメン法が、どちらも台帳にある"}},
+  "memberships": [
+    {"candidate_id": "K1", "axes": {"subject": {"belongs": true, "reason": "食塩と石灰石から炭酸ナトリウムを工業的に製造する方法で、化学工業の製法に当たる"}, "place": {"belongs": true, "reason": "場所を限定していない"}, "time": {"belongs": true, "reason": "時代を限定していない"}, "type": {"belongs": true, "reason": "型を限定していない"}}},
+    {"candidate_id": "K2", "axes": {"subject": {"belongs": true, "reason": "ベンゼンとプロピレンからフェノールとアセトンを製造する方法で、化学工業の製法に当たる"}, "place": {"belongs": true, "reason": "場所を限定していない"}, "time": {"belongs": true, "reason": "時代を限定していない"}, "type": {"belongs": true, "reason": "型を限定していない"}}}
+  ],
+  "membership_reviews": [
+    {"candidate_id": "K1", "status": "passed", "reason": "化学事典がアンモニアソーダ法を炭酸ナトリウムの工業的製法として扱い、名称が製法そのものを指すことを確かめた"},
+    {"candidate_id": "K2", "status": "passed", "reason": "化学事典がクメン法をフェノールの工業的製法として扱い、名称が中間体クメンではなく製法を指すことを確かめた"}
+  ],
+  "exposure_prechecks": [
+    {"candidate_id": "K1", "result": "keep", "reason": "「食塩と石灰石から炭酸ナトリウムを工業的に得る製法」のように、名称の「アンモニア」を出さずに説明できる"},
+    {"candidate_id": "K2", "result": "keep", "reason": "説明に中間体を出すと「クメン」から名称を作れるが、「ベンゼンとプロピレンからフェノールとアセトンを同時に得る製法」のように中間体を出さずに説明できる"}
+  ],
+  "topic_groups": [
+    {"id": "G1", "label": "化学工業の製法", "candidate_ids": ["K1", "K2"], "reason": "候補が二つで、一度に比べられる"}
+  ],
+  "candidate_weights": [
+    {"candidate_id": "K1", "weight": 3.0, "viewpoints": {"sharing": "高校化学で炭酸ナトリウムの製法として学び、名称を聞いたことのある人が多い", "communication": "化学の授業や受験の話題で出る", "background": "化学工業の歴史や塩の利用を理解する前提になる"}, "reason": "学校教育を通じた共有度が高く、クメン法より重要度が高い"},
+    {"candidate_id": "K2", "weight": 1.0, "viewpoints": {"sharing": "高校化学の有機分野で扱われるが、アンモニアソーダ法ほど知られていない", "communication": "化学の授業や受験の話題で出る", "background": "フェノール樹脂などの素材を理解する前提になる"}, "reason": "学校教育で扱われるが共有度はアンモニアソーダ法より低い"}
+  ],
+  "topic_group_reviews": [
+    {"group_id": "G1", "status": "passed", "reason": "二つの製法はどちらも高校化学で学ぶ工業的製法で、重要度を直接比べられる"}
+  ],
+  "topic_weight_reviews": [
+    {"target": "G1", "status": "passed", "reason": "学校教育での扱いの差から、アンモニアソーダ法をクメン法より重く見ることに無理がない"}
+  ],
+  "topic_distribution_reviews": [
+    {"target": "all", "status": "passed", "reason": "3対1の比が、学校教育での扱いと一般の知名度の差に見合っている"}
+  ],
   "frontier_ids": [],
   "saturated": true
 }
 ```
 
-作問状態では、現在の問題で必要となる共通検査単位を省略せずに置く。`work_state_check.py`が内容の存在と参照関係を認めても、引用と推論の意味上の妥当性は、生成側と監査側が別途判断する。
+作問状態では、現在の問題で必要となる共通検査単位を省略せずに置く。`work_state_check.py`が内容の存在と参照関係を認めても、引用と推論の意味上の妥当性は、作る側と検査側の担当が判断する。
