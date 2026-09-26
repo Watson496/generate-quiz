@@ -20,7 +20,7 @@
 
 ## ファセットの交差領域
 
-ファセット選択後、題材探索前に4軸の正規ノードキーと交差領域の確認記録をJSONへ保存し、区分に分けたノードを選んだ場合は`facet_subdivisions`も写して、`work_state_check.py --stage intersection-checkpoint`で検査する。確認記録には、開いた資料のURL、交差領域の広さを判断した理由、資料中に実名がある異なる候補二つ以上と各資料のURL、うち一件以上の初級学習資料と扱いの根拠、成立の判定を含める。広さの理由には、選択範囲に入る大区分と、異なる用途の資料で確かめた対象の種類・下位領域を対応させ、候補探索の経路を設けられるかと、下位領域ごとの候補の数の見積もりを記す。探索する下位領域は、`coverage_areas`に`id`、名前を`label`、区分の根拠を`basis`、含まれる解答対象の種類を`target_kinds`として記録する。担当の起動は「担当の起動の記録」節に従って記録する。形式検査は資料の独立性や判断の妥当性を保証しない。
+ファセット選択後、題材探索前に4軸の正規ノードキーと交差領域の確認記録をJSONへ保存し、区分に分けたノードを選んだ場合は`facet_subdivisions`も写して、`work_state_check.py --stage intersection-checkpoint`で検査する。確認記録には、開いた資料のURL、交差領域の広さを判断した理由、資料中に実名がある異なる候補二つ以上と各資料のURL、うち一件以上の初級学習資料と扱いの根拠、成立の判定を含める。広さの理由には、選択範囲に入る大区分と、異なる用途の資料で確かめた対象の種類・下位領域を対応させ、候補探索の経路を設けられるかと、下位領域ごとの選択対象の数の見積もりを記す。探索する下位領域は、`coverage_areas`に`id`、名前を`label`、区分の根拠を`basis`、含まれる解答対象の種類を`target_kinds`として記録する。担当の起動は「担当の起動の記録」節に従って記録する。形式検査は資料の独立性や判断の妥当性を保証しない。
 
 ## 題材候補の探索状態
 
@@ -45,13 +45,13 @@
 
 探索状態は、題材を抽選する前に `topic_pick.py` へ渡す。入口には本文を開いたURL、`opened: true`、確認箇所を`access_note`として記録する。下位領域の`source_searches`には、候補名を含めない入口探しを`mode: open`、既知候補からの近接探索を`mode: nearby`として記録する。候補の`discovery_entry_point_ids`と`coverage_area_ids`は、同じ`source_searches`の`entry_point_ids`と`found_candidate_ids`に対応させる。最初の候補を記録した時点と入口・候補を追加した節目に`--stage discovery-progress`でこの対応を検査する。内部知識から挙げ、まだ資料で確認していない候補は、途中状態では`discovery_entry_point_ids`を空配列にできる。資料の探索記録にその候補を加えたら発見元も記録し、`--stage discovery`までに対応を確定する。途中検査では探索の完了や露出予備検査の記録を要求しない。資料で名称を確認できず除外する候補を除き、`name_use_note`には名称の使用箇所を記す。選択対象の`expansion_searches`には近接探索の検索先・調べた関係・得た候補IDを残す。検査を通った後で候補を追加した場合は、その候補からも探索を展開し、再度検査する。
 
-`independent_review`には下位領域IDごとに、最初の探索と異なる観点、候補名を含めない検索語、別経路で開いた入口IDと候補ID、照合した元の入口IDと結果を記録する。`saturation_challenge`には別の立場・用途からの検索、開いた入口ID、得た候補ID、未探索経路の処理と完了状態を残す。選択範囲の概説・入門資料が中核的に扱う対象が台帳にあるかを確かめた結果は、`core_check`に、開いた資料の入口IDを`source_entry_point_ids`、確かめた候補IDを`core_candidate_ids`、台帳になく加えた候補IDを`added_candidate_ids`、判断理由を`reason`として置く。形式検査の合格は資料の内容と記録が対応することや、探索の十分さを保証しない。
+`independent_review`には下位領域IDごとに、最初の探索と異なる観点、候補名を含めない検索語、別経路で開いた入口IDと候補ID、照合した元の入口IDと結果を記録する。`saturation_challenge`には別の立場・用途からの検索、開いた入口ID、得た候補ID、未探索経路の処理と完了状態を残す。選択範囲の概説・入門資料が中核的に扱う対象が選択対象として台帳にあるかを確かめた結果は、`core_check`に、開いた資料の入口IDを`source_entry_point_ids`、確かめた候補IDを`core_candidate_ids`、台帳になく加えた候補IDを`added_candidate_ids`、判断理由を`reason`として置く。形式検査の合格は資料の内容と記録が対応することや、探索の十分さを保証しない。
 
 所属判定は`memberships`に、候補IDを`candidate_id`、4軸ごとの判定を`axes`の`subject`・`place`・`time`・`type`として置き、それぞれに所属するかを`belongs`、理由を`reason`として記録する。検査結果は`membership_reviews`に、候補IDを`candidate_id`、判定を`status`（`passed`・`failed`）、理由を`reason`として置く。所属判定は`--stage membership`で検査する。
 
 抽選後の予備判定は、観点ごとに`prejudgment_scope`・`prejudgment_membership`・`prejudgment_difficulty`・`prejudgment_otoshi`に、候補IDを`candidate_id`、合格か除外かを`result`（`pass`・`exclude`）、理由を`reason`として置く。再抽選した候補の判定は後ろへ加える。`--stage prejudgment`は、判定した各候補に四つの判定があること、除外した候補に`quality_rejection_reason`があること、四つとも合格して作問へ進む候補が一つであることを確認する。
 
-`disposition`は探索段階で選択対象となるかを表す。探索段階で除外する候補は`excluded`とし、除外の理由の種類を`exclusion_code`（ユーザー条件の範囲外は`out_of_scope`、同一対象の重複は`duplicate`、日本語文化圏との関係を想定できないものは`no_japanese_context`、禁止された問題形式は`prohibited_format`、名称を確認できない仮称は`unverified_name`、名称が対象の説明そのものであるものは`descriptive_name`）、理由を`exclusion_reason`として置く。`duplicate`では統合先の候補IDを`merged_into`に置く。`descriptive_name`で除外した候補の検査結果は`descriptive_name_reviews`に、候補IDを`candidate_id`、判定を`status`（`passed`・`failed`）、理由を`reason`として置く。抽選後に題材品質ゲートで棄却した候補は`eligible`のまま、満たせなかった条件を`quality_rejection_reason`へ記録する。再抽選では、この記録がある全候補のIDを`topic_pick.py --exclude`へ渡す。
+`disposition`は探索段階で選択対象となるかを表す。探索段階で除外する候補は`excluded`とし、除外の理由の種類を`exclusion_code`（ユーザー条件の範囲外は`out_of_scope`、同一対象の重複は`duplicate`、日本語文化圏との関係を想定できないものは`no_japanese_context`、禁止された問題形式は`prohibited_format`、名称を確認できない仮称は`unverified_name`、名称が対象の説明そのものであるものは`descriptive_name`、選択対象の条件を資料で示せないものは`no_introductory_source`）、理由を`exclusion_reason`として置く。選択対象（`eligible`）には、`selection_and_history_spec.md`第6節の条件を示す資料を`introductory_evidence`に、入口IDを`entry_point_id`、名称と代表的な情報が扱われている箇所を`passage`として置く。`duplicate`では統合先の候補IDを`merged_into`に置く。`descriptive_name`で除外した候補の検査結果は`descriptive_name_reviews`に、候補IDを`candidate_id`、判定を`status`（`passed`・`failed`）、理由を`reason`として置く。抽選後に題材品質ゲートで棄却した候補は`eligible`のまま、満たせなかった条件を`quality_rejection_reason`へ記録する。再抽選では、この記録がある全候補のIDを`topic_pick.py --exclude`へ渡す。
 
 解答露出の予備検査は`exposure_prechecks`に、候補IDを`candidate_id`、残すか除外するかを`result`（`keep`・`exclude`）、判断理由を`reason`として置く。除外した候補の検査結果は`exposure_precheck_reviews`に、候補IDを`candidate_id`、判定を`status`（`passed`・`failed`）、理由を`reason`として置く。所属する選択対象のうち、`keep`とした候補だけを抽選の対象にする。
 
@@ -234,8 +234,8 @@ JSON manifestは、検査対象を具体的な内容へ結び付け、確定的�
     {"id": "D2", "label": "有機化学工業", "basis": "化学事典の索引で有機工業化学の製法がまとめて挙げられている", "target_kinds": "工業技術", "explored": true, "entry_point_ids": ["E2"], "source_searches": [{"mode": "open", "query": "有機化学工業 技術", "angle": "事典索引の製法項目を探す", "result": "クメン法を発見", "entry_point_ids": ["E2"], "found_candidate_ids": ["K2"], "next_searches": []}]}
   ],
   "candidates": [
-    {"id": "K1", "label": "アンモニアソーダ法", "coverage_area_ids": ["D1"], "discovery_entry_point_ids": ["E1"], "name_use_note": "化学事典の本文で、炭酸ナトリウムの製法の名称として使われている", "disposition": "eligible", "expanded": true, "expansion_searches": [{"source_or_query": "化学事典のアンモニアソーダ法の項の関連項目", "relation_checked": "炭酸ナトリウムを得る別の製法", "found_candidate_ids": []}]},
-    {"id": "K2", "label": "クメン法", "coverage_area_ids": ["D2"], "discovery_entry_point_ids": ["E2"], "name_use_note": "化学事典の索引と本文で、フェノールの製法の名称として使われている", "disposition": "eligible", "expanded": true, "expansion_searches": [{"source_or_query": "クメン法 原料 製法", "relation_checked": "ベンゼンとプロピレンを原料とする別の製法", "found_candidate_ids": []}]}
+    {"id": "K1", "label": "アンモニアソーダ法", "coverage_area_ids": ["D1"], "discovery_entry_point_ids": ["E1"], "name_use_note": "化学事典の本文で、炭酸ナトリウムの製法の名称として使われている", "disposition": "eligible", "introductory_evidence": {"entry_point_id": "E2", "passage": "化学事典の本文で、炭酸ナトリウムの製法としてアンモニアソーダ法の名称と工程を説明している"}, "expanded": true, "expansion_searches": [{"source_or_query": "化学事典のアンモニアソーダ法の項の関連項目", "relation_checked": "炭酸ナトリウムを得る別の製法", "found_candidate_ids": []}]},
+    {"id": "K2", "label": "クメン法", "coverage_area_ids": ["D2"], "discovery_entry_point_ids": ["E2"], "name_use_note": "化学事典の索引と本文で、フェノールの製法の名称として使われている", "disposition": "eligible", "introductory_evidence": {"entry_point_id": "E2", "passage": "化学事典の本文で、フェノールの製法としてクメン法の名称と原料を説明している"}, "expanded": true, "expansion_searches": [{"source_or_query": "クメン法 原料 製法", "relation_checked": "ベンゼンとプロピレンを原料とする別の製法", "found_candidate_ids": []}]}
   ],
   "independent_review": [
     {"id": "D1", "difference_from_exploration": "工場の工程を実務者が説明する記事から探す", "source_discovery_query": "無機化学工業 実務者 利用", "checked_entry_point_ids": ["E3"], "found_candidate_ids": [], "spotchecked_entry_point_ids": ["E1"], "spotcheck_result": "分類表の無機化学工業の項目とアンモニアソーダ法の記載を照合した"},

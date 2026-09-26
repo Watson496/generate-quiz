@@ -755,6 +755,15 @@ def validate_selection_candidates(state, entry_ids, areas, area_ids):
             )
             required_text(item, "quality_rejection_reason", name)
         if disposition == "eligible":
+            evidence = item.get("introductory_evidence")
+            require_condition(
+                isinstance(evidence, dict), f"{name}.introductory_evidenceがない"
+            )
+            require_condition(
+                evidence.get("entry_point_id") in entry_ids,
+                f"{name}.introductory_evidence.entry_point_idが入口にない",
+            )
+            required_text(evidence, "passage", f"{name}.introductory_evidence")
             require_condition(
                 item.get("expanded") is True, f"{name}から探索を展開していない"
             )
@@ -788,6 +797,7 @@ def validate_selection_candidates(state, entry_ids, areas, area_ids):
                     "prohibited_format",
                     "unverified_name",
                     "descriptive_name",
+                    "no_introductory_source",
                 },
                 f"{name}.exclusion_codeが不正である",
             )
@@ -1047,7 +1057,11 @@ def validate_selection_review(state, areas, candidates, entry_ids):
     require_condition(isinstance(core, dict), "saturation_challenge.core_checkがない")
     name = "saturation_challenge.core_check"
     referenced_ids(core, "source_entry_point_ids", entry_ids, name)
-    referenced_ids(core, "core_candidate_ids", candidate_ids, name)
+    core_ids = referenced_ids(core, "core_candidate_ids", candidate_ids, name)
+    require_condition(
+        set(core_ids) <= eligible_candidate_ids(state),
+        f"{name}.core_candidate_idsに選択対象でない候補がある",
+    )
     referenced_ids(core, "added_candidate_ids", candidate_ids, name, nonempty=False)
     required_text(core, "reason", name)
     descriptive = descriptive_name_ids(state)

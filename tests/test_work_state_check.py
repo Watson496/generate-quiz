@@ -1344,6 +1344,48 @@ class TestSelectionState:
         assert result.returncode == 1
         assert message in result.stderr
 
+    def test_core_objects_must_be_eligible(self, run_script, selection_state):
+        """中核的に扱われる対象は、選択対象として台帳にあることを確かめる。"""
+        add_descriptive_name(selection_state)
+        selection_state["saturation_challenge"]["core_check"][
+            "core_candidate_ids"
+        ].append("K3")
+        result = check_state(run_script, "discovery", selection_state)
+        assert result.returncode == 1
+        assert "core_candidate_idsに選択対象でない候補がある" in result.stderr
+
+    def test_eligible_requires_introductory_evidence(self, run_script, selection_state):
+        """選択対象には、入門・概説資料または一般向けの資料での扱いを示す。"""
+        del selection_state["candidates"][0]["introductory_evidence"]
+        result = check_state(run_script, "discovery", selection_state)
+        assert result.returncode == 1
+        assert "candidates.K1.introductory_evidenceがない" in result.stderr
+
+    def test_introductory_evidence_refers_to_entry_point(
+        self, run_script, selection_state
+    ):
+        """選択対象の条件を示す資料は、開いた入口から示す。"""
+        selection_state["candidates"][0]["introductory_evidence"]["entry_point_id"] = (
+            "E9"
+        )
+        result = check_state(run_script, "discovery", selection_state)
+        assert result.returncode == 1
+        assert "introductory_evidence.entry_point_idが入口にない" in result.stderr
+
+    def test_candidate_without_introductory_source_is_recorded_only(
+        self, run_script, selection_state
+    ):
+        """条件を資料で示せない候補は台帳に記録し、選択対象にしない。"""
+        add_descriptive_name(selection_state)
+        candidate = selection_state["candidates"][-1]
+        candidate.update(
+            exclusion_code="no_introductory_source",
+            exclusion_reason="開いた資料は研究論文だけで、入門・概説資料で扱われていない",
+        )
+        del selection_state["descriptive_name_reviews"]
+        drop_assignment(selection_state, "descriptive_name_review")
+        assert check_state(run_script, "discovery", selection_state).returncode == 0
+
     def test_accepts_reviewed_descriptive_name(self, run_script, selection_state):
         """名称が説明そのものである候補は、検査に合格すれば探索段階で除外できる。"""
         add_descriptive_name(selection_state)
@@ -1374,6 +1416,10 @@ class TestSelectionState:
             del candidate[key]
         candidate.update(
             disposition="eligible",
+            introductory_evidence={
+                "entry_point_id": "E1",
+                "passage": "分類表の解説で製法の名称と原料を説明している",
+            },
             expanded=True,
             expansion_searches=[
                 {
@@ -1680,6 +1726,9 @@ class TestSelectionState:
         )
         del candidate["name_use_note"]
         drop_from_weights(selection_state, "K1")
+        selection_state["saturation_challenge"]["core_check"]["core_candidate_ids"] = [
+            "K2"
+        ]
         assert check_state(run_script, "discovery", selection_state).returncode == 0
         assert check_state(run_script, "selection", selection_state).returncode == 0
 
