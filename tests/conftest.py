@@ -359,6 +359,10 @@ def selection_state(intersection_state):
                 "discovery_entry_point_ids": ["E1"],
                 "name_use_note": "本文で対象の名称として使われる",
                 "disposition": "eligible",
+                "introductory_evidence": {
+                    "entry_point_id": "E2",
+                    "passage": "事典の本文で名称と代表的な情報を説明している",
+                },
                 "expanded": True,
                 "expansion_searches": [
                     {
@@ -375,6 +379,10 @@ def selection_state(intersection_state):
                 "discovery_entry_point_ids": ["E2"],
                 "name_use_note": "本文で対象の名称として使われる",
                 "disposition": "eligible",
+                "introductory_evidence": {
+                    "entry_point_id": "E2",
+                    "passage": "事典の本文で名称と代表的な情報を説明している",
+                },
                 "expanded": True,
                 "expansion_searches": [
                     {
