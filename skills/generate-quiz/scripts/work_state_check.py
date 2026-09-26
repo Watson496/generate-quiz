@@ -738,15 +738,12 @@ def validate_selection_candidates(state, entry_ids, areas, area_ids):
     for item in candidates:
         name = f"candidates.{item['id']}"
         required_text(item, "label", name)
-        require_candidate_discovery_links(item, area_ids, entry_ids, discovered)
         disposition = item.get("disposition")
         require_condition(
             disposition in {"eligible", "excluded"}, f"{name}.dispositionが不正である"
         )
-        if not (
-            disposition == "excluded"
-            and item.get("exclusion_code") == "unverified_name"
-        ):
+        if disposition == "eligible":
+            require_candidate_discovery_links(item, area_ids, entry_ids, discovered)
             required_text(item, "name_use_note", name)
         if "quality_rejection_reason" in item:
             require_condition(
@@ -1061,9 +1058,10 @@ def validate_discovery_progress(state):
     discovered = candidate_discovery_index(areas, candidate_ids)
     for candidate in candidates:
         required_text(candidate, "label", f"candidates.{candidate['id']}")
-        require_candidate_discovery_links(
-            candidate, area_ids, entry_ids, discovered, allow_pending=True
-        )
+        if candidate.get("disposition") != "excluded":
+            require_candidate_discovery_links(
+                candidate, area_ids, entry_ids, discovered, allow_pending=True
+            )
 
 
 def validate_selection_state(state, stage):
