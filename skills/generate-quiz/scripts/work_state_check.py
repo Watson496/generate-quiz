@@ -789,6 +789,7 @@ def validate_selection_candidates(state, entry_ids, areas, area_ids):
                     "unverified_name",
                     "descriptive_name",
                     "outside_difficulty",
+                    "outside_facets",
                 },
                 f"{name}.exclusion_codeが不正である",
             )

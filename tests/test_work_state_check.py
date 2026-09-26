@@ -1354,6 +1354,20 @@ class TestSelectionState:
         assert result.returncode == 1
         assert "core_candidate_idsに選択対象でない候補がある" in result.stderr
 
+    def test_candidate_outside_facets_is_recorded_only(
+        self, run_script, selection_state
+    ):
+        """選んだノードに属さないことが明らかな候補は台帳に記録し、選択対象にしない。"""
+        add_descriptive_name(selection_state)
+        candidate = selection_state["candidates"][-1]
+        candidate.update(
+            exclusion_code="outside_facets",
+            exclusion_reason="化学工業ではなく、計量の単位を指す名称である",
+        )
+        del selection_state["descriptive_name_reviews"]
+        drop_assignment(selection_state, "descriptive_name_review")
+        assert check_state(run_script, "discovery", selection_state).returncode == 0
+
     def test_candidate_outside_difficulty_is_recorded_only(
         self, run_script, selection_state
     ):
