@@ -1354,33 +1354,15 @@ class TestSelectionState:
         assert result.returncode == 1
         assert "core_candidate_idsに選択対象でない候補がある" in result.stderr
 
-    def test_eligible_requires_introductory_evidence(self, run_script, selection_state):
-        """選択対象には、入門・概説資料または一般向けの資料での扱いを示す。"""
-        del selection_state["candidates"][0]["introductory_evidence"]
-        result = check_state(run_script, "discovery", selection_state)
-        assert result.returncode == 1
-        assert "candidates.K1.introductory_evidenceがない" in result.stderr
-
-    def test_introductory_evidence_refers_to_entry_point(
+    def test_candidate_outside_difficulty_is_recorded_only(
         self, run_script, selection_state
     ):
-        """選択対象の条件を示す資料は、開いた入口から示す。"""
-        selection_state["candidates"][0]["introductory_evidence"]["entry_point_id"] = (
-            "E9"
-        )
-        result = check_state(run_script, "discovery", selection_state)
-        assert result.returncode == 1
-        assert "introductory_evidence.entry_point_idが入口にない" in result.stderr
-
-    def test_candidate_without_introductory_source_is_recorded_only(
-        self, run_script, selection_state
-    ):
-        """条件を資料で示せない候補は台帳に記録し、選択対象にしない。"""
+        """難易度の帯から大きく外れる候補は台帳に記録し、選択対象にしない。"""
         add_descriptive_name(selection_state)
         candidate = selection_state["candidates"][-1]
         candidate.update(
-            exclusion_code="no_introductory_source",
-            exclusion_reason="開いた資料は研究論文だけで、入門・概説資料で扱われていない",
+            exclusion_code="outside_difficulty",
+            exclusion_reason="工業化学を学び始めて1〜2年の人の基礎・概説知識に入らない",
         )
         del selection_state["descriptive_name_reviews"]
         drop_assignment(selection_state, "descriptive_name_review")
@@ -1416,10 +1398,6 @@ class TestSelectionState:
             del candidate[key]
         candidate.update(
             disposition="eligible",
-            introductory_evidence={
-                "entry_point_id": "E1",
-                "passage": "分類表の解説で製法の名称と原料を説明している",
-            },
             expanded=True,
             expansion_searches=[
                 {

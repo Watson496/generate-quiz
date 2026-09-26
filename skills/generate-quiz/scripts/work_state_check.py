@@ -755,15 +755,6 @@ def validate_selection_candidates(state, entry_ids, areas, area_ids):
             )
             required_text(item, "quality_rejection_reason", name)
         if disposition == "eligible":
-            evidence = item.get("introductory_evidence")
-            require_condition(
-                isinstance(evidence, dict), f"{name}.introductory_evidenceがない"
-            )
-            require_condition(
-                evidence.get("entry_point_id") in entry_ids,
-                f"{name}.introductory_evidence.entry_point_idが入口にない",
-            )
-            required_text(evidence, "passage", f"{name}.introductory_evidence")
             require_condition(
                 item.get("expanded") is True, f"{name}から探索を展開していない"
             )
@@ -797,7 +788,7 @@ def validate_selection_candidates(state, entry_ids, areas, area_ids):
                     "prohibited_format",
                     "unverified_name",
                     "descriptive_name",
-                    "no_introductory_source",
+                    "outside_difficulty",
                 },
                 f"{name}.exclusion_codeが不正である",
             )
