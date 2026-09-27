@@ -137,6 +137,20 @@ class TestFacetNode:
         assert "subject::99999" in r.stderr
         assert r.stdout == ""
 
+    def test_node_without_including_shows_descendant_including(self, run_script):
+        """INCLUDINGのないノードでは、子孫のINCLUDINGを続けて示す。"""
+        r = run_script("facet_node.py", "type::abstract")
+        assert r.returncode == 0
+        assert "### 子孫のINCLUDING" in r.stdout
+        assert "- `type::abstract.quantity` | 数量 | 数，定数，単位" in r.stdout
+
+    @pytest.mark.parametrize("key", ["type::abstract.quantity", "subject::33"])
+    def test_descendant_including_is_not_shown(self, run_script, key):
+        """INCLUDINGを持つノードや、子孫にもINCLUDINGがないノードでは示さない。"""
+        r = run_script("facet_node.py", key)
+        assert r.returncode == 0
+        assert "子孫のINCLUDING" not in r.stdout
+
     def test_children_only_lists_children(self, run_script):
         """子ノード一覧では親ノードの本文を出さないことを確認する。"""
         r = run_script("facet_node.py", "--children", "subject::1")
