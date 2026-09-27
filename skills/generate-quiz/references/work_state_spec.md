@@ -20,7 +20,7 @@
 
 ## ファセットの交差領域
 
-ファセット選択後、題材探索前に4軸の正規ノードキーと交差領域の確認記録をJSONへ保存し、区分に分けたノードを選んだ場合は`facet_subdivisions`も写して、`work_state_check.py --stage intersection-checkpoint`で検査する。確認記録には、開いた資料のURL、交差領域の広さを判断した理由、資料中に実名がある異なる候補二つ以上と各資料のURL、うち一件以上の初級学習資料と扱いの根拠、成立の判定（`result`：成立は`viable`、不成立は`not_viable`）を含める。`intersection-checkpoint`はどちらの判定も受け付け、題材探索以降の段階の検査は`viable`を求める。広さの理由には、選択範囲に入る大区分と、異なる用途の資料で確かめた対象の種類・下位領域を対応させ、候補探索の経路を設けられるかと、下位領域ごとの選択対象の数の見積もりを記す。探索する下位領域は、`coverage_areas`に`id`、名前を`label`、区分の根拠を`basis`、含まれる解答対象の種類を`target_kinds`として記録する。担当の起動は「担当の起動の記録」節に従って記録する。形式検査は資料の独立性や判断の妥当性を保証しない。
+ファセット選択後、題材探索前に4軸の正規ノードキーと交差領域の確認記録をJSONへ保存し、区分に分けたノードを選んだ場合は`facet_subdivisions`も写して、`work_state_check.py --stage intersection-checkpoint`で検査する。確認記録には、開いた資料のURL、交差領域の広さを判断した理由、資料中に実名がある異なる候補二つ以上と各資料のURL、うち一件以上の初級学習資料と扱いの根拠、成立の判定（`result`：成立は`viable`、不成立は`not_viable`）を含める。`intersection-checkpoint`はどちらの判定も受け付け、題材探索以降の段階の検査は`viable`を求める。広さの理由には、選択範囲に入る大区分と、異なる用途の資料で確かめた対象の種類・下位領域を対応させ、候補探索の経路を設けられるかと、下位領域ごとの選択対象の数の見積もりを記す。探索する下位領域は、`coverage_areas`に`id`、名前を`label`、区分の根拠を`basis`、含まれる解答対象の種類を`target_kinds`として記録する。下位領域の一覧の検査結果は`coverage_area_reviews`に、`target`を`all`として、判定を`status`（`passed`・`failed`）、理由を`reason`として置く。担当の起動は「担当の起動の記録」節に従って記録する。形式検査は資料の独立性や判断の妥当性を保証しない。
 
 ## 題材候補の探索状態
 
@@ -213,7 +213,7 @@ JSON manifestは、検査対象を具体的な内容へ結び付け、確定的�
 ```json
 {
   "facet_nodes": {"subject": "subject::66", "place": "place::(1/9)", "time": "time::ROOT", "type": "type::ontology"},
-  "execution": {"delegation_available": true, "assignments": [{"role": "intersection", "agent_id": "agent-1", "artifact_refs": ["intersection.md"]}, {"role": "exploration", "agent_id": "agent-2", "artifact_refs": ["exploration_D1.md"], "items": ["D1"]}, {"role": "exploration", "agent_id": "agent-3", "artifact_refs": ["exploration_D2.md"], "items": ["D2"]}, {"role": "nearby_exploration", "agent_id": "agent-4", "artifact_refs": ["nearby_exploration.md"], "items": ["K1", "K2"]}, {"role": "alternate_exploration", "agent_id": "agent-5", "artifact_refs": ["alternate_exploration.md"]}, {"role": "saturation_review", "agent_id": "agent-6", "artifact_refs": ["saturation_review.md"]}, {"role": "membership", "agent_id": "agent-7", "artifact_refs": ["membership.json"], "items": ["K1", "K2"]}, {"role": "exposure_precheck", "agent_id": "agent-9", "artifact_refs": ["exposure_precheck.md"], "items": ["K1", "K2"]}, {"role": "topic_grouping", "agent_id": "agent-10", "artifact_refs": ["topic_grouping.json"]}, {"role": "topic_group_review", "agent_id": "agent-11", "artifact_refs": ["topic_group_review.json"]}, {"role": "topic_weighting", "agent_id": "agent-12", "artifact_refs": ["topic_weighting_G1.json"], "items": ["G1"]}, {"role": "topic_weight_review", "agent_id": "agent-13", "artifact_refs": ["topic_weight_review.json"]}, {"role": "topic_distribution_review", "agent_id": "agent-14", "artifact_refs": ["topic_distribution_review.json"]}]},
+  "execution": {"delegation_available": true, "assignments": [{"role": "intersection", "agent_id": "agent-1", "artifact_refs": ["intersection.md"]}, {"role": "coverage_area_review", "agent_id": "agent-coverage", "artifact_refs": ["coverage_area_review.json"]}, {"role": "exploration", "agent_id": "agent-2", "artifact_refs": ["exploration_D1.md"], "items": ["D1"]}, {"role": "exploration", "agent_id": "agent-3", "artifact_refs": ["exploration_D2.md"], "items": ["D2"]}, {"role": "nearby_exploration", "agent_id": "agent-4", "artifact_refs": ["nearby_exploration.md"], "items": ["K1", "K2"]}, {"role": "alternate_exploration", "agent_id": "agent-5", "artifact_refs": ["alternate_exploration.md"]}, {"role": "saturation_review", "agent_id": "agent-6", "artifact_refs": ["saturation_review.md"]}, {"role": "membership", "agent_id": "agent-7", "artifact_refs": ["membership.json"], "items": ["K1", "K2"]}, {"role": "exposure_precheck", "agent_id": "agent-9", "artifact_refs": ["exposure_precheck.md"], "items": ["K1", "K2"]}, {"role": "topic_grouping", "agent_id": "agent-10", "artifact_refs": ["topic_grouping.json"]}, {"role": "topic_group_review", "agent_id": "agent-11", "artifact_refs": ["topic_group_review.json"]}, {"role": "topic_weighting", "agent_id": "agent-12", "artifact_refs": ["topic_weighting_G1.json"], "items": ["G1"]}, {"role": "topic_weight_review", "agent_id": "agent-13", "artifact_refs": ["topic_weight_review.json"]}, {"role": "topic_distribution_review", "agent_id": "agent-14", "artifact_refs": ["topic_distribution_review.json"]}]},
   "intersection_review": {
     "source_refs": ["https://example.org/outline", "https://example.org/lesson"],
     "candidate_examples": [
@@ -223,6 +223,7 @@ JSON manifestは、検査対象を具体的な内容へ結び付け、確定的�
     "scope_reason": "産業分類表の化学工業の区分（無機・有機・高分子等）と、実務記事が扱う製法・装置の種類から、区分ごとに探索経路を設けられる",
     "result": "viable"
   },
+  "coverage_area_reviews": [{"target": "all", "status": "passed", "reason": "化学工業の教科書の章立てと照らして、下位領域に漏れがない"}],
   "entry_points": [
     {"id": "E1", "kind": "分類表", "label": "産業分類", "url": "https://example.org/industry", "access_note": "分類項目", "opened": true},
     {"id": "E2", "kind": "事典索引", "label": "化学事典", "url": "https://example.org/encyclopedia", "access_note": "索引項目", "opened": true},

@@ -1153,7 +1153,23 @@ class TestIntersectionState:
         drop_assignment(intersection_state, "intersection")
         result = check_state(run_script, "intersection-checkpoint", intersection_state)
         assert result.returncode == 1
-        assert "execution.assignmentsが空である" in result.stderr
+        assert "担当の記録がない: ['intersection']" in result.stderr
+
+    def test_requires_passed_coverage_area_review(self, run_script, intersection_state):
+        """下位領域の一覧は、別の担当の検査に合格していることを要する。"""
+        intersection_state["coverage_area_reviews"][0].update(
+            status="failed", fix_data=["coverage_areas"]
+        )
+        result = check_state(run_script, "intersection-checkpoint", intersection_state)
+        assert result.returncode == 1
+        assert "coverage_area_reviewsに不合格の項目がある" in result.stderr
+
+    def test_requires_coverage_area_reviewer(self, run_script, intersection_state):
+        """下位領域の検査担当の起動を記録する。"""
+        drop_assignment(intersection_state, "coverage_area_review")
+        result = check_state(run_script, "intersection-checkpoint", intersection_state)
+        assert result.returncode == 1
+        assert "担当の記録がない: ['coverage_area_review']" in result.stderr
 
     @pytest.mark.parametrize(
         ("field", "value", "message"),

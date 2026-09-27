@@ -125,6 +125,7 @@ PREJUDGMENT_KEYS = (
     "prejudgment_difficulty",
     "prejudgment_otoshi",
 )
+INTERSECTION_ROLES = ("intersection", "coverage_area_review")
 SELECTION_ROLES = (
     "exploration",
     "nearby_exploration",
@@ -139,12 +140,16 @@ STAGE_ROLES = {
         "facet_weight_review",
         "facet_distribution_review",
     ),
-    "intersection-checkpoint": ("intersection",),
-    "discovery-progress": ("intersection", "exploration"),
-    "discovery": ("intersection", *SELECTION_ROLES),
-    "membership": ("intersection", *SELECTION_ROLES, "membership"),
+    "intersection-checkpoint": INTERSECTION_ROLES,
+    "discovery-progress": (*INTERSECTION_ROLES, "exploration"),
+    "discovery": (*INTERSECTION_ROLES, *SELECTION_ROLES),
+    "membership": (
+        *INTERSECTION_ROLES,
+        *SELECTION_ROLES,
+        "membership",
+    ),
     "selection": (
-        "intersection",
+        *INTERSECTION_ROLES,
         *SELECTION_ROLES,
         "membership",
         "exposure_precheck",
@@ -155,7 +160,7 @@ STAGE_ROLES = {
         "topic_distribution_review",
     ),
     "prejudgment": (
-        "intersection",
+        *INTERSECTION_ROLES,
         *SELECTION_ROLES,
         "membership",
         "exposure_precheck",
@@ -558,6 +563,7 @@ def validate_intersection_state(state, *, allow_not_viable=False):
             facet_node_exists(key, subdivisions),
             f"facet_nodes.{axis}がカタログにも細分にも存在しない",
         )
+    validate_reviews(state, "coverage_area_reviews", ["all"], "target")
     review = state.get("intersection_review")
     require_condition(isinstance(review, dict), "intersection_reviewがない")
     areas, _ = records_with_ids(
