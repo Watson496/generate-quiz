@@ -20,7 +20,7 @@
 
 ## ファセットの交差領域
 
-ファセット選択後、題材探索前に4軸の正規ノードキーと交差領域の確認記録をJSONへ保存し、区分に分けたノードを選んだ場合は`facet_subdivisions`も写して、`work_state_check.py --stage intersection-checkpoint`で検査する。確認記録には、開いた資料のURL、交差領域の広さを判断した理由、資料中に実名がある異なる候補二つ以上と各資料のURL、うち一件以上の初級学習資料と扱いの根拠、成立の判定（`result`：成立は`viable`、不成立は`not_viable`）を含める。`intersection-checkpoint`はどちらの判定も受け付け、題材探索以降の段階の検査は`viable`を求める。広さの理由には、選択範囲に入る大区分と、異なる用途の資料で確かめた対象の種類・下位領域を対応させ、候補探索の経路を設けられるかと、下位領域ごとの選択対象の数の見積もりを記す。探索する下位領域は、`coverage_areas`に`id`、名前を`label`、区分の根拠を`basis`、含まれる解答対象の種類を`target_kinds`として記録する。下位領域の一覧の検査結果は`coverage_area_reviews`に、`target`を`all`として、判定を`status`（`passed`・`failed`）、理由を`reason`として置く。担当の起動は「担当の起動の記録」節に従って記録する。形式検査は資料の独立性や判断の妥当性を保証しない。
+ファセット選択後、題材探索前に4軸の正規ノードキーと交差領域の確認記録をJSONへ保存し、区分に分けたノードを選んだ場合は`facet_subdivisions`も写して、`work_state_check.py --stage intersection-checkpoint`で検査する。確認記録には、開いた資料のURL、交差領域の広さを判断した理由、資料中に実名がある異なる候補二つ以上と各資料のURL、うち一件以上の初級学習資料と扱いの根拠、成立の判定（`result`：成立は`viable`、不成立は`not_viable`）を含める。`intersection-checkpoint`はどちらの判定も受け付け、題材探索以降の段階の検査は`viable`を求める。広さの理由には、選択範囲に入る大区分と、異なる用途の資料で確かめた対象の種類・下位領域を対応させ、候補探索の経路を設けられるかを記す。探索する下位領域は、`coverage_areas`に`id`、名前を`label`、区分の根拠を`basis`、含まれる解答対象の種類を`target_kinds`、第6節の候補に当たる対象の数の見積もりを`estimated_candidates`として記録する。下位領域の一覧の検査結果は`coverage_area_reviews`に、`target`を`all`として、判定を`status`（`passed`・`failed`）、理由を`reason`として置く。担当の起動は「担当の起動の記録」節に従って記録する。形式検査は資料の独立性や判断の妥当性を保証しない。
 
 ## 題材候補の探索状態
 
@@ -231,8 +231,8 @@ JSON manifestは、検査対象を具体的な内容へ結び付け、確定的�
     {"id": "E4", "kind": "産業誌", "label": "産業誌記事", "url": "https://example.org/trade", "access_note": "記事本文", "opened": true}
   ],
   "coverage_areas": [
-    {"id": "D1", "label": "無機化学工業", "basis": "産業分類表で無機化学工業が独立した区分になっている", "target_kinds": "工業技術", "explored": true, "entry_point_ids": ["E1"], "source_searches": [{"mode": "open", "query": "無機化学工業 技術", "angle": "分類表の区分に挙がる製法名を探す", "result": "アンモニアソーダ法を発見", "entry_point_ids": ["E1"], "found_candidate_ids": ["K1"], "next_searches": []}]},
-    {"id": "D2", "label": "有機化学工業", "basis": "化学事典の索引で有機工業化学の製法がまとめて挙げられている", "target_kinds": "工業技術", "explored": true, "entry_point_ids": ["E2"], "source_searches": [{"mode": "open", "query": "有機化学工業 技術", "angle": "事典索引の製法項目を探す", "result": "クメン法を発見", "entry_point_ids": ["E2"], "found_candidate_ids": ["K2"], "next_searches": []}]}
+    {"id": "D1", "label": "無機化学工業", "basis": "産業分類表で無機化学工業が独立した区分になっている", "target_kinds": "工業技術", "estimated_candidates": "製法名が10件前後", "explored": true, "entry_point_ids": ["E1"], "source_searches": [{"mode": "open", "query": "無機化学工業 技術", "angle": "分類表の区分に挙がる製法名を探す", "result": "アンモニアソーダ法を発見", "entry_point_ids": ["E1"], "found_candidate_ids": ["K1"], "next_searches": []}]},
+    {"id": "D2", "label": "有機化学工業", "basis": "化学事典の索引で有機工業化学の製法がまとめて挙げられている", "target_kinds": "工業技術", "estimated_candidates": "製法名が10件前後", "explored": true, "entry_point_ids": ["E2"], "source_searches": [{"mode": "open", "query": "有機化学工業 技術", "angle": "事典索引の製法項目を探す", "result": "クメン法を発見", "entry_point_ids": ["E2"], "found_candidate_ids": ["K2"], "next_searches": []}]}
   ],
   "candidates": [
     {"id": "K1", "label": "アンモニアソーダ法", "coverage_area_ids": ["D1"], "discovery_entry_point_ids": ["E1"], "name_use_note": "化学事典の本文で、炭酸ナトリウムの製法の名称として使われている", "disposition": "eligible", "expanded": true, "expansion_searches": [{"source_or_query": "化学事典のアンモニアソーダ法の項の関連項目", "relation_checked": "炭酸ナトリウムを得る別の製法", "found_candidate_ids": []}]},

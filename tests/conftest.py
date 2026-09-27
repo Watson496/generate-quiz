@@ -249,12 +249,14 @@ def intersection_state():
                 "label": "無機化学工業",
                 "basis": "分類表の区分",
                 "target_kinds": "工業技術",
+                "estimated_candidates": "製法名が10件前後",
             },
             {
                 "id": "D2",
                 "label": "有機化学工業",
                 "basis": "事典の区分",
                 "target_kinds": "工業技術",
+                "estimated_candidates": "製法名が10件前後",
             },
         ],
         "intersection_review": {
@@ -329,6 +331,7 @@ def selection_state(intersection_state):
                 "label": "無機化学工業",
                 "basis": "分類表の区分",
                 "target_kinds": "工業技術",
+                "estimated_candidates": "製法名が10件前後",
                 "explored": True,
                 "entry_point_ids": ["E1"],
                 "source_searches": [
@@ -348,6 +351,7 @@ def selection_state(intersection_state):
                 "label": "有機化学工業",
                 "basis": "事典の区分",
                 "target_kinds": "工業技術",
+                "estimated_candidates": "製法名が10件前後",
                 "explored": True,
                 "entry_point_ids": ["E2"],
                 "source_searches": [
