@@ -1155,6 +1155,13 @@ class TestIntersectionState:
         assert result.returncode == 1
         assert "担当の記録がない: ['intersection']" in result.stderr
 
+    def test_requires_estimate_of_each_area(self, run_script, intersection_state):
+        """下位領域ごとに候補の数の見積もりを記録する。"""
+        del intersection_state["coverage_areas"][1]["estimated_candidates"]
+        result = check_state(run_script, "intersection-checkpoint", intersection_state)
+        assert result.returncode == 1
+        assert "coverage_areas.D2.estimated_candidatesがない" in result.stderr
+
     def test_requires_passed_coverage_area_review(self, run_script, intersection_state):
         """下位領域の一覧は、別の担当の検査に合格していることを要する。"""
         intersection_state["coverage_area_reviews"][0].update(

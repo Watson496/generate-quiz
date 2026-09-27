@@ -570,7 +570,7 @@ def validate_intersection_state(state, *, allow_not_viable=False):
         state.get("coverage_areas"), "coverage_areas", nonempty=True
     )
     for item in areas:
-        for key in ("label", "basis", "target_kinds"):
+        for key in ("label", "basis", "target_kinds", "estimated_candidates"):
             required_text(item, key, f"coverage_areas.{item['id']}")
     sources = required_id_list(
         review.get("source_refs"), "intersection_review.source_refs", nonempty=True
