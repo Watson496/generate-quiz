@@ -1,5 +1,7 @@
 """facet_node.pyのカタログ検索とCLI動作を検査する。"""
 
+import json
+
 import pytest
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
@@ -150,6 +152,44 @@ class TestFacetNode:
         r = run_script("facet_node.py", key)
         assert r.returncode == 0
         assert "子孫のINCLUDING" not in r.stdout
+
+    def test_scope_shows_path_and_range_of_each_axis(self, run_script, tmp_path):
+        """状態のfacet_nodesについて、軸ごとに分類経路と範囲を示す。"""
+        state = {
+            "facet_nodes": {
+                "subject": "subject::338*1",
+                "place": "place::(1/9)",
+                "time": "time::ROOT",
+                "type": "type::abstract",
+            },
+            "facet_subdivisions": [
+                {
+                    "parent": "subject::338",
+                    "children": [
+                        {
+                            "key": "subject::338*1",
+                            "label": "景気",
+                            "scope": "景気の局面と状態",
+                        },
+                        {
+                            "key": "subject::338*2",
+                            "label": "物価",
+                            "scope": "物価の状態",
+                        },
+                    ],
+                }
+            ],
+        }
+        path = tmp_path / "state.json"
+        path.write_text(json.dumps(state, ensure_ascii=False), encoding="utf-8")
+        r = run_script("facet_node.py", "--scope", path)
+        assert r.returncode == 0
+        subject, place, time, type_ = r.stdout.split("## ")[1:]
+        assert "＞ 経済状態．経済政策．経済運営 ＞ 景気" in subject
+        assert "- 範囲：景気の局面と状態" in subject
+        assert "- 範囲：限定なし" in place
+        assert "- 範囲：限定なし" in time
+        assert "  - 数量：数，定数，単位，測定量，指標値" in type_
 
     def test_children_only_lists_children(self, run_script):
         """子ノード一覧では親ノードの本文を出さないことを確認する。"""
