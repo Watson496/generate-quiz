@@ -89,6 +89,12 @@ JSON
 python3 "$SKILL_DIR/scripts/topic_pick.py" state.json
 ```
 
+選んだ4軸の分類経路と範囲は、ファセット選択の記録から`facet_node.py --scope`で作る。
+
+```bash
+python3 "$SKILL_DIR/scripts/facet_node.py" --scope facet.json > facet_scope.md
+```
+
 同時に動いた担当が書いた台帳の断片は、`ledger_merge.py`で探索状態へまとめる。まとめた後は`work_state_check.py`で探索状態を検査する。
 
 ```bash
