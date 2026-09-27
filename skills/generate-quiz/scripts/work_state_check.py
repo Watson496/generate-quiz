@@ -16,6 +16,7 @@ target-start、writing、review、material、finalのいずれかを指定する
 """
 
 import argparse
+import collections
 import hashlib
 import json
 import re
@@ -730,6 +731,15 @@ def candidate_discovery_index(areas, candidate_ids):
     return discovered
 
 
+def require_unique_labels(candidates):
+    """除外していない候補に、同じ名称の候補が重複していないことを確認する。"""
+    labels = collections.Counter(
+        item["label"] for item in candidates if item.get("disposition") != "excluded"
+    )
+    duplicated = sorted(label for label, count in labels.items() if count > 1)
+    require_condition(not duplicated, f"同じ名称の候補が重複している: {duplicated}")
+
+
 def validate_selection_candidates(state, entry_ids, areas, area_ids):
     candidates, candidate_ids = records_with_ids(
         state.get("candidates"), "candidates", nonempty=True
@@ -795,6 +805,7 @@ def validate_selection_candidates(state, entry_ids, areas, area_ids):
                 require_condition(
                     merged_into in candidate_ids, f"{name}.merged_intoが存在しない"
                 )
+    require_unique_labels(candidates)
     return candidates, candidate_ids
 
 
@@ -1062,6 +1073,7 @@ def validate_discovery_progress(state):
             require_candidate_discovery_links(
                 candidate, area_ids, entry_ids, discovered, allow_pending=True
             )
+    require_unique_labels(candidates)
 
 
 def validate_selection_state(state, stage):

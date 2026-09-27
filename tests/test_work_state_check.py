@@ -1366,6 +1366,16 @@ class TestSelectionState:
         assert result.returncode == 1
         assert "core_candidate_idsに選択対象でない候補がある" in result.stderr
 
+    @pytest.mark.parametrize("stage", ["discovery-progress", "discovery"])
+    def test_rejects_duplicated_label(self, run_script, selection_state, stage):
+        """除外していない候補に同じ名称の候補を重複させない。"""
+        selection_state["candidates"][1]["label"] = selection_state["candidates"][0][
+            "label"
+        ]
+        result = check_state(run_script, stage, selection_state)
+        assert result.returncode == 1
+        assert "同じ名称の候補が重複している: ['候補1']" in result.stderr
+
     def test_excluded_candidate_needs_only_reason(self, run_script, selection_state):
         """除外した候補は、名称と除外の理由だけで記録できる。"""
         selection_state["candidates"].append(
