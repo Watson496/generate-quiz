@@ -284,7 +284,7 @@ class TestRequests:
         [
             ("assign", "unknown_role"),
             ("assign", "exposure", "--items", "K1"),
-            ("coordinate", "2"),
+            ("coordinate", "9"),
             ("coordinate", "99"),
         ],
     )

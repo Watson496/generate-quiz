@@ -229,7 +229,12 @@ def intersection_state():
                     "role": "intersection",
                     "agent_id": "agent-1",
                     "artifact_refs": ["intersection.md"],
-                }
+                },
+                {
+                    "role": "coverage_area_review",
+                    "agent_id": "agent-coverage-area-review",
+                    "artifact_refs": ["coverage_area_review.json"],
+                },
             ],
         },
         "facet_nodes": {
@@ -269,6 +274,13 @@ def intersection_state():
             "scope_reason": "対象の種類と下位領域を区分できる",
             "result": "viable",
         },
+        "coverage_area_reviews": [
+            {
+                "target": "all",
+                "status": "passed",
+                "reason": "化学工業の教科書の章立てと照らして、下位領域に漏れがない",
+            }
+        ],
     }
 
 
