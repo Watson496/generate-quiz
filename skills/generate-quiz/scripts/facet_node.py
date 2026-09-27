@@ -9,6 +9,9 @@
     facet_node.py --grep '音楽'             # ラベル部分一致で NODE_KEY を探す
     facet_node.py --children 'subject::7'  # DIRECT_CHILDREN 行のみ
 
+ノードにINCLUDINGがなく、子孫のノードにある場合は、ブロックの後に、INCLUDINGを持つ
+最も近い子孫のINCLUDINGを続けて示す。
+
 終了コード:
     0  ブロック（または --grep の該当）を出力した
     1  該当なし（カタログにないノードを推測して作らないこと）
@@ -74,6 +77,43 @@ def child_keys(key):
     if block is None:
         return None
     return [match.group(1) for line in block if (match := CHILD_RE.match(line))]
+
+
+def block_including(block):
+    """ブロックのINCLUDINGの本文を返す。INCLUDINGがなければNoneを返す。"""
+    if "### INCLUDING" not in block:
+        return None
+    lines = block[block.index("### INCLUDING") + 1 :]
+    text = []
+    for line in lines:
+        if line.startswith("### ") or END_RE.match(line):
+            break
+        if line.strip():
+            text.append(line.strip())
+    return " ".join(text)
+
+
+def descendant_includings(key):
+    """INCLUDINGのない子孫をたどり、INCLUDINGを持つ最も近い子孫のキー、ラベル、INCLUDINGを返す。"""
+    found = []
+    for child in child_keys(key) or []:
+        _, block = find_block(child)
+        if block is None:
+            continue
+        including = block_including(block)
+        if including is None:
+            found.extend(descendant_includings(child))
+            continue
+        label = next(
+            (
+                line.removeprefix("- LABEL: ")
+                for line in block
+                if line.startswith("- LABEL: ")
+            ),
+            "",
+        )
+        found.append((child, label, including))
+    return found
 
 
 def grep_labels(needle, limit):
@@ -147,6 +187,14 @@ def main():
 
     print(f"# source: references/{path.name}")
     print("\n".join(block))
+    if block_including(block) is None and (found := descendant_includings(args.key)):
+        print()
+        print(
+            "### 子孫のINCLUDING（このノードにINCLUDINGがないため、子孫の範囲を合わせて示す）"
+        )
+        print()
+        for child, label, including in found:
+            print(f"- `{child}` | {label} | {including}")
     return EXIT_OK
 
 
