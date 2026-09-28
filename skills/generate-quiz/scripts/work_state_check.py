@@ -1029,6 +1029,15 @@ def validate_selection_review(state, areas, candidates, entry_ids):
         nonempty=False,
     )
     required_text(challenge, "resolution", "saturation_challenge")
+    breadth = challenge.get("breadth")
+    require_condition(
+        breadth in {"convergent", "not_convergent"},
+        "saturation_challenge.breadthが不正である",
+    )
+    require_condition(
+        breadth == "convergent",
+        "反証調査担当が、飽和する見込みがないとして粒度判断へ戻ると判断している",
+    )
     require_condition(challenge.get("resolved") is True, "反証調査の結果が未処理である")
     core = challenge.get("core_check")
     require_condition(isinstance(core, dict), "saturation_challenge.core_checkがない")

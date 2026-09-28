@@ -1405,6 +1405,15 @@ class TestSelectionState:
             == 0
         )
 
+    def test_not_convergent_breadth_reports_return(self, run_script, selection_state):
+        """反証調査が粒度判断へ戻ると判断した探索状態は、その判断として不合格にする。"""
+        selection_state["saturation_challenge"].update(
+            breadth="not_convergent", resolved=False
+        )
+        result = check_state(run_script, "discovery", selection_state)
+        assert result.returncode == 1
+        assert "粒度判断へ戻ると判断している" in result.stderr
+
     def test_every_area_needs_exploration_assignment(self, run_script, selection_state):
         """下位領域ごとに題材探索担当を割り当てる。"""
         selection_state["execution"]["assignments"] = [
