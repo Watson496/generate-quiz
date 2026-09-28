@@ -513,6 +513,7 @@ def selection_state(intersection_state):
             "opened_entry_point_ids": ["E3", "E4"],
             "found_candidate_ids": [],
             "resolution": "新しい候補なし",
+            "breadth": "convergent",
             "resolved": True,
             "core_check": {
                 "source_entry_point_ids": ["E2"],
