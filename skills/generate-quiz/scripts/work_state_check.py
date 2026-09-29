@@ -3,7 +3,7 @@
 
 入力はJSONファイルのパスまたは標準入力から受け取る。--stageには
 facet-selection、intersection-checkpoint、discovery、membership、selection、prejudgment、
-target-start、writing、review、material、finalのいずれかを指定する。
+target-start、difficulty-gate、writing、review、material、finalのいずれかを指定する。
 
 終了コード:
     0  指定工程の条件を満たす
@@ -172,6 +172,13 @@ STAGE_ROLES = {
         *PREJUDGMENT_KEYS,
     ),
     "target-start": (),
+    "difficulty-gate": (
+        "name_research",
+        "clue_search",
+        "source_reliability",
+        "asked_knowledge",
+        "difficulty_assessment",
+    ),
     "writing": step_roles("素材の調査", "作文"),
     "review": step_roles("素材の調査", "作文", "検査"),
     "material": (*step_roles("素材の調査", "作文", "検査"), "material_writer"),
@@ -2603,6 +2610,45 @@ def validate_target_start(state):
     required_text(state, "answer_target", "state")
 
 
+def validate_difficulty_gate(state):
+    """難易度の判断で、残りの素材の調査へ進めるかを検査する。"""
+    validate_target_start(state)
+    validate_execution_assignments(state, "difficulty-gate")
+    quote_ids = validate_source_quotes(state)
+    review = state.get("difficulty_assessment")
+    require_condition(isinstance(review, dict), "difficulty_assessmentがない")
+    require_condition(
+        review.get("asked_knowledge")
+        == required_text(state, "asked_knowledge", "state"),
+        "difficulty_assessment.asked_knowledgeが問う知識と一致しない",
+    )
+    statuses = []
+    for group in ("beginner", "general"):
+        item = review.get(group)
+        name = f"difficulty_assessment.{group}"
+        require_condition(isinstance(item, dict), f"{name}がない")
+        require_condition(
+            item.get("status") in {"passed", "failed"}, f"{name}.statusが不正である"
+        )
+        required_text(item, "reason", name)
+        referenced_ids(item, "evidence_ids", quote_ids, name)
+        statuses.append(item["status"])
+    if all(status == "passed" for status in statuses):
+        return
+    reachable = review.get("band_reachable")
+    name = "difficulty_assessment.band_reachable"
+    require_condition(isinstance(reachable, dict), f"{name}がない")
+    require_condition(
+        reachable.get("status") in {"reachable", "unreachable"},
+        f"{name}.statusが不正である",
+    )
+    required_text(reachable, "reason", name)
+    require_condition(
+        reachable["status"] == "reachable",
+        "難易度の資料の担当が、どの手掛かり候補を問う知識にしても帯に入らないと判断している",
+    )
+
+
 def main():
     parser = argparse.ArgumentParser(description="題材探索と作問状態を検査する")
     parser.add_argument("path", nargs="?")
@@ -2617,6 +2663,7 @@ def main():
             "selection",
             "prejudgment",
             "target-start",
+            "difficulty-gate",
             "writing",
             "review",
             "material",
@@ -2653,6 +2700,8 @@ def main():
             validate_selection_execution(state, args.stage)
         elif args.stage == "target-start":
             validate_target_start(state)
+        elif args.stage == "difficulty-gate":
+            validate_difficulty_gate(state)
         elif args.stage == "final":
             require_condition(args.output, "final段階には--outputが必要である")
             output_bytes = Path(args.output).read_bytes()
