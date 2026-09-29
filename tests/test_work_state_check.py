@@ -1425,6 +1425,18 @@ class TestSelectionState:
         assert result.returncode == 1
         assert "explorationの担当に割り当てていない項目がある: ['D2']" in result.stderr
 
+    def test_membership_is_not_assigned_to_excluded_candidate(
+        self, run_script, selection_state
+    ):
+        """所属判定は、題材探索で除いた候補に割り当てない。"""
+        add_excluded_candidate(selection_state)
+        assignment_of(selection_state, "membership")["items"].append("K3")
+        result = check_state(run_script, "membership", selection_state)
+        assert result.returncode == 1
+        assert (
+            "membershipの担当に対象でない項目を割り当てている: ['K3']" in result.stderr
+        )
+
     def test_every_eligible_candidate_needs_nearby_assignment(
         self, run_script, selection_state
     ):
@@ -1680,6 +1692,9 @@ class TestSelectionState:
         )
         del candidate["name_use_note"]
         drop_from_weights(selection_state, "K1")
+        for role in ("membership", "exposure_precheck"):
+            record = assignment_of(selection_state, role)
+            record["items"] = [item for item in record["items"] if item != "K1"]
         selection_state["saturation_challenge"]["core_check"]["core_candidate_ids"] = [
             "K2"
         ]
