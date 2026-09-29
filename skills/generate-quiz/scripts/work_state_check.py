@@ -899,6 +899,9 @@ def validate_prejudgments(state, pickable):
                 item.get("result") in {"pass", "exclude"}, f"{name}.resultが不正である"
             )
             required_text(item, "reason", name)
+            if key == "prejudgment_difficulty":
+                required_text(item, "learner_estimate", name)
+                required_text(item, "general_estimate", name)
             latest[key][candidate_id] = item["result"]
     candidates = {item["id"]: item for item in state["candidates"]}
     accepted = []
