@@ -1713,13 +1713,15 @@ PREJUDGMENT_KEYS = (
 def add_prejudgments(state, candidate_id, excluded=()):
     """抽選した候補について、四つの予備判定と担当の起動の記録を加える。"""
     for key in PREJUDGMENT_KEYS:
-        state.setdefault(key, []).append(
-            {
-                "candidate_id": candidate_id,
-                "result": "exclude" if key in excluded else "pass",
-                "reason": f"{candidate_id}について{key}の観点から判定した",
-            }
-        )
+        record = {
+            "candidate_id": candidate_id,
+            "result": "exclude" if key in excluded else "pass",
+            "reason": f"{candidate_id}について{key}の観点から判定した",
+        }
+        if key == "prejudgment_difficulty":
+            record["learner_estimate"] = "工業化学の概説で製法名として学ぶと見込む"
+            record["general_estimate"] = "一般の人は名前を答えられないと見込む"
+        state.setdefault(key, []).append(record)
         if not any(item["role"] == key for item in state["execution"]["assignments"]):
             state["execution"]["assignments"].append(
                 {
@@ -1737,6 +1739,17 @@ class TestPrejudgmentState:
         """四つの予備判定に合格した候補が一つあれば作問へ進める。"""
         add_prejudgments(selection_state, "K1")
         assert check_state(run_script, "prejudgment", selection_state).returncode == 0
+
+    @pytest.mark.parametrize("field", ["learner_estimate", "general_estimate"])
+    def test_difficulty_requires_both_estimates(
+        self, run_script, selection_state, field
+    ):
+        """難易度帯の予備判定には、学習者側と一般層側の見込みを書く。"""
+        add_prejudgments(selection_state, "K1")
+        del selection_state["prejudgment_difficulty"][0][field]
+        result = check_state(run_script, "prejudgment", selection_state)
+        assert result.returncode == 1
+        assert f"prejudgment_difficulty[0].{field}がない" in result.stderr
 
     def test_each_aspect_is_required(self, run_script, selection_state):
         """四つの観点それぞれの予備判定を要求する。"""
