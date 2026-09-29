@@ -34,6 +34,7 @@
     "picked_candidate": "抽選した候補",
     "research_requests": "作文担当から調査担当への依頼",
     "answer_target": "解答対象と、抽選した場合の四軸の日本語の分類経路と履歴補正の適用結果",
+    "source_cache": "資料の写しの置き場（依頼全体で一つ。source_cache.pyで使う）",
     "sources": "資料の書誌情報、逐語引用、所在、周辺文脈、対象読者と日本語文化圏との関係",
     "source_assessments": "資料ごとの信頼性の水準、明白な誤り、使ってよい用途",
     "source_reliability_reviews": "資料の信頼性の評価の検査結果",
@@ -84,7 +85,7 @@
     "final_reflection_review": "完成稿への反映の照合結果",
     "final_contamination_review": "完成稿への作業用記録の混入の検査結果"
   },
-  "given_data": ["user_conditions", "history", "facet_picks", "granularity_return", "facet_scope", "picked_candidate", "answer_target", "research_requests"],
+  "given_data": ["user_conditions", "history", "facet_picks", "granularity_return", "facet_scope", "picked_candidate", "answer_target", "research_requests", "source_cache"],
   "steps": [
     {
       "name": "ファセット選択",
@@ -95,7 +96,7 @@
           "side": "make",
           "section": "ファセット選択",
           "specs": ["selection_and_history_spec.md", "facet_index.md", "work_state_spec.md"],
-          "inputs": [["user_conditions", "facet_picks", "granularity_return"]],
+          "inputs": [["user_conditions", "facet_picks", "granularity_return", "source_cache"]],
           "outputs": ["facet_levels", "facet_subdivisions", "facet_nodes"]
         },
         {
@@ -104,7 +105,7 @@
           "side": "make",
           "section": "ファセット選択",
           "specs": ["selection_and_history_spec.md", "facet_index.md", "work_state_spec.md"],
-          "inputs": [["user_conditions", "history", "facet_levels", "facet_subdivisions", "facet_picks"]],
+          "inputs": [["user_conditions", "history", "facet_levels", "facet_subdivisions", "facet_picks", "source_cache"]],
           "outputs": ["facet_weights"]
         },
         {
@@ -113,7 +114,7 @@
           "side": "check",
           "section": "ファセット選択",
           "specs": ["selection_and_history_spec.md", "facet_index.md", "work_state_spec.md"],
-          "inputs": [["user_conditions", "facet_levels", "facet_subdivisions", "facet_picks", "granularity_return"]],
+          "inputs": [["user_conditions", "facet_levels", "facet_subdivisions", "facet_picks", "granularity_return", "source_cache"]],
           "outputs": ["facet_level_reviews"]
         },
         {
@@ -122,7 +123,7 @@
           "side": "check",
           "section": "ファセット選択",
           "specs": ["selection_and_history_spec.md", "facet_index.md", "work_state_spec.md"],
-          "inputs": [["user_conditions", "facet_levels", "facet_subdivisions", "facet_picks"]],
+          "inputs": [["user_conditions", "facet_levels", "facet_subdivisions", "facet_picks", "source_cache"]],
           "outputs": ["facet_subdivision_reviews"]
         },
         {
@@ -131,7 +132,7 @@
           "side": "check",
           "section": "ファセット選択",
           "specs": ["selection_and_history_spec.md", "facet_index.md", "work_state_spec.md"],
-          "inputs": [["user_conditions", "history", "facet_levels", "facet_subdivisions", "facet_weights", "facet_picks"]],
+          "inputs": [["user_conditions", "history", "facet_levels", "facet_subdivisions", "facet_weights", "facet_picks", "source_cache"]],
           "outputs": ["facet_weight_reviews"]
         },
         {
@@ -140,7 +141,7 @@
           "side": "check",
           "section": "ファセット選択",
           "specs": ["selection_and_history_spec.md", "work_state_spec.md"],
-          "inputs": [["facet_levels", "facet_weights"]],
+          "inputs": [["facet_levels", "facet_weights", "source_cache"]],
           "outputs": ["facet_distribution_reviews"]
         }
       ]
@@ -154,7 +155,7 @@
           "side": "check",
           "section": "交差領域の確認",
           "specs": ["selection_and_history_spec.md", "work_state_spec.md"],
-          "inputs": [["facet_nodes", "facet_subdivisions", "facet_scope"]],
+          "inputs": [["facet_nodes", "facet_subdivisions", "facet_scope", "source_cache"]],
           "outputs": ["intersection_review", "coverage_areas"]
         },
         {
@@ -163,7 +164,7 @@
           "side": "check",
           "section": "交差領域の確認",
           "specs": ["selection_and_history_spec.md", "work_state_spec.md"],
-          "inputs": [["facet_nodes", "facet_subdivisions", "facet_scope", "intersection_review", "coverage_areas"]],
+          "inputs": [["facet_nodes", "facet_subdivisions", "facet_scope", "intersection_review", "coverage_areas", "source_cache"]],
           "outputs": ["coverage_area_reviews"]
         }
       ]
@@ -177,7 +178,7 @@
           "side": "make",
           "section": "題材探索",
           "specs": ["selection_and_history_spec.md", "work_state_spec.md"],
-          "inputs": [["user_conditions", "history", "facet_nodes", "facet_subdivisions", "facet_scope", "coverage_areas", "ledger"]],
+          "inputs": [["user_conditions", "history", "facet_nodes", "facet_subdivisions", "facet_scope", "coverage_areas", "ledger", "source_cache"]],
           "outputs": ["coverage_areas", "ledger"],
           "split_size": 1
         },
@@ -187,7 +188,7 @@
           "side": "make",
           "section": "題材探索",
           "specs": ["selection_and_history_spec.md", "work_state_spec.md"],
-          "inputs": [["user_conditions", "facet_nodes", "facet_subdivisions", "facet_scope", "coverage_areas", "ledger"]],
+          "inputs": [["user_conditions", "facet_nodes", "facet_subdivisions", "facet_scope", "coverage_areas", "ledger", "source_cache"]],
           "outputs": ["ledger"],
           "split_size": 10
         },
@@ -197,7 +198,7 @@
           "side": "make",
           "section": "題材探索",
           "specs": ["selection_and_history_spec.md", "work_state_spec.md"],
-          "inputs": [["facet_nodes", "facet_subdivisions", "facet_scope", "coverage_areas", "ledger"]],
+          "inputs": [["facet_nodes", "facet_subdivisions", "facet_scope", "coverage_areas", "ledger", "source_cache"]],
           "outputs": ["coverage_areas", "ledger", "independent_review"]
         },
         {
@@ -206,7 +207,7 @@
           "side": "check",
           "section": "題材探索",
           "specs": ["selection_and_history_spec.md", "work_state_spec.md"],
-          "inputs": [["facet_nodes", "facet_subdivisions", "facet_scope", "intersection_review", "coverage_areas", "ledger", "independent_review"]],
+          "inputs": [["facet_nodes", "facet_subdivisions", "facet_scope", "intersection_review", "coverage_areas", "ledger", "independent_review", "source_cache"]],
           "outputs": ["saturation_challenge"]
         }
       ]
@@ -220,7 +221,7 @@
           "side": "make",
           "section": "所属判定",
           "specs": ["selection_and_history_spec.md", "facet_index.md", "work_state_spec.md"],
-          "inputs": [["facet_nodes", "facet_subdivisions", "facet_scope", "ledger"]],
+          "inputs": [["facet_nodes", "facet_subdivisions", "facet_scope", "ledger", "source_cache"]],
           "outputs": ["memberships"],
           "split_size": 20
         }
@@ -235,7 +236,7 @@
           "side": "make",
           "section": "露出の予備検査",
           "specs": ["selection_and_history_spec.md", "quiz_generation_spec.md", "work_state_spec.md"],
-          "inputs": [["ledger", "memberships"]],
+          "inputs": [["ledger", "memberships", "source_cache"]],
           "outputs": ["exposure_prechecks"],
           "split_size": 20
         }
@@ -250,7 +251,7 @@
           "side": "make",
           "section": "題材候補のweightと抽選",
           "specs": ["selection_and_history_spec.md", "work_state_spec.md"],
-          "inputs": [["coverage_areas", "ledger", "memberships", "exposure_prechecks"]],
+          "inputs": [["coverage_areas", "ledger", "memberships", "exposure_prechecks", "source_cache"]],
           "outputs": ["topic_groups"]
         },
         {
@@ -259,7 +260,7 @@
           "side": "check",
           "section": "題材候補のweightと抽選",
           "specs": ["selection_and_history_spec.md", "work_state_spec.md"],
-          "inputs": [["coverage_areas", "ledger", "topic_groups"]],
+          "inputs": [["coverage_areas", "ledger", "topic_groups", "source_cache"]],
           "outputs": ["topic_group_reviews"]
         },
         {
@@ -268,7 +269,7 @@
           "side": "make",
           "section": "題材候補のweightと抽選",
           "specs": ["selection_and_history_spec.md", "work_state_spec.md"],
-          "inputs": [["history", "ledger", "topic_groups"]],
+          "inputs": [["history", "ledger", "topic_groups", "source_cache"]],
           "outputs": ["group_weights"]
         },
         {
@@ -277,7 +278,7 @@
           "side": "make",
           "section": "題材候補のweightと抽選",
           "specs": ["selection_and_history_spec.md", "work_state_spec.md"],
-          "inputs": [["history", "ledger", "topic_groups"]],
+          "inputs": [["history", "ledger", "topic_groups", "source_cache"]],
           "outputs": ["candidate_weights"],
           "split_size": 1
         },
@@ -287,7 +288,7 @@
           "side": "check",
           "section": "題材候補のweightと抽選",
           "specs": ["selection_and_history_spec.md", "work_state_spec.md"],
-          "inputs": [["history", "ledger", "topic_groups", "group_weights", "candidate_weights"]],
+          "inputs": [["history", "ledger", "topic_groups", "group_weights", "candidate_weights", "source_cache"]],
           "outputs": ["topic_weight_reviews"]
         },
         {
@@ -296,7 +297,7 @@
           "side": "check",
           "section": "題材候補のweightと抽選",
           "specs": ["selection_and_history_spec.md", "work_state_spec.md"],
-          "inputs": [["ledger", "topic_groups", "group_weights", "candidate_weights"]],
+          "inputs": [["ledger", "topic_groups", "group_weights", "candidate_weights", "source_cache"]],
           "outputs": ["topic_distribution_reviews"]
         }
       ]
@@ -310,7 +311,7 @@
           "side": "check",
           "section": "抽選後の予備判定",
           "specs": ["selection_and_history_spec.md", "quiz_generation_spec.md", "work_state_spec.md"],
-          "inputs": [["user_conditions", "picked_candidate", "ledger"]],
+          "inputs": [["user_conditions", "picked_candidate", "ledger", "source_cache"]],
           "outputs": ["prejudgment_scope"]
         },
         {
@@ -319,7 +320,7 @@
           "side": "check",
           "section": "抽選後の予備判定",
           "specs": ["selection_and_history_spec.md", "facet_index.md", "work_state_spec.md"],
-          "inputs": [["facet_nodes", "facet_subdivisions", "facet_scope", "picked_candidate", "ledger"]],
+          "inputs": [["facet_nodes", "facet_subdivisions", "facet_scope", "picked_candidate", "ledger", "source_cache"]],
           "outputs": ["prejudgment_membership"]
         },
         {
@@ -328,7 +329,7 @@
           "side": "check",
           "section": "抽選後の予備判定",
           "specs": ["selection_and_history_spec.md", "quiz_generation_spec.md", "verification_and_judging_spec.md", "work_state_spec.md"],
-          "inputs": [["user_conditions", "picked_candidate", "ledger"]],
+          "inputs": [["user_conditions", "picked_candidate", "ledger", "source_cache"]],
           "outputs": ["prejudgment_difficulty"]
         },
         {
@@ -337,7 +338,7 @@
           "side": "check",
           "section": "抽選後の予備判定",
           "specs": ["selection_and_history_spec.md", "quiz_generation_spec.md", "work_state_spec.md"],
-          "inputs": [["user_conditions", "picked_candidate", "ledger"]],
+          "inputs": [["user_conditions", "picked_candidate", "ledger", "source_cache"]],
           "outputs": ["prejudgment_otoshi"]
         }
       ]
@@ -351,7 +352,7 @@
           "side": "make",
           "section": "名称と正答範囲",
           "specs": ["verification_and_judging_spec.md", "work_state_spec.md"],
-          "inputs": [["answer_target", "research_requests"]],
+          "inputs": [["answer_target", "research_requests", "source_cache"]],
           "outputs": ["sources", "names"]
         },
         {
@@ -360,7 +361,7 @@
           "side": "make",
           "section": "名称と正答範囲",
           "specs": ["verification_and_judging_spec.md", "work_state_spec.md"],
-          "inputs": [["answer_target", "sources", "names"]],
+          "inputs": [["answer_target", "sources", "names", "source_cache"]],
           "outputs": ["answers", "answer_judgments"]
         },
         {
@@ -369,7 +370,7 @@
           "side": "make",
           "section": "手掛かり候補",
           "specs": ["quiz_generation_spec.md", "verification_and_judging_spec.md", "work_state_spec.md"],
-          "inputs": [["user_conditions", "answer_target", "names", "research_requests"]],
+          "inputs": [["user_conditions", "answer_target", "names", "research_requests", "source_cache"]],
           "outputs": ["sources", "clues", "propositions"]
         },
         {
@@ -378,7 +379,7 @@
           "side": "make",
           "section": "資料の信頼性",
           "specs": ["verification_and_judging_spec.md", "work_state_spec.md"],
-          "inputs": [["answer_target", "sources"]],
+          "inputs": [["answer_target", "sources", "source_cache"]],
           "outputs": ["source_assessments"],
           "split_size": 5
         },
@@ -388,7 +389,7 @@
           "side": "make",
           "section": "手掛かりの中核性",
           "specs": ["quiz_generation_spec.md", "verification_and_judging_spec.md", "work_state_spec.md"],
-          "inputs": [["answer_target", "clues", "sources", "source_assessments"]],
+          "inputs": [["answer_target", "clues", "sources", "source_assessments", "source_cache"]],
           "outputs": ["clue_centrality"]
         },
         {
@@ -397,7 +398,7 @@
           "side": "make",
           "section": "命題の裏取りと確実性",
           "specs": ["verification_and_judging_spec.md", "work_state_spec.md"],
-          "inputs": [["propositions", "sources", "source_assessments"]],
+          "inputs": [["propositions", "sources", "source_assessments", "source_cache"]],
           "outputs": ["proposition_support"]
         },
         {
@@ -406,7 +407,7 @@
           "side": "make",
           "section": "命題の裏取りと確実性",
           "specs": ["verification_and_judging_spec.md", "work_state_spec.md"],
-          "inputs": [["propositions", "sources", "source_assessments", "proposition_support"]],
+          "inputs": [["propositions", "sources", "source_assessments", "proposition_support", "source_cache"]],
           "outputs": ["proposition_certainty"]
         },
         {
@@ -415,7 +416,7 @@
           "side": "make",
           "section": "対抗候補",
           "specs": ["quiz_generation_spec.md", "verification_and_judging_spec.md", "work_state_spec.md"],
-          "inputs": [["answer_target", "clues", "sources"]],
+          "inputs": [["answer_target", "clues", "sources", "source_cache"]],
           "outputs": ["sources", "competitors"]
         },
         {
@@ -424,7 +425,7 @@
           "side": "make",
           "section": "対抗候補",
           "specs": ["quiz_generation_spec.md", "verification_and_judging_spec.md", "work_state_spec.md"],
-          "inputs": [["answer_target", "clues", "sources", "source_assessments", "competitors"]],
+          "inputs": [["answer_target", "clues", "sources", "source_assessments", "competitors", "source_cache"]],
           "outputs": ["competitor_comparisons"]
         },
         {
@@ -433,7 +434,7 @@
           "side": "make",
           "section": "難易度",
           "specs": ["quiz_generation_spec.md", "verification_and_judging_spec.md", "work_state_spec.md"],
-          "inputs": [["answer_target", "clues", "propositions", "research_requests"]],
+          "inputs": [["answer_target", "clues", "propositions", "research_requests", "source_cache"]],
           "outputs": ["asked_knowledge", "answer_granularity"]
         },
         {
@@ -442,7 +443,7 @@
           "side": "make",
           "section": "難易度",
           "specs": ["verification_and_judging_spec.md", "quiz_generation_spec.md", "work_state_spec.md"],
-          "inputs": [["answer_target", "asked_knowledge", "answer_granularity", "sources", "source_assessments"]],
+          "inputs": [["answer_target", "asked_knowledge", "answer_granularity", "sources", "source_assessments", "source_cache"]],
           "outputs": ["sources", "difficulty_assessment"]
         }
       ]
@@ -456,7 +457,7 @@
           "side": "make",
           "section": "作文",
           "specs": ["quiz_generation_spec.md", "verification_and_judging_spec.md", "selection_and_history_spec.md", "work_state_spec.md"],
-          "inputs": [["user_conditions", "history", "answer_target", "names", "answers", "answer_judgments", "sources", "source_assessments", "clues", "propositions", "clue_centrality", "proposition_support", "proposition_certainty", "competitors", "competitor_comparisons", "asked_knowledge", "answer_granularity", "difficulty_assessment"]],
+          "inputs": [["user_conditions", "history", "answer_target", "names", "answers", "answer_judgments", "sources", "source_assessments", "clues", "propositions", "clue_centrality", "proposition_support", "proposition_certainty", "competitors", "competitor_comparisons", "asked_knowledge", "answer_granularity", "difficulty_assessment", "source_cache"]],
           "outputs": ["draft", "clue_uses", "clue_checks", "realized_propositions", "terms", "exposure_candidates", "generation_checks", "relative_clauses"]
         }
       ]
@@ -470,7 +471,7 @@
           "side": "check",
           "section": "構造と表現",
           "specs": ["quiz_generation_spec.md", "work_state_spec.md"],
-          "inputs": [["answer_target", "draft", "clues", "clue_uses"]],
+          "inputs": [["answer_target", "draft", "clues", "clue_uses", "source_cache"]],
           "outputs": ["structure_review"]
         },
         {
@@ -479,7 +480,7 @@
           "side": "check",
           "section": "構造と表現",
           "specs": ["quiz_generation_spec.md", "output_structure_spec.md", "work_state_spec.md"],
-          "inputs": [["answer_target", "draft", "clues", "clue_uses", "sources"]],
+          "inputs": [["answer_target", "draft", "clues", "clue_uses", "sources", "source_cache"]],
           "outputs": ["clue_order_review"]
         },
         {
@@ -488,7 +489,7 @@
           "side": "check",
           "section": "構造と表現",
           "specs": ["quiz_generation_spec.md", "work_state_spec.md"],
-          "inputs": [["draft"]],
+          "inputs": [["draft", "source_cache"]],
           "outputs": ["naturalness_review"]
         },
         {
@@ -497,7 +498,7 @@
           "side": "check",
           "section": "構造と表現",
           "specs": ["quiz_generation_spec.md", "work_state_spec.md"],
-          "inputs": [["user_conditions", "draft"]],
+          "inputs": [["user_conditions", "draft", "source_cache"]],
           "outputs": ["incremental_comprehension_review"]
         },
         {
@@ -506,7 +507,7 @@
           "side": "check",
           "section": "専門用語",
           "specs": ["quiz_generation_spec.md", "work_state_spec.md"],
-          "inputs": [["user_conditions", "draft"], ["terms"]],
+          "inputs": [["user_conditions", "draft"], ["terms", "source_cache"]],
           "outputs": ["term_listing"]
         },
         {
@@ -515,7 +516,7 @@
           "side": "check",
           "section": "専門用語",
           "specs": ["quiz_generation_spec.md", "work_state_spec.md"],
-          "inputs": [["user_conditions", "draft", "term_listing"]],
+          "inputs": [["user_conditions", "draft", "term_listing", "source_cache"]],
           "outputs": ["term_necessity_reviews"]
         },
         {
@@ -524,7 +525,7 @@
           "side": "check",
           "section": "専門用語",
           "specs": ["quiz_generation_spec.md", "verification_and_judging_spec.md", "work_state_spec.md"],
-          "inputs": [["draft", "term_listing", "sources"]],
+          "inputs": [["draft", "term_listing", "sources", "source_cache"]],
           "outputs": ["term_sense_reviews"]
         },
         {
@@ -533,7 +534,7 @@
           "side": "check",
           "section": "専門用語",
           "specs": ["quiz_generation_spec.md", "verification_and_judging_spec.md", "work_state_spec.md"],
-          "inputs": [["user_conditions", "draft", "term_listing", "sources"]],
+          "inputs": [["user_conditions", "draft", "term_listing", "sources", "source_cache"]],
           "outputs": ["term_audience_reviews"]
         },
         {
@@ -542,7 +543,7 @@
           "side": "check",
           "section": "難易度",
           "specs": ["verification_and_judging_spec.md", "quiz_generation_spec.md", "work_state_spec.md"],
-          "inputs": [["answer_target", "draft", "asked_knowledge", "answer_granularity", "sources", "difficulty_assessment"]],
+          "inputs": [["answer_target", "draft", "asked_knowledge", "answer_granularity", "sources", "difficulty_assessment", "source_cache"]],
           "outputs": ["beginner_difficulty_review"]
         },
         {
@@ -551,7 +552,7 @@
           "side": "check",
           "section": "難易度",
           "specs": ["verification_and_judging_spec.md", "quiz_generation_spec.md", "work_state_spec.md"],
-          "inputs": [["answer_target", "draft", "asked_knowledge", "answer_granularity", "sources", "difficulty_assessment"]],
+          "inputs": [["answer_target", "draft", "asked_knowledge", "answer_granularity", "sources", "difficulty_assessment", "source_cache"]],
           "outputs": ["general_difficulty_review"]
         },
         {
@@ -569,7 +570,7 @@
           "side": "check",
           "section": "解答を伏せた露出検査",
           "specs": ["quiz_generation_spec.md", "work_state_spec.md"],
-          "inputs": [["user_conditions", "draft", "answer_target", "names", "answers", "blind_candidates", "exposure_candidates"]],
+          "inputs": [["user_conditions", "draft", "answer_target", "names", "answers", "blind_candidates", "exposure_candidates", "source_cache"]],
           "outputs": ["exposure_analysis"]
         },
         {
@@ -578,7 +579,7 @@
           "side": "check",
           "section": "名称と正答範囲",
           "specs": ["verification_and_judging_spec.md", "work_state_spec.md"],
-          "inputs": [["draft", "answer_target", "sources", "names", "answers", "blind_candidates", "exposure_candidates"]],
+          "inputs": [["draft", "answer_target", "sources", "names", "answers", "blind_candidates", "exposure_candidates", "source_cache"]],
           "outputs": ["answer_review"]
         },
         {
@@ -587,7 +588,7 @@
           "side": "check",
           "section": "資料の信頼性",
           "specs": ["verification_and_judging_spec.md", "work_state_spec.md"],
-          "inputs": [["answer_target", "sources", "source_assessments"]],
+          "inputs": [["answer_target", "sources", "source_assessments", "source_cache"]],
           "outputs": ["source_reliability_reviews"],
           "split_size": 5
         },
@@ -597,7 +598,7 @@
           "side": "check",
           "section": "手掛かりの中核性",
           "specs": ["quiz_generation_spec.md", "verification_and_judging_spec.md", "work_state_spec.md"],
-          "inputs": [["answer_target", "clues", "clue_uses", "sources", "source_assessments", "clue_centrality"]],
+          "inputs": [["answer_target", "clues", "clue_uses", "sources", "source_assessments", "clue_centrality", "source_cache"]],
           "outputs": ["centrality_reviews"]
         },
         {
@@ -606,7 +607,7 @@
           "side": "check",
           "section": "手掛かりの知名度",
           "specs": ["quiz_generation_spec.md", "verification_and_judging_spec.md", "work_state_spec.md"],
-          "inputs": [["answer_target", "draft", "clues", "clue_uses", "sources", "source_assessments"]],
+          "inputs": [["answer_target", "draft", "clues", "clue_uses", "sources", "source_assessments", "source_cache"]],
           "outputs": ["familiarity_reviews"]
         },
         {
@@ -615,7 +616,7 @@
           "side": "check",
           "section": "命題の裏取りと確実性",
           "specs": ["verification_and_judging_spec.md", "work_state_spec.md"],
-          "inputs": [["propositions", "sources", "source_assessments", "proposition_support"]],
+          "inputs": [["propositions", "sources", "source_assessments", "proposition_support", "source_cache"]],
           "outputs": ["corroboration_reviews"]
         },
         {
@@ -624,7 +625,7 @@
           "side": "check",
           "section": "命題の裏取りと確実性",
           "specs": ["verification_and_judging_spec.md", "work_state_spec.md"],
-          "inputs": [["propositions", "sources", "source_assessments", "proposition_support", "proposition_certainty"]],
+          "inputs": [["propositions", "sources", "source_assessments", "proposition_support", "proposition_certainty", "source_cache"]],
           "outputs": ["certainty_reviews"]
         },
         {
@@ -642,7 +643,7 @@
           "side": "check",
           "section": "命題の裏取りと確実性",
           "specs": ["quiz_generation_spec.md", "verification_and_judging_spec.md", "work_state_spec.md"],
-          "inputs": [["draft", "extracted_propositions", "propositions", "realized_propositions", "proposition_certainty"]],
+          "inputs": [["draft", "extracted_propositions", "propositions", "realized_propositions", "proposition_certainty", "source_cache"]],
           "outputs": ["proposition_matching_reviews"]
         },
         {
@@ -651,7 +652,7 @@
           "side": "check",
           "section": "対抗候補",
           "specs": ["quiz_generation_spec.md", "verification_and_judging_spec.md", "work_state_spec.md"],
-          "inputs": [["answer_target", "draft", "clues", "clue_uses"], ["competitors"]],
+          "inputs": [["answer_target", "draft", "clues", "clue_uses"], ["competitors", "source_cache"]],
           "outputs": ["competitor_search_reviews"]
         },
         {
@@ -660,7 +661,7 @@
           "side": "check",
           "section": "対抗候補",
           "specs": ["quiz_generation_spec.md", "verification_and_judging_spec.md", "work_state_spec.md"],
-          "inputs": [["answer_target", "draft", "clues", "clue_uses", "sources", "competitors", "competitor_search_reviews"]],
+          "inputs": [["answer_target", "draft", "clues", "clue_uses", "sources", "competitors", "competitor_search_reviews", "source_cache"]],
           "outputs": ["competitor_comparison_reviews"]
         }
       ]
@@ -674,7 +675,7 @@
           "side": "make",
           "section": "最終出力",
           "specs": ["output_structure_spec.md", "verification_and_judging_spec.md", "work_state_spec.md"],
-          "inputs": [["answer_target", "draft", "names", "answers", "answer_judgments", "sources", "clues", "clue_uses", "clue_checks", "propositions", "realized_propositions", "proposition_support", "proposition_certainty", "clue_centrality", "competitors", "competitor_comparisons", "asked_knowledge", "answer_granularity", "difficulty_assessment", "terms", "exposure_candidates", "generation_checks", "relative_clauses", "answer_review", "competitor_search_reviews", "beginner_difficulty_review", "general_difficulty_review"]],
+          "inputs": [["answer_target", "draft", "names", "answers", "answer_judgments", "sources", "clues", "clue_uses", "clue_checks", "propositions", "realized_propositions", "proposition_support", "proposition_certainty", "clue_centrality", "competitors", "competitor_comparisons", "asked_knowledge", "answer_granularity", "difficulty_assessment", "terms", "exposure_candidates", "generation_checks", "relative_clauses", "answer_review", "competitor_search_reviews", "beginner_difficulty_review", "general_difficulty_review", "source_cache"]],
           "outputs": ["final_input"]
         },
         {
@@ -683,7 +684,7 @@
           "side": "make",
           "section": "最終出力",
           "specs": ["output_structure_spec.md"],
-          "inputs": [["final_input"]],
+          "inputs": [["final_input", "source_cache"]],
           "outputs": ["final_output"]
         },
         {
@@ -692,7 +693,7 @@
           "side": "check",
           "section": "最終出力",
           "specs": ["output_structure_spec.md", "verification_and_judging_spec.md", "work_state_spec.md"],
-          "inputs": [["final_output", "final_input", "sources"]],
+          "inputs": [["final_output", "final_input", "sources", "source_cache"]],
           "outputs": ["final_reflection_review"]
         },
         {
@@ -701,7 +702,7 @@
           "side": "check",
           "section": "最終出力",
           "specs": ["output_structure_spec.md", "work_state_spec.md"],
-          "inputs": [["final_output"]],
+          "inputs": [["final_output", "source_cache"]],
           "outputs": ["final_contamination_review"]
         }
       ]
