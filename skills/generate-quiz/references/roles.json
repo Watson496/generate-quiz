@@ -443,7 +443,7 @@
           "side": "make",
           "section": "難易度",
           "specs": ["verification_and_judging_spec.md", "quiz_generation_spec.md", "work_state_spec.md"],
-          "inputs": [["answer_target", "asked_knowledge", "answer_granularity", "sources", "source_assessments", "source_cache"]],
+          "inputs": [["answer_target", "clues", "asked_knowledge", "answer_granularity", "sources", "source_assessments", "source_cache"]],
           "outputs": ["sources", "difficulty_assessment"]
         }
       ]

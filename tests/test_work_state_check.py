@@ -1933,6 +1933,48 @@ class TestWorkState:
         assert result.returncode == 1
         assert "題材探索台帳が混入" in result.stderr
 
+    def test_difficulty_gate_accepts_band(self, run_script, complete_state):
+        """両集団で帯に入ると判断していれば、残りの素材の調査へ進める。"""
+        assert (
+            check_state(run_script, "difficulty-gate", complete_state).returncode == 0
+        )
+
+    def test_difficulty_gate_requires_reachability(self, run_script, complete_state):
+        """帯に入らない集団があれば、手掛かり候補を変えて帯に入る見込みの記録を要する。"""
+        complete_state["difficulty_assessment"]["general"]["status"] = "failed"
+        result = check_state(run_script, "difficulty-gate", complete_state)
+        assert result.returncode == 1
+        assert "difficulty_assessment.band_reachableがない" in result.stderr
+        complete_state["difficulty_assessment"]["band_reachable"] = {
+            "status": "reachable",
+            "reason": "別の手掛かり候補なら一般層は名称と結び付けない",
+        }
+        assert (
+            check_state(run_script, "difficulty-gate", complete_state).returncode == 0
+        )
+
+    def test_difficulty_gate_reports_unreachable_band(self, run_script, complete_state):
+        """どの手掛かり候補でも帯に入らないと判断していれば、残りの調査へ進まない。"""
+        complete_state["difficulty_assessment"]["beginner"]["status"] = "failed"
+        complete_state["difficulty_assessment"]["band_reachable"] = {
+            "status": "unreachable",
+            "reason": "名称自体が初級の学習資料で扱われない",
+        }
+        result = check_state(run_script, "difficulty-gate", complete_state)
+        assert result.returncode == 1
+        assert "帯に入らないと判断している" in result.stderr
+
+    def test_difficulty_gate_requires_assessment_role(self, run_script, complete_state):
+        """難易度の資料の担当の起動の記録を要する。"""
+        complete_state["execution"]["assignments"] = [
+            record
+            for record in complete_state["execution"]["assignments"]
+            if record["role"] != "difficulty_assessment"
+        ]
+        result = check_state(run_script, "difficulty-gate", complete_state)
+        assert result.returncode == 1
+        assert "difficulty_assessment" in result.stderr
+
     @pytest.mark.parametrize("group", ["beginner", "general"])
     def test_review_requires_difficulty_review(self, run_script, complete_state, group):
         """初学者側と一般層側の難易度の検査を、それぞれ省けない。"""
