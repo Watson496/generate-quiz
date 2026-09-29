@@ -1192,7 +1192,7 @@ def require_role_assigned(state, role):
     )
 
 
-def require_items_assigned(state, role, ids):
+def require_items_assigned(state, role, ids, *, only=False):
     """分割する担当の起動の記録が、対象の項目をすべて受け持っていることを確認する。"""
     if not state["execution"]["delegation_available"]:
         return
@@ -1205,6 +1205,10 @@ def require_items_assigned(state, role, ids):
     missing = sorted(set(ids) - assigned)
     require_condition(
         not missing, f"{role}の担当に割り当てていない項目がある: {missing}"
+    )
+    extra = sorted(assigned - set(ids))
+    require_condition(
+        not (only and extra), f"{role}の担当に対象でない項目を割り当てている: {extra}"
     )
 
 
@@ -1224,14 +1228,14 @@ def validate_selection_execution(state, stage):
     eligible = sorted(eligible_candidate_ids(state))
     require_items_assigned(state, "nearby_exploration", eligible)
     if stage != "discovery":
-        require_items_assigned(state, "membership", eligible)
+        require_items_assigned(state, "membership", eligible, only=True)
     if stage in {"selection", "prejudgment"}:
         groups = [group["id"] for group in state["topic_groups"]]
         require_items_assigned(state, "topic_weighting", groups)
         if len(groups) > 1:
             require_role_assigned(state, "group_weighting")
         members = member_candidate_ids(state)
-        require_items_assigned(state, "exposure_precheck", sorted(members))
+        require_items_assigned(state, "exposure_precheck", sorted(members), only=True)
 
 
 def validate_source_quotes(state):
