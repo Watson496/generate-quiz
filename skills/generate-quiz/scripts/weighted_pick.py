@@ -1,32 +1,32 @@
 #!/usr/bin/env python3
-"""履歴補正付きの重み付き乱択を行う（references/selection_and_history_spec.md 5.2 / 6 の実装）。
-
-ファセットの sibling group 選択にも、具体的な解答候補の抽選にも同じ形式で使う。
+"""ファセットの兄弟ノードから、履歴補正付きの重み付き乱択で1件を選ぶ（references/selection_and_history_spec.md 第5節の実装）。
 
 補正式:
     p_j = b_j / sum(b)                      基礎weightの正規化
     w_j = b_j * Π[d in D_j] min(1, d * p_j) 履歴補正（d は「何問前に選ばれたか」。直前が1）
     再正規化して1回だけ抽選する。
 
-入力（JSONをstdinまたは --json で渡す）:
-    {"candidates": [
-       {"key": "subject::7", "label": "芸術．レクリエーション．娯楽．スポーツ",
-        "base_weight": 3.0, "history_distances": [1, 6]},
-       {"key": "subject::8", "label": "言語．言語学．文学", "base_weight": 2.0}
-    ]}
+入力:
+    ファセット選択の記録のJSON（work_state_spec.md）と、抽選する階層のID。記録が担当ごとの
+    ファイルに分かれている場合は、すべてのファイルを渡す。同じキーの配列は渡した順につなぐ。
+    指定した階層の`facet_weights`の最後の記録の候補を、`weight`を基礎weightとして抽選する。
 
-    base_weight は自分で推定した相対値（正の実数、丸めない）。weight 0 は不成立候補にだけ与える。history_distances 省略時は補正なし。
+抽選の前に、指定した階層について次を確認する。
+    - `facet_levels`の最後の記録が子へ進む判断である
+    - 粒度判断、weight、weightの分布の各検査の最後の結果が合格である
+    - 区分に分けた階層では、区分の分け方の検査の最後の結果が合格である
 
 出力（既定）: 選ばれた1件のみ。weight・確率・抽選過程は出力しない。
     --verbose を付けたときだけ補正後の内訳を stderr へ出す（調整用。ユーザーには表示しない）。
 
 終了コード:
     0  1件を抽選した
-    2  入力の不備（JSON不正、候補が空、weight合計が0、履歴距離が0以下など）
+    2  入力の不備、または抽選の前の確認を満たさない
 
 使用例:
-    echo '{"candidates":[...]}' | python3 weighted_pick.py
-    python3 weighted_pick.py --json cand.json --exclude subject::7
+    python3 weighted_pick.py facet_granularity.json facet_weighting.json \\
+        facet_granularity_review.json facet_weight_review.json \\
+        facet_distribution_review.json --level L2
 """
 
 import argparse
@@ -37,6 +37,11 @@ import sys
 from pathlib import Path
 
 EXIT_OK, EXIT_USAGE = 0, 2
+REVIEW_KEYS = {
+    "facet_level_reviews": "粒度判断の検査",
+    "facet_weight_reviews": "weightの検査",
+    "facet_distribution_reviews": "weightの分布の検査",
+}
 
 
 def fail(message):
@@ -44,50 +49,78 @@ def fail(message):
     sys.exit(EXIT_USAGE)
 
 
-def load_input(path):
-    if path:
+def load_state(paths):
+    """記録のファイルを読み、同じキーの配列を渡した順につないだ一つの記録にする。"""
+    state = {}
+    for path in paths:
         try:
-            raw = Path(path).read_text(encoding="utf-8")
-        except OSError as exc:
-            fail(f"候補JSONを読めません: {path}: {exc}")
-    else:
-        raw = sys.stdin.read()
-    if not raw.strip():
-        fail("候補JSONが空です。stdin か --json で渡してください。")
-    try:
-        return json.loads(raw)
-    except json.JSONDecodeError as exc:
-        fail(f"候補JSONを解釈できません: {exc}")
+            part = json.loads(Path(path).read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            fail(f"ファセット選択の記録を読めない: {path}: {exc}")
+        if not isinstance(part, dict):
+            fail(f"ファセット選択の記録はオブジェクトでなければならない: {path}")
+        for key, value in part.items():
+            if key not in state:
+                state[key] = value
+            elif isinstance(state[key], list) and isinstance(value, list):
+                state[key] = state[key] + value
+            elif state[key] != value:
+                fail(f"{key}の値がファイルによって異なる: {path}")
+    return state
 
 
-def candidates_of(payload):
-    cands = payload.get("candidates") if isinstance(payload, dict) else payload
-    if not isinstance(cands, list):
-        fail('入力は {"candidates": [...]} か候補の配列である必要があります。')
-    for c in cands:
+def last_for_level(state, key, level, id_field="level_id"):
+    records = state.get(key)
+    if not isinstance(records, list):
+        return None
+    matched = [r for r in records if isinstance(r, dict) and r.get(id_field) == level]
+    return matched[-1] if matched else None
+
+
+def level_candidates(state, level):
+    """抽選の前の確認を行い、指定した階層の候補を返す。"""
+    decision = last_for_level(state, "facet_levels", level, "id")
+    if decision is None or decision.get("decision") != "descend":
+        fail(f"{level}は子へ進む判断として記録されていない")
+    reviews = dict(REVIEW_KEYS)
+    subdivisions = state.get("facet_subdivisions") or []
+    if any(
+        isinstance(item, dict) and item.get("parent") == decision.get("node")
+        for item in subdivisions
+    ):
+        reviews["facet_subdivision_reviews"] = "区分の分け方の検査"
+    for key, label in reviews.items():
+        review = last_for_level(state, key, level)
+        if review is None or review.get("status") != "passed":
+            fail(f"{level}の{label}の最後の結果が合格でないため抽選しない")
+    weights = last_for_level(state, "facet_weights", level)
+    candidates = weights.get("candidates") if weights else None
+    if not isinstance(candidates, list) or not candidates:
+        fail(f"{level}のweightの候補がない")
+    for c in candidates:
         if not isinstance(c, dict) or "key" not in c:
-            fail("各候補は key を持つオブジェクトである必要があります。")
-    return cands
+            fail("keyのない候補がある")
+    return candidates
 
 
 def weights_for(cands):
     base = []
     for c in cands:
         try:
-            b = float(c.get("base_weight", 0.0))
+            b = float(c.get("weight", 0.0))
         except TypeError, ValueError, OverflowError:
-            fail(f"base_weight が数値ではありません: {c.get('key')}")
+            fail(f"weightが数値ではない: {c.get('key')}")
         if not math.isfinite(b):
-            fail(f"base_weight は有限の数値を指定してください: {c.get('key')}")
+            fail(f"weightが有限の数値ではない: {c.get('key')}")
         if b < 0:
-            fail(f"base_weight は0以上です: {c.get('key')} -> {b}")
+            fail(f"weightが負である: {c.get('key')} -> {b}")
         base.append(b)
 
     total = sum(base)
     if not math.isfinite(total):
-        fail("base_weight の合計は有限の数値である必要があります。")
+        fail("weightの合計が有限の数値ではない")
     if total <= 0:
-        fail("base_weight の合計が0です。成立する候補には正のweightを与えてください。")
+        fail("weightの合計が0である")
 
     probs = [b / total for b in base]
 
@@ -98,13 +131,13 @@ def weights_for(cands):
             try:
                 d = float(distance)
             except TypeError, ValueError, OverflowError:
-                fail(f"history_distances が数値ではありません: {c.get('key')}")
+                fail(f"history_distancesが数値ではない: {c.get('key')}")
             if not math.isfinite(d):
-                fail(
-                    f"history_distances は有限の数値を指定してください: {c.get('key')}"
-                )
+                fail(f"history_distancesが有限の数値ではない: {c.get('key')}")
             if d <= 0:
-                fail(f"history_distances は1以上（直前=1）です: {c.get('key')} -> {d}")
+                fail(
+                    f"history_distancesが1未満である（直前は1）: {c.get('key')} -> {d}"
+                )
             w *= min(1.0, d * p)
         adjusted.append(w)
 
@@ -116,32 +149,13 @@ def weights_for(cands):
     return base, probs, adjusted, w_total
 
 
-def main():
-    ap = argparse.ArgumentParser(
-        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
-    )
-    ap.add_argument("--json", metavar="PATH", help="候補JSONファイル（省略時はstdin）")
-    ap.add_argument(
-        "--verbose", action="store_true", help="補正後weightの内訳も出す（内部用）"
-    )
-    ap.add_argument(
-        "--exclude",
-        action="append",
-        default=[],
-        help="品質ゲートで落ちた候補のkeyを除いて再抽選する（複数指定可）",
-    )
-    args = ap.parse_args()
-
-    cands = candidates_of(load_input(args.json))
-    cands = [c for c in cands if c.get("key") not in args.exclude]
-    if not cands:
-        fail("候補が残っていません。ファセット領域か候補探索を見直してください。")
-
+def choose(cands, *, verbose=False):
+    """候補から1件を抽選し、選んだ候補だけを出力する。"""
     base, probs, adjusted, w_total = weights_for(cands)
 
     chosen = random.choices(cands, weights=adjusted, k=1)[0]
 
-    if args.verbose:
+    if verbose:
         print("# 内部用: この内訳はユーザーへ表示しない", file=sys.stderr)
         for c, b, p, w in zip(cands, base, probs, adjusted, strict=True):
             print(
@@ -151,6 +165,21 @@ def main():
             )
 
     print(f"CHOSEN\t{chosen.get('key')}\t{chosen.get('label', '')}".rstrip())
+    return chosen
+
+
+def main():
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    ap.add_argument("state", nargs="+", help="ファセット選択の記録のJSON")
+    ap.add_argument("--level", required=True, help="抽選する階層のID")
+    ap.add_argument(
+        "--verbose", action="store_true", help="補正後weightの内訳も出す（内部用）"
+    )
+    args = ap.parse_args()
+
+    choose(level_candidates(load_state(args.state), args.level), verbose=args.verbose)
     return EXIT_OK
 
 
