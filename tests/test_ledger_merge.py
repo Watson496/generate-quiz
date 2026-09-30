@@ -46,6 +46,7 @@ def exploration_fragment(prefix, area_id, label):
                 "coverage_area_ids": [area_id],
                 "discovery_entry_point_ids": [entry_id],
                 "name_use_note": "事典の本文で名称として使われる",
+                "candidate_reason": "説明の語の組み合わせではできない製法名で、初学者は答えられ一般層は通常答えられない",
             }
         ],
     }

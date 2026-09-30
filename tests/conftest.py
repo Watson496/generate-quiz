@@ -374,6 +374,7 @@ def selection_state(intersection_state):
                 "coverage_area_ids": ["D1"],
                 "discovery_entry_point_ids": ["E1"],
                 "name_use_note": "本文で対象の名称として使われる",
+                "candidate_reason": "説明の語の組み合わせではできない名称で、初学者は答えられ一般層は通常答えられない",
                 "disposition": "eligible",
                 "expanded": True,
                 "expansion_searches": [
@@ -390,6 +391,7 @@ def selection_state(intersection_state):
                 "coverage_area_ids": ["D2"],
                 "discovery_entry_point_ids": ["E2"],
                 "name_use_note": "本文で対象の名称として使われる",
+                "candidate_reason": "説明の語の組み合わせではできない名称で、初学者は答えられ一般層は通常答えられない",
                 "disposition": "eligible",
                 "expanded": True,
                 "expansion_searches": [
