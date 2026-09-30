@@ -10,8 +10,8 @@ class TestTopicPickFunctions:
         """まとまりのweightとまとまりの中のweightの積を基礎weightとする。"""
         module = load_script("generate-quiz", "topic_pick.py")
         selection_state["candidate_weights"][1]["weight"] = 3.0
-        payload = module.pick_payload(selection_state)
-        assert {item["key"]: item["base_weight"] for item in payload["candidates"]} == {
+        candidates = module.pick_candidates(selection_state)
+        assert {item["key"]: item["weight"] for item in candidates} == {
             "K1": 2.0,
             "K2": 3.0,
         }
@@ -28,8 +28,8 @@ class TestTopicPickFunctions:
             }
         ]
         del selection_state["group_weights"]
-        payload = module.pick_payload(selection_state)
-        assert [item["base_weight"] for item in payload["candidates"]] == [1.0, 1.0]
+        candidates = module.pick_candidates(selection_state)
+        assert [item["weight"] for item in candidates] == [1.0, 1.0]
 
     def test_matching_quality_exclusion(self, load_script, selection_state):
         """品質棄却の記録と除外IDが一致すれば入力を認める。"""

@@ -19,16 +19,16 @@
 
 import argparse
 import json
-import subprocess
 import sys
 from pathlib import Path
 
+import weighted_pick
 import work_state_check
 
 EXIT_SELECTION_BLOCKED, EXIT_USAGE = 1, 2
 
 
-def pick_payload(state):
+def pick_candidates(state):
     """候補ごとに、まとまりのweightとまとまりの中のweightの積を基礎weightとする。"""
     group_weights = {
         item["group_id"]: item["weight"] for item in state.get("group_weights", [])
@@ -45,13 +45,12 @@ def pick_payload(state):
         candidate = {
             "key": candidate_id,
             "label": labels[candidate_id],
-            "base_weight": group_weights.get(group_of[candidate_id], 1)
-            * item["weight"],
+            "weight": group_weights.get(group_of[candidate_id], 1) * item["weight"],
         }
         if item.get("history_distances"):
             candidate["history_distances"] = item["history_distances"]
         candidates.append(candidate)
-    return {"candidates": candidates}
+    return candidates
 
 
 def validate_exclusions(state, exclusions):
@@ -97,20 +96,10 @@ def main():
         print("候補なし: 抽選可能な候補が残っていない", file=sys.stderr)
         return EXIT_SELECTION_BLOCKED
 
-    picker = Path(__file__).with_name("weighted_pick.py")
-    command = [sys.executable, str(picker)]
-    for key in args.exclude:
-        command.extend(("--exclude", key))
-    result = subprocess.run(
-        command,
-        input=json.dumps(pick_payload(state), ensure_ascii=False),
-        capture_output=True,
-        text=True,
-        check=False,
+    weighted_pick.choose(
+        [item for item in pick_candidates(state) if item["key"] not in args.exclude]
     )
-    sys.stdout.write(result.stdout)
-    sys.stderr.write(result.stderr)
-    return result.returncode
+    return 0
 
 
 if __name__ == "__main__":
