@@ -1607,10 +1607,15 @@ class TestSelectionState:
         assert result.returncode == 1
         assert "本文を開いていない" in result.stderr
 
-    def test_selection_requires_name_use(self, run_script, selection_state):
-        """候補名が対象の呼称として使われる箇所を欠く台帳を拒否する。"""
-        del selection_state["candidates"][0]["name_use_note"]
-        assert check_state(run_script, "selection", selection_state).returncode == 1
+    @pytest.mark.parametrize("field", ["name_use_note", "candidate_reason"])
+    def test_selection_requires_candidate_notes(
+        self, run_script, selection_state, field
+    ):
+        """名称の使用箇所と、候補に当たると判断した理由を欠く台帳を拒否する。"""
+        del selection_state["candidates"][0][field]
+        result = check_state(run_script, "selection", selection_state)
+        assert result.returncode == 1
+        assert f"candidates.K1.{field}" in result.stderr
 
     def test_membership_requires_every_candidate(self, run_script, selection_state):
         """所属判定のない選択対象を残さない。"""
@@ -1691,6 +1696,7 @@ class TestSelectionState:
             exclusion_reason="日本語資料中で対象の名称として確認できない",
         )
         del candidate["name_use_note"]
+        del candidate["candidate_reason"]
         drop_from_weights(selection_state, "K1")
         for role in ("membership", "exposure_precheck"):
             record = assignment_of(selection_state, role)

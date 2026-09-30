@@ -768,6 +768,7 @@ def validate_selection_candidates(state, entry_ids, areas, area_ids):
         if disposition == "eligible":
             require_candidate_discovery_links(item, area_ids, entry_ids, discovered)
             required_text(item, "name_use_note", name)
+            required_text(item, "candidate_reason", name)
         if "quality_rejection_reason" in item:
             require_condition(
                 disposition == "eligible", f"{name}は探索段階で選択対象ではない"
