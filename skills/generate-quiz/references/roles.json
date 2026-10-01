@@ -96,6 +96,7 @@
           "side": "make",
           "section": "ファセット選択",
           "specs": ["selection_and_history_spec.md", "facet_index.md", "work_state_spec.md"],
+          "rules": [{"spec": "selection_and_history_spec.md", "heading": "1. 目的と基本モデル"}, {"spec": "selection_and_history_spec.md", "heading": "2. 細分化するか停止するか"}],
           "inputs": [["user_conditions", "facet_picks", "granularity_return", "source_cache"]],
           "outputs": ["facet_levels", "facet_subdivisions", "facet_nodes"]
         },
@@ -105,6 +106,7 @@
           "side": "make",
           "section": "ファセット選択",
           "specs": ["selection_and_history_spec.md", "facet_index.md", "work_state_spec.md"],
+          "rules": [{"spec": "selection_and_history_spec.md", "heading": "3. sibling groupの候補集合"}, {"spec": "selection_and_history_spec.md", "heading": "4. 基礎local weight"}, {"spec": "selection_and_history_spec.md", "heading": "5. 履歴補正"}],
           "inputs": [["user_conditions", "history", "facet_levels", "facet_subdivisions", "facet_picks", "source_cache"]],
           "outputs": ["facet_weights"]
         },
@@ -114,6 +116,7 @@
           "side": "check",
           "section": "ファセット選択",
           "specs": ["selection_and_history_spec.md", "facet_index.md", "work_state_spec.md"],
+          "rules": [{"spec": "selection_and_history_spec.md", "heading": "1. 目的と基本モデル"}, {"spec": "selection_and_history_spec.md", "heading": "2. 細分化するか停止するか"}],
           "inputs": [["user_conditions", "facet_levels", "facet_subdivisions", "facet_picks", "granularity_return", "source_cache"]],
           "outputs": ["facet_level_reviews"]
         },
@@ -123,6 +126,7 @@
           "side": "check",
           "section": "ファセット選択",
           "specs": ["selection_and_history_spec.md", "facet_index.md", "work_state_spec.md"],
+          "rules": [{"spec": "selection_and_history_spec.md", "heading": "2.1 カタログの最下層より下の細分"}],
           "inputs": [["user_conditions", "facet_levels", "facet_subdivisions", "facet_picks", "source_cache"]],
           "outputs": ["facet_subdivision_reviews"]
         },
@@ -132,6 +136,7 @@
           "side": "check",
           "section": "ファセット選択",
           "specs": ["selection_and_history_spec.md", "facet_index.md", "work_state_spec.md"],
+          "rules": [{"spec": "selection_and_history_spec.md", "heading": "3. sibling groupの候補集合"}, {"spec": "selection_and_history_spec.md", "heading": "4. 基礎local weight"}, {"spec": "selection_and_history_spec.md", "heading": "5. 履歴補正"}],
           "inputs": [["user_conditions", "history", "facet_levels", "facet_subdivisions", "facet_weights", "facet_picks", "source_cache"]],
           "outputs": ["facet_weight_reviews"]
         },
@@ -141,6 +146,7 @@
           "side": "check",
           "section": "ファセット選択",
           "specs": ["selection_and_history_spec.md", "work_state_spec.md"],
+          "rules": [{"spec": "selection_and_history_spec.md", "heading": "4. 基礎local weight"}],
           "inputs": [["facet_levels", "facet_weights", "source_cache"]],
           "outputs": ["facet_distribution_reviews"]
         }
@@ -155,6 +161,7 @@
           "side": "check",
           "section": "交差領域の確認",
           "specs": ["selection_and_history_spec.md", "work_state_spec.md"],
+          "rules": [{"spec": "selection_and_history_spec.md", "heading": "6. 具体的な解答候補の探索と抽選", "subsections": false}],
           "inputs": [["facet_nodes", "facet_subdivisions", "facet_scope", "source_cache"]],
           "outputs": ["intersection_review", "coverage_areas"]
         },
@@ -164,6 +171,7 @@
           "side": "check",
           "section": "交差領域の確認",
           "specs": ["selection_and_history_spec.md", "work_state_spec.md"],
+          "rules": [{"spec": "selection_and_history_spec.md", "heading": "6. 具体的な解答候補の探索と抽選", "subsections": false}],
           "inputs": [["facet_nodes", "facet_subdivisions", "facet_scope", "intersection_review", "coverage_areas", "source_cache"]],
           "outputs": ["coverage_area_reviews"]
         }
@@ -178,6 +186,7 @@
           "side": "make",
           "section": "題材探索",
           "specs": ["selection_and_history_spec.md", "work_state_spec.md"],
+          "rules": [{"spec": "selection_and_history_spec.md", "heading": "6. 具体的な解答候補の探索と抽選", "subsections": false}],
           "inputs": [["user_conditions", "history", "facet_nodes", "facet_subdivisions", "facet_scope", "coverage_areas", "ledger", "source_cache"]],
           "outputs": ["coverage_areas", "ledger"],
           "split_size": 1
@@ -188,6 +197,7 @@
           "side": "make",
           "section": "題材探索",
           "specs": ["selection_and_history_spec.md", "work_state_spec.md"],
+          "rules": [{"spec": "selection_and_history_spec.md", "heading": "6. 具体的な解答候補の探索と抽選", "subsections": false}],
           "inputs": [["user_conditions", "facet_nodes", "facet_subdivisions", "facet_scope", "coverage_areas", "ledger", "source_cache"]],
           "outputs": ["ledger"],
           "split_size": 10
@@ -198,6 +208,7 @@
           "side": "make",
           "section": "題材探索",
           "specs": ["selection_and_history_spec.md", "work_state_spec.md"],
+          "rules": [{"spec": "selection_and_history_spec.md", "heading": "6. 具体的な解答候補の探索と抽選", "subsections": false}],
           "inputs": [["facet_nodes", "facet_subdivisions", "facet_scope", "coverage_areas", "ledger", "source_cache"]],
           "outputs": ["coverage_areas", "ledger", "independent_review"]
         },
@@ -207,6 +218,7 @@
           "side": "check",
           "section": "題材探索",
           "specs": ["selection_and_history_spec.md", "work_state_spec.md"],
+          "rules": [{"spec": "selection_and_history_spec.md", "heading": "6. 具体的な解答候補の探索と抽選", "subsections": false}],
           "inputs": [["facet_nodes", "facet_subdivisions", "facet_scope", "intersection_review", "coverage_areas", "ledger", "independent_review", "source_cache"]],
           "outputs": ["saturation_challenge"]
         }
@@ -221,6 +233,7 @@
           "side": "make",
           "section": "所属判定",
           "specs": ["selection_and_history_spec.md", "facet_index.md", "work_state_spec.md"],
+          "rules": [{"spec": "selection_and_history_spec.md", "heading": "1. 目的と基本モデル"}],
           "inputs": [["facet_nodes", "facet_subdivisions", "facet_scope", "ledger", "source_cache"]],
           "outputs": ["memberships"],
           "split_size": 20
@@ -236,6 +249,7 @@
           "side": "make",
           "section": "露出の予備検査",
           "specs": ["selection_and_history_spec.md", "quiz_generation_spec.md", "work_state_spec.md"],
+          "rules": [{"spec": "selection_and_history_spec.md", "heading": "6.1 解答露出の予備検査"}, {"spec": "quiz_generation_spec.md", "heading": "18. 非自明性と解答露出"}],
           "inputs": [["ledger", "memberships", "source_cache"]],
           "outputs": ["exposure_prechecks"],
           "split_size": 20
@@ -251,6 +265,7 @@
           "side": "make",
           "section": "題材候補のweightと抽選",
           "specs": ["selection_and_history_spec.md", "work_state_spec.md"],
+          "rules": [{"spec": "selection_and_history_spec.md", "heading": "6. 具体的な解答候補の探索と抽選", "subsections": false}, {"spec": "selection_and_history_spec.md", "heading": "4. 基礎local weight"}],
           "inputs": [["coverage_areas", "ledger", "memberships", "exposure_prechecks", "source_cache"]],
           "outputs": ["topic_groups"]
         },
@@ -260,6 +275,7 @@
           "side": "check",
           "section": "題材候補のweightと抽選",
           "specs": ["selection_and_history_spec.md", "work_state_spec.md"],
+          "rules": [{"spec": "selection_and_history_spec.md", "heading": "6. 具体的な解答候補の探索と抽選", "subsections": false}, {"spec": "selection_and_history_spec.md", "heading": "4. 基礎local weight"}],
           "inputs": [["coverage_areas", "ledger", "topic_groups", "source_cache"]],
           "outputs": ["topic_group_reviews"]
         },
@@ -269,6 +285,7 @@
           "side": "make",
           "section": "題材候補のweightと抽選",
           "specs": ["selection_and_history_spec.md", "work_state_spec.md"],
+          "rules": [{"spec": "selection_and_history_spec.md", "heading": "4. 基礎local weight"}, {"spec": "selection_and_history_spec.md", "heading": "5. 履歴補正"}],
           "inputs": [["history", "ledger", "topic_groups", "source_cache"]],
           "outputs": ["group_weights"]
         },
@@ -278,6 +295,7 @@
           "side": "make",
           "section": "題材候補のweightと抽選",
           "specs": ["selection_and_history_spec.md", "work_state_spec.md"],
+          "rules": [{"spec": "selection_and_history_spec.md", "heading": "4. 基礎local weight"}, {"spec": "selection_and_history_spec.md", "heading": "5. 履歴補正"}],
           "inputs": [["history", "ledger", "topic_groups", "source_cache"]],
           "outputs": ["candidate_weights"],
           "split_size": 1
@@ -288,6 +306,7 @@
           "side": "check",
           "section": "題材候補のweightと抽選",
           "specs": ["selection_and_history_spec.md", "work_state_spec.md"],
+          "rules": [{"spec": "selection_and_history_spec.md", "heading": "4. 基礎local weight"}, {"spec": "selection_and_history_spec.md", "heading": "5. 履歴補正"}],
           "inputs": [["history", "ledger", "topic_groups", "group_weights", "candidate_weights", "source_cache"]],
           "outputs": ["topic_weight_reviews"]
         },
@@ -297,6 +316,7 @@
           "side": "check",
           "section": "題材候補のweightと抽選",
           "specs": ["selection_and_history_spec.md", "work_state_spec.md"],
+          "rules": [{"spec": "selection_and_history_spec.md", "heading": "4. 基礎local weight"}],
           "inputs": [["ledger", "topic_groups", "group_weights", "candidate_weights", "source_cache"]],
           "outputs": ["topic_distribution_reviews"]
         }
@@ -311,6 +331,7 @@
           "side": "check",
           "section": "抽選後の予備判定",
           "specs": ["selection_and_history_spec.md", "quiz_generation_spec.md", "work_state_spec.md"],
+          "rules": [{"spec": "selection_and_history_spec.md", "heading": "7. 題材品質ゲート", "subsections": false}, {"spec": "quiz_generation_spec.md", "heading": "1. 目的"}],
           "inputs": [["user_conditions", "picked_candidate", "ledger", "source_cache"]],
           "outputs": ["prejudgment_scope"]
         },
@@ -320,6 +341,7 @@
           "side": "check",
           "section": "抽選後の予備判定",
           "specs": ["selection_and_history_spec.md", "facet_index.md", "work_state_spec.md"],
+          "rules": [{"spec": "selection_and_history_spec.md", "heading": "7. 題材品質ゲート", "subsections": false}, {"spec": "selection_and_history_spec.md", "heading": "1. 目的と基本モデル"}],
           "inputs": [["facet_nodes", "facet_subdivisions", "facet_scope", "picked_candidate", "ledger", "source_cache"]],
           "outputs": ["prejudgment_membership"]
         },
@@ -329,6 +351,7 @@
           "side": "check",
           "section": "抽選後の予備判定",
           "specs": ["selection_and_history_spec.md", "quiz_generation_spec.md", "verification_and_judging_spec.md", "work_state_spec.md"],
+          "rules": [{"spec": "selection_and_history_spec.md", "heading": "7. 題材品質ゲート", "subsections": false}, {"spec": "selection_and_history_spec.md", "heading": "7.2 二側の難易度"}, {"spec": "quiz_generation_spec.md", "heading": "2.2 難易度帯"}],
           "inputs": [["user_conditions", "picked_candidate", "ledger", "source_cache"]],
           "outputs": ["prejudgment_difficulty"]
         },
@@ -338,6 +361,7 @@
           "side": "check",
           "section": "抽選後の予備判定",
           "specs": ["selection_and_history_spec.md", "quiz_generation_spec.md", "work_state_spec.md"],
+          "rules": [{"spec": "selection_and_history_spec.md", "heading": "7. 題材品質ゲート", "subsections": false}, {"spec": "selection_and_history_spec.md", "heading": "7.5 落としを作れない候補"}, {"spec": "quiz_generation_spec.md", "heading": "14. 終端の代表説明（落とし）"}],
           "inputs": [["user_conditions", "picked_candidate", "ledger", "source_cache"]],
           "outputs": ["prejudgment_otoshi"]
         }
@@ -352,6 +376,7 @@
           "side": "make",
           "section": "名称と正答範囲",
           "specs": ["verification_and_judging_spec.md", "work_state_spec.md"],
+          "rules": [{"spec": "verification_and_judging_spec.md", "heading": "11. 解答欄"}, {"spec": "verification_and_judging_spec.md", "heading": "12. 別解"}, {"spec": "verification_and_judging_spec.md", "heading": "13. 正しさの基本観"}, {"spec": "verification_and_judging_spec.md", "heading": "3.1 外的評価"}],
           "inputs": [["answer_target", "research_requests", "source_cache"]],
           "outputs": ["sources", "names"]
         },
@@ -361,6 +386,7 @@
           "side": "make",
           "section": "名称と正答範囲",
           "specs": ["verification_and_judging_spec.md", "work_state_spec.md"],
+          "rules": [{"spec": "verification_and_judging_spec.md", "heading": "11. 解答欄"}, {"spec": "verification_and_judging_spec.md", "heading": "12. 別解"}, {"spec": "verification_and_judging_spec.md", "heading": "13. 正しさの基本観"}, {"spec": "verification_and_judging_spec.md", "heading": "14. 既定競技規則"}, {"spec": "verification_and_judging_spec.md", "heading": "15. ○・もう一度・×"}, {"spec": "verification_and_judging_spec.md", "heading": "16. 回答の十分性と問題文の文脈"}, {"spec": "verification_and_judging_spec.md", "heading": "17. 自然な省略と、問題文との文字列合成の禁止"}, {"spec": "verification_and_judging_spec.md", "heading": "18. 正誤判定基準の作成順"}],
           "inputs": [["answer_target", "sources", "names", "source_cache"]],
           "outputs": ["answers", "answer_judgments"]
         },
@@ -369,7 +395,8 @@
           "name": "手掛かり候補の探索担当",
           "side": "make",
           "section": "手掛かり候補",
-          "specs": ["quiz_generation_spec.md", "verification_and_judging_spec.md", "work_state_spec.md"],
+          "specs": ["quiz_generation_spec.md", "verification_and_judging_spec.md", "selection_and_history_spec.md", "work_state_spec.md"],
+          "rules": [{"spec": "quiz_generation_spec.md", "heading": "2. 題材を文章化する前の必須ゲート"}, {"spec": "quiz_generation_spec.md", "heading": "13. 手掛かり単位の設計と二段階検査"}, {"spec": "selection_and_history_spec.md", "heading": "7.1 中核情報と比較対象"}],
           "inputs": [["user_conditions", "answer_target", "names", "research_requests", "source_cache"]],
           "outputs": ["sources", "clues", "propositions"]
         },
@@ -379,6 +406,7 @@
           "side": "make",
           "section": "資料の信頼性",
           "specs": ["verification_and_judging_spec.md", "work_state_spec.md"],
+          "rules": [{"spec": "verification_and_judging_spec.md", "heading": "3.1 外的評価"}, {"spec": "verification_and_judging_spec.md", "heading": "4. 情報源"}],
           "inputs": [["answer_target", "sources", "source_cache"]],
           "outputs": ["source_assessments"],
           "split_size": 5
@@ -389,6 +417,7 @@
           "side": "make",
           "section": "手掛かりの中核性",
           "specs": ["quiz_generation_spec.md", "verification_and_judging_spec.md", "work_state_spec.md"],
+          "rules": [{"spec": "quiz_generation_spec.md", "heading": "13.3 各単位の中核性と実用上の準一意性"}, {"spec": "verification_and_judging_spec.md", "heading": "5.2 中核性と実用上の準一意性"}],
           "inputs": [["answer_target", "clues", "sources", "source_assessments", "source_cache"]],
           "outputs": ["clue_centrality"]
         },
@@ -398,6 +427,7 @@
           "side": "make",
           "section": "命題の裏取りと確実性",
           "specs": ["verification_and_judging_spec.md", "work_state_spec.md"],
+          "rules": [{"spec": "verification_and_judging_spec.md", "heading": "2. 予定命題・実現命題・問題文の対応"}, {"spec": "verification_and_judging_spec.md", "heading": "3.2 内的評価"}, {"spec": "verification_and_judging_spec.md", "heading": "3.3 根拠資料の確認状態"}, {"spec": "verification_and_judging_spec.md", "heading": "3.4 命題との対応方法"}, {"spec": "verification_and_judging_spec.md", "heading": "8. 品質ゲートと未確認資料"}],
           "inputs": [["propositions", "sources", "source_assessments", "source_cache"]],
           "outputs": ["proposition_support"]
         },
@@ -407,6 +437,7 @@
           "side": "make",
           "section": "命題の裏取りと確実性",
           "specs": ["verification_and_judging_spec.md", "work_state_spec.md"],
+          "rules": [{"spec": "verification_and_judging_spec.md", "heading": "3.1 外的評価"}, {"spec": "verification_and_judging_spec.md", "heading": "3.5 確実性の判定"}, {"spec": "verification_and_judging_spec.md", "heading": "8. 品質ゲートと未確認資料"}],
           "inputs": [["propositions", "sources", "source_assessments", "proposition_support", "source_cache"]],
           "outputs": ["proposition_certainty"]
         },
@@ -416,6 +447,7 @@
           "side": "make",
           "section": "対抗候補",
           "specs": ["quiz_generation_spec.md", "verification_and_judging_spec.md", "work_state_spec.md"],
+          "rules": [{"spec": "quiz_generation_spec.md", "heading": "13.2 比較対象集合"}, {"spec": "quiz_generation_spec.md", "heading": "19. 一意性"}, {"spec": "verification_and_judging_spec.md", "heading": "5.3 比較対象と探索"}, {"spec": "verification_and_judging_spec.md", "heading": "6. 反証探索と一意性"}],
           "inputs": [["answer_target", "clues", "sources", "source_cache"]],
           "outputs": ["sources", "competitors"]
         },
@@ -425,6 +457,7 @@
           "side": "make",
           "section": "対抗候補",
           "specs": ["quiz_generation_spec.md", "verification_and_judging_spec.md", "work_state_spec.md"],
+          "rules": [{"spec": "quiz_generation_spec.md", "heading": "13.3 各単位の中核性と実用上の準一意性"}, {"spec": "verification_and_judging_spec.md", "heading": "5.2 中核性と実用上の準一意性"}, {"spec": "verification_and_judging_spec.md", "heading": "6. 反証探索と一意性"}],
           "inputs": [["answer_target", "clues", "sources", "source_assessments", "competitors", "source_cache"]],
           "outputs": ["competitor_comparisons"]
         },
@@ -434,6 +467,7 @@
           "side": "make",
           "section": "難易度",
           "specs": ["quiz_generation_spec.md", "verification_and_judging_spec.md", "work_state_spec.md"],
+          "rules": [{"spec": "quiz_generation_spec.md", "heading": "2.2 難易度帯"}, {"spec": "verification_and_judging_spec.md", "heading": "10. 難易度の校正と出力"}],
           "inputs": [["answer_target", "clues", "propositions", "research_requests", "source_cache"]],
           "outputs": ["asked_knowledge", "answer_granularity"]
         },
@@ -443,6 +477,7 @@
           "side": "make",
           "section": "難易度",
           "specs": ["verification_and_judging_spec.md", "quiz_generation_spec.md", "work_state_spec.md"],
+          "rules": [{"spec": "quiz_generation_spec.md", "heading": "2.2 難易度帯"}, {"spec": "verification_and_judging_spec.md", "heading": "10. 難易度の校正と出力"}, {"spec": "verification_and_judging_spec.md", "heading": "1.1 間接的な論証"}],
           "inputs": [["answer_target", "clues", "asked_knowledge", "answer_granularity", "sources", "source_assessments", "source_cache"]],
           "outputs": ["sources", "difficulty_assessment"]
         }
@@ -457,6 +492,7 @@
           "side": "make",
           "section": "作文",
           "specs": ["quiz_generation_spec.md", "verification_and_judging_spec.md", "selection_and_history_spec.md", "work_state_spec.md"],
+          "rules": [{"spec": "quiz_generation_spec.md", "heading": "1. 目的"}, {"spec": "quiz_generation_spec.md", "heading": "2. 題材を文章化する前の必須ゲート"}, {"spec": "quiz_generation_spec.md", "heading": "3. SC型"}, {"spec": "quiz_generation_spec.md", "heading": "4. OV型"}, {"spec": "quiz_generation_spec.md", "heading": "5. SC型・OV型の選択"}, {"spec": "quiz_generation_spec.md", "heading": "6. 節構造"}, {"spec": "quiz_generation_spec.md", "heading": "7. 予定命題台帳と実現命題台帳"}, {"spec": "quiz_generation_spec.md", "heading": "8. 複数の修飾節と連用中止"}, {"spec": "quiz_generation_spec.md", "heading": "9. 意味上の被修飾対象"}, {"spec": "quiz_generation_spec.md", "heading": "10. 同格指示語"}, {"spec": "quiz_generation_spec.md", "heading": "11. 解答と核名詞の意味関係"}, {"spec": "quiz_generation_spec.md", "heading": "12. 抽象度と射程"}, {"spec": "quiz_generation_spec.md", "heading": "13. 手掛かり単位の設計と二段階検査"}, {"spec": "quiz_generation_spec.md", "heading": "14. 終端の代表説明（落とし）"}, {"spec": "quiz_generation_spec.md", "heading": "15. 問題文の表現"}, {"spec": "quiz_generation_spec.md", "heading": "16. 情報順"}, {"spec": "quiz_generation_spec.md", "heading": "17. 情報量"}, {"spec": "quiz_generation_spec.md", "heading": "18. 非自明性と解答露出"}, {"spec": "quiz_generation_spec.md", "heading": "19. 一意性"}, {"spec": "quiz_generation_spec.md", "heading": "20. 最終平叙文化・命題照合チェック"}, {"spec": "quiz_generation_spec.md", "heading": "21. 文字数"}, {"spec": "quiz_generation_spec.md", "heading": "22. 解答表記"}, {"spec": "verification_and_judging_spec.md", "heading": "5. 手掛かりの設計"}, {"spec": "verification_and_judging_spec.md", "heading": "7. 裏取りを問題文へ反映する"}],
           "inputs": [["user_conditions", "history", "answer_target", "names", "answers", "answer_judgments", "sources", "source_assessments", "clues", "propositions", "clue_centrality", "proposition_support", "proposition_certainty", "competitors", "competitor_comparisons", "asked_knowledge", "answer_granularity", "difficulty_assessment", "source_cache"]],
           "outputs": ["draft", "clue_uses", "clue_checks", "realized_propositions", "terms", "exposure_candidates", "generation_checks", "relative_clauses"]
         }
@@ -471,6 +507,7 @@
           "side": "check",
           "section": "構造と表現",
           "specs": ["quiz_generation_spec.md", "work_state_spec.md"],
+          "rules": [{"spec": "quiz_generation_spec.md", "heading": "6. 節構造"}, {"spec": "quiz_generation_spec.md", "heading": "8. 複数の修飾節と連用中止"}, {"spec": "quiz_generation_spec.md", "heading": "9. 意味上の被修飾対象"}, {"spec": "quiz_generation_spec.md", "heading": "10. 同格指示語"}, {"spec": "quiz_generation_spec.md", "heading": "11. 解答と核名詞の意味関係"}, {"spec": "quiz_generation_spec.md", "heading": "12. 抽象度と射程"}, {"spec": "quiz_generation_spec.md", "heading": "14. 終端の代表説明（落とし）"}, {"spec": "quiz_generation_spec.md", "heading": "15.3 独立前フリの叙述的提示性"}],
           "inputs": [["answer_target", "draft", "clues", "clue_uses", "source_cache"]],
           "outputs": ["structure_review"]
         },
@@ -479,7 +516,8 @@
           "name": "手掛かりの順序の検査担当",
           "side": "check",
           "section": "構造と表現",
-          "specs": ["quiz_generation_spec.md", "output_structure_spec.md", "work_state_spec.md"],
+          "specs": ["quiz_generation_spec.md", "output_structure_spec.md", "verification_and_judging_spec.md", "work_state_spec.md"],
+          "rules": [{"spec": "quiz_generation_spec.md", "heading": "16. 情報順"}, {"spec": "verification_and_judging_spec.md", "heading": "手掛かりの知名度と配置"}],
           "inputs": [["answer_target", "draft", "clues", "clue_uses", "sources", "source_cache"]],
           "outputs": ["clue_order_review"]
         },
@@ -489,6 +527,7 @@
           "side": "check",
           "section": "構造と表現",
           "specs": ["quiz_generation_spec.md", "work_state_spec.md"],
+          "rules": [{"spec": "quiz_generation_spec.md", "heading": "15.1 評価項目と優先順位"}, {"spec": "quiz_generation_spec.md", "heading": "15.2 修飾の作用域と形式"}, {"spec": "quiz_generation_spec.md", "heading": "8. 複数の修飾節と連用中止"}],
           "inputs": [["draft", "source_cache"]],
           "outputs": ["naturalness_review"]
         },
@@ -498,6 +537,7 @@
           "side": "check",
           "section": "構造と表現",
           "specs": ["quiz_generation_spec.md", "work_state_spec.md"],
+          "rules": [{"spec": "quiz_generation_spec.md", "heading": "15.1 評価項目と優先順位"}, {"spec": "quiz_generation_spec.md", "heading": "15.2 修飾の作用域と形式"}],
           "inputs": [["user_conditions", "draft", "source_cache"]],
           "outputs": ["incremental_comprehension_review"]
         },
@@ -507,6 +547,7 @@
           "side": "check",
           "section": "専門用語",
           "specs": ["quiz_generation_spec.md", "work_state_spec.md"],
+          "rules": [{"spec": "quiz_generation_spec.md", "heading": "15.1 評価項目と優先順位"}],
           "inputs": [["user_conditions", "draft"], ["terms", "source_cache"]],
           "outputs": ["term_listing"]
         },
@@ -516,6 +557,7 @@
           "side": "check",
           "section": "専門用語",
           "specs": ["quiz_generation_spec.md", "work_state_spec.md"],
+          "rules": [{"spec": "quiz_generation_spec.md", "heading": "15.1 評価項目と優先順位"}],
           "inputs": [["user_conditions", "draft", "term_listing", "source_cache"]],
           "outputs": ["term_necessity_reviews"]
         },
@@ -525,6 +567,7 @@
           "side": "check",
           "section": "専門用語",
           "specs": ["quiz_generation_spec.md", "verification_and_judging_spec.md", "work_state_spec.md"],
+          "rules": [{"spec": "quiz_generation_spec.md", "heading": "15.1 評価項目と優先順位"}, {"spec": "verification_and_judging_spec.md", "heading": "問題文の表現"}],
           "inputs": [["draft", "term_listing", "sources", "source_cache"]],
           "outputs": ["term_sense_reviews"]
         },
@@ -534,6 +577,7 @@
           "side": "check",
           "section": "専門用語",
           "specs": ["quiz_generation_spec.md", "verification_and_judging_spec.md", "work_state_spec.md"],
+          "rules": [{"spec": "quiz_generation_spec.md", "heading": "15.1 評価項目と優先順位"}, {"spec": "verification_and_judging_spec.md", "heading": "問題文の表現"}, {"spec": "quiz_generation_spec.md", "heading": "2.2 難易度帯"}],
           "inputs": [["user_conditions", "draft", "term_listing", "sources", "source_cache"]],
           "outputs": ["term_audience_reviews"]
         },
@@ -543,6 +587,7 @@
           "side": "check",
           "section": "難易度",
           "specs": ["verification_and_judging_spec.md", "quiz_generation_spec.md", "work_state_spec.md"],
+          "rules": [{"spec": "quiz_generation_spec.md", "heading": "2.2 難易度帯"}, {"spec": "verification_and_judging_spec.md", "heading": "10. 難易度の校正と出力"}, {"spec": "verification_and_judging_spec.md", "heading": "1.1 間接的な論証"}],
           "inputs": [["answer_target", "draft", "asked_knowledge", "answer_granularity", "sources", "difficulty_assessment", "source_cache"]],
           "outputs": ["beginner_difficulty_review"]
         },
@@ -552,6 +597,7 @@
           "side": "check",
           "section": "難易度",
           "specs": ["verification_and_judging_spec.md", "quiz_generation_spec.md", "work_state_spec.md"],
+          "rules": [{"spec": "quiz_generation_spec.md", "heading": "2.2 難易度帯"}, {"spec": "verification_and_judging_spec.md", "heading": "10. 難易度の校正と出力"}, {"spec": "verification_and_judging_spec.md", "heading": "1.1 間接的な論証"}],
           "inputs": [["answer_target", "draft", "asked_knowledge", "answer_granularity", "sources", "difficulty_assessment", "source_cache"]],
           "outputs": ["general_difficulty_review"]
         },
@@ -561,6 +607,7 @@
           "side": "check",
           "section": "解答を伏せた露出検査",
           "specs": ["quiz_generation_spec.md", "work_state_spec.md"],
+          "rules": [{"spec": "quiz_generation_spec.md", "heading": "18. 非自明性と解答露出"}],
           "inputs": [["draft"]],
           "outputs": ["blind_candidates"]
         },
@@ -570,6 +617,7 @@
           "side": "check",
           "section": "解答を伏せた露出検査",
           "specs": ["quiz_generation_spec.md", "work_state_spec.md"],
+          "rules": [{"spec": "quiz_generation_spec.md", "heading": "18. 非自明性と解答露出"}, {"spec": "quiz_generation_spec.md", "heading": "2.3 問題としての成立性"}],
           "inputs": [["user_conditions", "draft", "answer_target", "names", "answers", "blind_candidates", "exposure_candidates", "source_cache"]],
           "outputs": ["exposure_analysis"]
         },
@@ -579,6 +627,7 @@
           "side": "check",
           "section": "名称と正答範囲",
           "specs": ["verification_and_judging_spec.md", "work_state_spec.md"],
+          "rules": [{"spec": "verification_and_judging_spec.md", "heading": "11. 解答欄"}, {"spec": "verification_and_judging_spec.md", "heading": "12. 別解"}, {"spec": "verification_and_judging_spec.md", "heading": "13. 正しさの基本観"}, {"spec": "verification_and_judging_spec.md", "heading": "14. 既定競技規則"}, {"spec": "verification_and_judging_spec.md", "heading": "15. ○・もう一度・×"}, {"spec": "verification_and_judging_spec.md", "heading": "16. 回答の十分性と問題文の文脈"}, {"spec": "verification_and_judging_spec.md", "heading": "17. 自然な省略と、問題文との文字列合成の禁止"}, {"spec": "verification_and_judging_spec.md", "heading": "18. 正誤判定基準の作成順"}],
           "inputs": [["draft", "answer_target", "sources", "names", "answers", "blind_candidates", "exposure_candidates", "source_cache"]],
           "outputs": ["answer_review"]
         },
@@ -588,6 +637,7 @@
           "side": "check",
           "section": "資料の信頼性",
           "specs": ["verification_and_judging_spec.md", "work_state_spec.md"],
+          "rules": [{"spec": "verification_and_judging_spec.md", "heading": "3.1 外的評価"}, {"spec": "verification_and_judging_spec.md", "heading": "4. 情報源"}],
           "inputs": [["answer_target", "sources", "source_assessments", "source_cache"]],
           "outputs": ["source_reliability_reviews"],
           "split_size": 5
@@ -598,6 +648,7 @@
           "side": "check",
           "section": "手掛かりの中核性",
           "specs": ["quiz_generation_spec.md", "verification_and_judging_spec.md", "work_state_spec.md"],
+          "rules": [{"spec": "quiz_generation_spec.md", "heading": "13.3 各単位の中核性と実用上の準一意性"}, {"spec": "verification_and_judging_spec.md", "heading": "5.2 中核性と実用上の準一意性"}],
           "inputs": [["answer_target", "clues", "clue_uses", "sources", "source_assessments", "clue_centrality", "source_cache"]],
           "outputs": ["centrality_reviews"]
         },
@@ -607,6 +658,7 @@
           "side": "check",
           "section": "手掛かりの知名度",
           "specs": ["quiz_generation_spec.md", "verification_and_judging_spec.md", "work_state_spec.md"],
+          "rules": [{"spec": "quiz_generation_spec.md", "heading": "16. 情報順"}, {"spec": "verification_and_judging_spec.md", "heading": "手掛かりの知名度と配置"}],
           "inputs": [["answer_target", "draft", "clues", "clue_uses", "sources", "source_assessments", "source_cache"]],
           "outputs": ["familiarity_reviews"]
         },
@@ -616,6 +668,7 @@
           "side": "check",
           "section": "命題の裏取りと確実性",
           "specs": ["verification_and_judging_spec.md", "work_state_spec.md"],
+          "rules": [{"spec": "verification_and_judging_spec.md", "heading": "2. 予定命題・実現命題・問題文の対応"}, {"spec": "verification_and_judging_spec.md", "heading": "3.2 内的評価"}, {"spec": "verification_and_judging_spec.md", "heading": "3.3 根拠資料の確認状態"}, {"spec": "verification_and_judging_spec.md", "heading": "3.4 命題との対応方法"}],
           "inputs": [["propositions", "sources", "source_assessments", "proposition_support", "source_cache"]],
           "outputs": ["corroboration_reviews"]
         },
@@ -625,6 +678,7 @@
           "side": "check",
           "section": "命題の裏取りと確実性",
           "specs": ["verification_and_judging_spec.md", "work_state_spec.md"],
+          "rules": [{"spec": "verification_and_judging_spec.md", "heading": "3.5 確実性の判定"}],
           "inputs": [["propositions", "sources", "source_assessments", "proposition_support", "proposition_certainty", "source_cache"]],
           "outputs": ["certainty_reviews"]
         },
@@ -634,6 +688,7 @@
           "side": "check",
           "section": "命題の裏取りと確実性",
           "specs": ["quiz_generation_spec.md", "verification_and_judging_spec.md", "work_state_spec.md"],
+          "rules": [{"spec": "quiz_generation_spec.md", "heading": "7.3 作文後の実現命題"}, {"spec": "quiz_generation_spec.md", "heading": "7.4 連体修飾節の局所命題復元"}, {"spec": "quiz_generation_spec.md", "heading": "7.5 局所命題と特徴づけ命題"}, {"spec": "verification_and_judging_spec.md", "heading": "2.2 作文後の実現命題台帳"}],
           "inputs": [["answer_target", "draft"]],
           "outputs": ["extracted_propositions"]
         },
@@ -643,6 +698,7 @@
           "side": "check",
           "section": "命題の裏取りと確実性",
           "specs": ["quiz_generation_spec.md", "verification_and_judging_spec.md", "work_state_spec.md"],
+          "rules": [{"spec": "quiz_generation_spec.md", "heading": "7.7 双方向照合"}, {"spec": "quiz_generation_spec.md", "heading": "20. 最終平叙文化・命題照合チェック"}, {"spec": "verification_and_judging_spec.md", "heading": "2.5 予定命題と実現命題の双方向照合"}, {"spec": "verification_and_judging_spec.md", "heading": "3.5 確実性の判定"}, {"spec": "verification_and_judging_spec.md", "heading": "7. 裏取りを問題文へ反映する"}],
           "inputs": [["draft", "extracted_propositions", "propositions", "realized_propositions", "proposition_certainty", "source_cache"]],
           "outputs": ["proposition_matching_reviews"]
         },
@@ -652,6 +708,7 @@
           "side": "check",
           "section": "対抗候補",
           "specs": ["quiz_generation_spec.md", "verification_and_judging_spec.md", "work_state_spec.md"],
+          "rules": [{"spec": "quiz_generation_spec.md", "heading": "13.2 比較対象集合"}, {"spec": "quiz_generation_spec.md", "heading": "19. 一意性"}, {"spec": "verification_and_judging_spec.md", "heading": "5.3 比較対象と探索"}, {"spec": "verification_and_judging_spec.md", "heading": "6. 反証探索と一意性"}],
           "inputs": [["answer_target", "draft", "clues", "clue_uses"], ["competitors", "source_cache"]],
           "outputs": ["competitor_search_reviews"]
         },
@@ -661,6 +718,7 @@
           "side": "check",
           "section": "対抗候補",
           "specs": ["quiz_generation_spec.md", "verification_and_judging_spec.md", "work_state_spec.md"],
+          "rules": [{"spec": "quiz_generation_spec.md", "heading": "13.3 各単位の中核性と実用上の準一意性"}, {"spec": "verification_and_judging_spec.md", "heading": "5.2 中核性と実用上の準一意性"}, {"spec": "verification_and_judging_spec.md", "heading": "6. 反証探索と一意性"}],
           "inputs": [["answer_target", "draft", "clues", "clue_uses", "sources", "competitors", "competitor_search_reviews", "source_cache"]],
           "outputs": ["competitor_comparison_reviews"]
         }
@@ -675,6 +733,7 @@
           "side": "make",
           "section": "最終出力",
           "specs": ["output_structure_spec.md", "verification_and_judging_spec.md", "work_state_spec.md"],
+          "rules": [{"spec": "output_structure_spec.md", "heading": "1. 根拠の示し方"}, {"spec": "verification_and_judging_spec.md", "heading": "21. 問題文・実現命題・出典記述の三者対応"}, {"spec": "verification_and_judging_spec.md", "heading": "22. 直接引用・所在情報・参考文献"}, {"spec": "verification_and_judging_spec.md", "heading": "23. 各出力欄に適用する検証"}],
           "inputs": [["answer_target", "draft", "names", "answers", "answer_judgments", "sources", "clues", "clue_uses", "clue_checks", "propositions", "realized_propositions", "proposition_support", "proposition_certainty", "clue_centrality", "competitors", "competitor_comparisons", "asked_knowledge", "answer_granularity", "difficulty_assessment", "terms", "exposure_candidates", "generation_checks", "relative_clauses", "answer_review", "competitor_search_reviews", "beginner_difficulty_review", "general_difficulty_review", "source_cache"]],
           "outputs": ["final_input"]
         },
@@ -684,6 +743,7 @@
           "side": "make",
           "section": "最終出力",
           "specs": ["output_structure_spec.md"],
+          "rules": [{"spec": "output_structure_spec.md", "heading": "1. 根拠の示し方"}, {"spec": "output_structure_spec.md", "heading": "2. 見出し順"}, {"spec": "output_structure_spec.md", "heading": "3. 問題から正誤判定基準まで"}, {"spec": "output_structure_spec.md", "heading": "4. 題材選択"}, {"spec": "output_structure_spec.md", "heading": "5. 難易度"}, {"spec": "output_structure_spec.md", "heading": "6. 裏取り"}, {"spec": "output_structure_spec.md", "heading": "7. 手掛かりの設計"}, {"spec": "output_structure_spec.md", "heading": "8. 問題の成立性"}, {"spec": "output_structure_spec.md", "heading": "9. 問題文の構成"}, {"spec": "output_structure_spec.md", "heading": "10. 問題文の表現"}, {"spec": "output_structure_spec.md", "heading": "11. 問題文の長さ"}, {"spec": "output_structure_spec.md", "heading": "12. 解答と正誤判定"}, {"spec": "output_structure_spec.md", "heading": "13. 参考文献"}],
           "inputs": [["final_input", "source_cache"]],
           "outputs": ["final_output"]
         },
@@ -693,6 +753,7 @@
           "side": "check",
           "section": "最終出力",
           "specs": ["output_structure_spec.md", "verification_and_judging_spec.md", "work_state_spec.md"],
+          "rules": [{"spec": "output_structure_spec.md", "heading": "1. 根拠の示し方"}, {"spec": "verification_and_judging_spec.md", "heading": "21. 問題文・実現命題・出典記述の三者対応"}, {"spec": "verification_and_judging_spec.md", "heading": "22. 直接引用・所在情報・参考文献"}],
           "inputs": [["final_output", "final_input", "sources", "source_cache"]],
           "outputs": ["final_reflection_review"]
         },
@@ -702,6 +763,7 @@
           "side": "check",
           "section": "最終出力",
           "specs": ["output_structure_spec.md", "work_state_spec.md"],
+          "rules": [{"spec": "output_structure_spec.md", "heading": "1. 根拠の示し方"}, {"spec": "output_structure_spec.md", "heading": "2. 見出し順"}],
           "inputs": [["final_output", "source_cache"]],
           "outputs": ["final_contamination_review"]
         }

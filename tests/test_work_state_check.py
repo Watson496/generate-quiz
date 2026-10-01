@@ -139,6 +139,7 @@ def complete_state():
     assignments = [
         {
             "role": role,
+            "agent": f"generate-quiz:{role}",
             "agent_id": agent,
             "artifact_refs": [f"{role}.md"],
             **({"draft_version": 2} if role == "exposure" else {}),
@@ -148,6 +149,7 @@ def complete_state():
     assignments.extend(
         {
             "role": role,
+            "agent": f"generate-quiz:{role}",
             "agent_id": f"agent-{role}",
             "artifact_refs": [f"{role}.json"],
             "items": ["S1"],
@@ -155,7 +157,12 @@ def complete_state():
         for role in ("source_reliability", "source_reliability_review")
     )
     assignments.extend(
-        {"role": role, "agent_id": f"agent-{role}", "artifact_refs": [f"{role}.json"]}
+        {
+            "role": role,
+            "agent": f"generate-quiz:{role}",
+            "agent_id": f"agent-{role}",
+            "artifact_refs": [f"{role}.json"],
+        }
         for role in (
             "clue_centrality",
             "centrality_review",
@@ -739,7 +746,12 @@ def reviewed_state(complete_state):
         "reason": "検索過程や担当IDなどの作業用記録がない",
     }
     state["execution"]["assignments"].extend(
-        {"role": role, "agent_id": f"agent-{role}", "artifact_refs": [f"{role}.json"]}
+        {
+            "role": role,
+            "agent": f"generate-quiz:{role}",
+            "agent_id": f"agent-{role}",
+            "artifact_refs": [f"{role}.json"],
+        }
         for role in FINAL_REVIEW_ROLES
     )
     set_reviewed_output(state, final_output_text(state))
@@ -1735,6 +1747,7 @@ def add_prejudgments(state, candidate_id, excluded=()):
             state["execution"]["assignments"].append(
                 {
                     "role": key,
+                    "agent": f"generate-quiz:{key}",
                     "agent_id": f"agent-{key}",
                     "artifact_refs": [f"{key}.json"],
                 }
@@ -1930,6 +1943,13 @@ class TestWorkState:
         result = check_state(run_script, "material", complete_state)
         assert result.returncode == 1
         assert "source_reliability_reviewsに不合格の項目がある: ['S1']" in result.stderr
+
+    def test_assignment_requires_role_agent(self, run_script, complete_state):
+        """起動の記録のエージェントは、担当表の役割のエージェントに限る。"""
+        assignment_of(complete_state, "writer")["agent"] = "generate-quiz:exposure"
+        result = check_state(run_script, "target-start", complete_state)
+        assert result.returncode == 1
+        assert "agentが担当表の役割のエージェントではない" in result.stderr
 
     def test_writing_start_accepts_target_state(self, run_script, complete_state):
         """作文担当の起動後に解答対象だけの状態を検査できる。"""

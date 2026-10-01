@@ -33,6 +33,7 @@ def small_table():
                         "side": "make",
                         "section": "候補",
                         "specs": ["work_state_spec.md"],
+                        "rules": [{"spec": "work_state_spec.md", "heading": "目的"}],
                         "inputs": [["conditions"]],
                         "outputs": ["items"],
                     },
@@ -42,6 +43,7 @@ def small_table():
                         "side": "check",
                         "section": "候補",
                         "specs": ["work_state_spec.md"],
+                        "rules": [{"spec": "work_state_spec.md", "heading": "目的"}],
                         "inputs": [["items"]],
                         "outputs": ["item_review"],
                         "split_size": 2,
@@ -57,6 +59,7 @@ def small_table():
                         "side": "make",
                         "section": "作文",
                         "specs": ["work_state_spec.md"],
+                        "rules": [{"spec": "work_state_spec.md", "heading": "目的"}],
                         "inputs": [["conditions"]],
                         "outputs": ["draft"],
                     },
@@ -66,6 +69,7 @@ def small_table():
                         "side": "check",
                         "section": "作文",
                         "specs": ["work_state_spec.md"],
+                        "rules": [{"spec": "work_state_spec.md", "heading": "目的"}],
                         "inputs": [["draft"], ["items"]],
                         "outputs": ["draft_review"],
                     },
@@ -188,6 +192,12 @@ class TestTableValidation:
                 lambda table: table["steps"][0]["roles"][1].update(split_size=0),
                 "split_sizeは1以上の整数",
             ),
+            (
+                lambda table: table["steps"][0]["roles"][0].update(
+                    rules=[{"spec": "quiz_generation_spec.md", "heading": "1. 目的"}]
+                ),
+                "rulesは、specsにある仕様の見出しの一覧",
+            ),
         ],
     )
     def test_invalid_table(self, load_script, change, message):
@@ -262,10 +272,12 @@ class TestRequests:
         ]
         assert "担当する項目：K5" in result[2]["request"]
 
-    def test_request_names_skill_location_once(self, load_script):
-        """依頼文はスキルの場所を一度だけ書き、ファイルをそこからの相対パスで示す。"""
+    def test_assignment_names_agent_and_skill_location(self, load_script):
+        """割り当ては担当のエージェント名を示し、依頼文はスキルの場所を一度だけ書く。"""
         module = load_script("generate-quiz", "assignment_plan.py")
-        request = module.assignments(small_table(), "draft_checker")[0]["request"]
+        result = module.assignments(small_table(), "draft_checker")[0]
+        assert result["agent"] == "generate-quiz:draft_checker"
+        request = result["request"]
         assert request.count(str(module.SKILL_DIR)) == 1
         assert "`references/work_state_spec.md`を全文読んで" in request
 

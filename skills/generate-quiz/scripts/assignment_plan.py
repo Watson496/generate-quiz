@@ -31,6 +31,7 @@ from pathlib import Path
 SKILL_DIR = Path(__file__).resolve().parent.parent
 REF_DIR = SKILL_DIR / "references"
 TABLE_PATH = REF_DIR / "roles.json"
+AGENT_PREFIX = "generate-quiz"
 SIDES = {"make", "check"}
 EXIT_OK, EXIT_USAGE = 0, 2
 
@@ -63,6 +64,19 @@ def validate_role(role, data, available, seen):
     )
     missing = [spec for spec in specs if not (REF_DIR / spec).is_file()]
     require(not missing, f"担当{role_id}のspecsに存在しない仕様がある: {missing}")
+    rules = role.get("rules")
+    require(
+        isinstance(rules, list)
+        and rules
+        and all(
+            isinstance(rule, dict)
+            and rule.get("spec") in specs
+            and is_text(rule.get("heading"))
+            and rule.get("subsections", True) in {True, False}
+            for rule in rules
+        ),
+        f"担当{role_id}のrulesは、specsにある仕様の見出しの一覧でなければならない",
+    )
     outputs = role.get("outputs")
     require(
         isinstance(outputs, list) and outputs,
@@ -195,6 +209,11 @@ def coordinator_request(table, number):
     return {"step": number, "request": "\n".join(lines)}
 
 
+def agent_name(role):
+    """担当を起動するエージェントの名前を返す。"""
+    return f"{AGENT_PREFIX}:{role['id']}"
+
+
 def request_text(table, role, items):
     specs = "、".join(f"`references/{spec}`" for spec in role["specs"])
     lines = [
@@ -230,7 +249,12 @@ def assignments(table, role_id, items=None):
         require(len(items) == len(set(items)), "項目IDが重複している")
         chunks = [items[start : start + size] for start in range(0, len(items), size)]
     return [
-        {"role": role_id, "items": chunk, "request": request_text(table, role, chunk)}
+        {
+            "role": role_id,
+            "agent": agent_name(role),
+            "items": chunk,
+            "request": request_text(table, role, chunk),
+        }
         for chunk in chunks
     ]
 

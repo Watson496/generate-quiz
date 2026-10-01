@@ -1140,6 +1140,10 @@ def validate_execution_assignments(state, stage):
         role = record.get("role")
         require_condition(role in known, f"{name}.roleが担当表にない")
         agent_id = required_text(record, "agent_id", name)
+        require_condition(
+            record.get("agent") == assignment_plan.agent_name(known[role]),
+            f"{name}.agentが担当表の役割のエージェントではない",
+        )
         required_id_list(
             record.get("artifact_refs"), f"{name}.artifact_refs", nonempty=True
         )

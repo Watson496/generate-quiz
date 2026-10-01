@@ -105,6 +105,7 @@ def build_facet_state(facet_node, path, subdivisions=()):
             "assignments": [
                 {
                     "role": role,
+                    "agent": f"generate-quiz:{role}",
                     "agent_id": f"agent-{index}",
                     "artifact_refs": [f"{role}.json"],
                 }
@@ -211,6 +212,7 @@ def subdivided_facet_state(load_script):
     state["execution"]["assignments"].append(
         {
             "role": "facet_subdivision_review",
+            "agent": "generate-quiz:facet_subdivision_review",
             "agent_id": "agent-subdivision-review",
             "artifact_refs": ["facet_subdivision_review.json"],
         }
@@ -227,11 +229,13 @@ def intersection_state():
             "assignments": [
                 {
                     "role": "intersection",
+                    "agent": "generate-quiz:intersection",
                     "agent_id": "agent-1",
                     "artifact_refs": ["intersection.md"],
                 },
                 {
                     "role": "coverage_area_review",
+                    "agent": "generate-quiz:coverage_area_review",
                     "agent_id": "agent-coverage-area-review",
                     "artifact_refs": ["coverage_area_review.json"],
                 },
@@ -550,6 +554,7 @@ def selection_state(intersection_state):
             *(
                 {
                     "role": role,
+                    "agent": f"generate-quiz:{role}",
                     "agent_id": f"agent-{index}",
                     "artifact_refs": [f"{role}-{index}.md"],
                     **({"items": items} if items else {}),
