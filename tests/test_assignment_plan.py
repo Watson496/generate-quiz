@@ -262,6 +262,13 @@ class TestRequests:
         ]
         assert "担当する項目：K5" in result[2]["request"]
 
+    def test_request_names_skill_location_once(self, load_script):
+        """依頼文はスキルの場所を一度だけ書き、ファイルをそこからの相対パスで示す。"""
+        module = load_script("generate-quiz", "assignment_plan.py")
+        request = module.assignments(small_table(), "draft_checker")[0]["request"]
+        assert request.count(str(module.SKILL_DIR)) == 1
+        assert "`references/work_state_spec.md`を全文読んで" in request
+
     def test_split_role_requires_items(self, load_script):
         """分割する担当に項目を渡さなければ拒否する。"""
         module = load_script("generate-quiz", "assignment_plan.py")
