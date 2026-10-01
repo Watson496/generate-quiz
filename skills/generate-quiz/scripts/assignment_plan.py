@@ -11,6 +11,8 @@
                        --itemsで項目IDを渡す
     rerun ROLE         ROLEの成果物が変わったときに再実行する担当を、
                        表の順にステップごとに出力する
+    fix DATA...        検査が修正を求めたデータを成果物とする作る側の担当と、
+                       修正の後に再実行する担当を出力する
 
 終了コード:
     0  結果を出力した
@@ -21,6 +23,7 @@
     python3 assignment_plan.py coordinate 3
     python3 assignment_plan.py assign exposure
     python3 assignment_plan.py rerun writer
+    python3 assignment_plan.py fix propositions proposition_support
 """
 
 import argparse
@@ -291,6 +294,38 @@ def rerun_plan(table, role_id):
     return plan
 
 
+def fix_plan(table, data_ids):
+    """検査が修正を求めたデータを成果物とする作る側の担当と、その後に再実行する担当を返す。"""
+    require(bool(data_ids), "データIDが必要である")
+    unknown = sorted(set(data_ids) - set(table["data"]))
+    require(not unknown, f"担当表にないデータである: {unknown}")
+    makers = [
+        role
+        for _, role in ordered_roles(table)
+        if role["side"] == "make" and set(role["outputs"]) & set(data_ids)
+    ]
+    require(bool(makers), f"作る側の担当の成果物ではないデータである: {data_ids}")
+    reruns = {}
+    for maker in makers:
+        for entry in rerun_plan(table, maker["id"]):
+            reruns.setdefault(entry["step"], set()).update(entry["roles"])
+    fixed = {maker["id"] for maker in makers}
+    plan = []
+    for number, role in ordered_roles(table):
+        if role["id"] in reruns.get(number, set()) - fixed:
+            if not plan or plan[-1]["step"] != number:
+                plan.append({"step": number, "roles": []})
+            plan[-1]["roles"].append(role["id"])
+    return {
+        "fix": [
+            {"step": number, "role": role["id"]}
+            for number, role in ordered_roles(table)
+            if role["id"] in fixed
+        ],
+        "rerun": plan,
+    }
+
+
 def main():
     parser = argparse.ArgumentParser(description="担当表から割り当てと再実行を決める")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -302,6 +337,8 @@ def main():
     assign.add_argument("--items", nargs="+")
     rerun = commands.add_parser("rerun")
     rerun.add_argument("role")
+    fix = commands.add_parser("fix")
+    fix.add_argument("data", nargs="+")
     args = parser.parse_args()
     try:
         table = load_table()
@@ -311,8 +348,10 @@ def main():
             result = coordinator_request(table, args.step)
         elif args.command == "assign":
             result = assignments(table, args.role, args.items)
-        else:
+        elif args.command == "rerun":
             result = rerun_plan(table, args.role)
+        else:
+            result = fix_plan(table, args.data)
     except (OSError, json.JSONDecodeError, TableError) as error:
         print(f"入力エラー: {error}", file=sys.stderr)
         return EXIT_USAGE
