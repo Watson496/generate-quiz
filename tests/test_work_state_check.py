@@ -373,7 +373,7 @@ def complete_state():
         "proposition_matching_reviews": [
             {
                 "extracted_id": "E1",
-                "proposition_id": "P1",
+                "proposition_ids": ["P1"],
                 "strength_matches": True,
                 "status": "passed",
                 "reason": "断定の強さが確実性の判定と一致する",
@@ -1829,7 +1829,12 @@ class TestWorkState:
     @pytest.mark.parametrize(
         ("field", "value", "message"),
         [
-            ("proposition_id", None, "proposition_idが採用中の命題を参照していない"),
+            ("proposition_ids", None, "proposition_idsは配列でなければならない"),
+            (
+                "proposition_ids",
+                ["P9"],
+                "裏取りと確実性の判定のない命題を参照している: ['P9']",
+            ),
             ("strength_matches", False, "断定の強さが確実性と一致していない"),
         ],
     )
@@ -1841,6 +1846,23 @@ class TestWorkState:
         result = check_state(run_script, "material", complete_state)
         assert result.returncode == 1
         assert message in result.stderr
+
+    def test_extracted_proposition_may_rest_on_several(
+        self, run_script, complete_state
+    ):
+        """取り出した命題は、裏取り済みの複数の命題で支えてよい。"""
+        complete_state["propositions"].append(
+            {"id": "P2", "claim": "矢羽は線分の端に付く"}
+        )
+        for key in ("proposition_support", "proposition_certainty"):
+            complete_state[key].append(
+                {**complete_state[key][0], "proposition_id": "P2"}
+            )
+        complete_state["proposition_matching_reviews"][0]["proposition_ids"] = [
+            "P1",
+            "P2",
+        ]
+        assert check_state(run_script, "material", complete_state).returncode == 0
 
     def test_every_proposition_needs_extracted_match(self, run_script, complete_state):
         """問題文から取り出した命題に対応しない採用命題を残さない。"""
