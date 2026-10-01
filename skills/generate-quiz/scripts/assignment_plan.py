@@ -28,7 +28,8 @@ import json
 import sys
 from pathlib import Path
 
-REF_DIR = Path(__file__).resolve().parent.parent / "references"
+SKILL_DIR = Path(__file__).resolve().parent.parent
+REF_DIR = SKILL_DIR / "references"
 TABLE_PATH = REF_DIR / "roles.json"
 SIDES = {"make", "check"}
 EXIT_OK, EXIT_USAGE = 0, 2
@@ -182,11 +183,11 @@ def coordinator_request(table, number):
     )
     step = table["steps"][number - 1]
     require(has_coordinator(step), f"ステップ{number}には統括役を置かない")
-    workflow = REF_DIR / "workflow_spec.md"
     sections = "」節、「".join(dict.fromkeys(role["section"] for role in step["roles"]))
     lines = [
         f"あなたはステップ{number}（{step['name']}）の統括役である。",
-        f"`{workflow}`の「担当の構成」節と「{sections}」節、`{REF_DIR / 'work_state_spec.md'}`の「担当の起動の記録」節を読み、その規定に従って担当を起動し、入力と成果物のファイルを受け渡す。",
+        f"スキルの場所：`{SKILL_DIR}`（以下のファイルはこの場所からの相対パスで示す）",
+        f"`references/workflow_spec.md`の「担当の構成」節と「{sections}」節、`references/work_state_spec.md`の「担当の起動の記録」節を読み、その規定に従って担当を起動し、入力と成果物のファイルを受け渡す。",
         "担当：",
         *(f"- {role['name']}（{role['id']}）" for role in step["roles"]),
         "報告は、完了したことと成果物のファイルの場所だけとする。",
@@ -195,12 +196,11 @@ def coordinator_request(table, number):
 
 
 def request_text(table, role, items):
-    specs = "、".join(f"`{REF_DIR / spec}`" for spec in role["specs"])
-    skill = REF_DIR.parent / "SKILL.md"
-    workflow = REF_DIR / "workflow_spec.md"
+    specs = "、".join(f"`references/{spec}`" for spec in role["specs"])
     lines = [
         f"あなたは{role['name']}である。",
-        f"`{skill}`の「役割」「必須ツール」「スクリプトの呼出し」節、`{workflow}`の「担当の構成」節と「{role['section']}」節を読み、{specs}を全文読んで、その規定に従って判断する。",
+        f"スキルの場所：`{SKILL_DIR}`（以下のファイルはこの場所からの相対パスで示す）",
+        f"`SKILL.md`の「役割」「必須ツール」「スクリプトの呼出し」節、`references/workflow_spec.md`の「担当の構成」節と「{role['section']}」節を読み、{specs}を全文読んで、その規定に従って判断する。",
     ]
     phases = role["inputs"]
     if len(phases) > 1:
