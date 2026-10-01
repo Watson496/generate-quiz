@@ -99,6 +99,9 @@ skills/
     assets/
     references/
     scripts/
+codex/agents/              Codex用の担当のエージェントの定義（生成物）
+claude/agents/             Claude Code用の担当のエージェントの定義（生成物）
+tools/                     開発用の生成スクリプト
 tests/                     開発用の回帰テスト
 ```
 
@@ -117,11 +120,18 @@ uv run pytest tests/
 Pythonコードのlintと整形は開発用依存のRuffで確認します。lintは`ALL`を基準とし、適用しないルールは[`pyproject.toml`](pyproject.toml)に理由とともに記載します。整形する場合は、先にimportを整理します。
 
 ```bash
-uv run ruff check --fix skills/generate-quiz/scripts skills/quiz-book-latex/scripts tests
-uv run ruff format skills/generate-quiz/scripts skills/quiz-book-latex/scripts tests
+uv run ruff check --fix skills/generate-quiz/scripts skills/quiz-book-latex/scripts tools tests
+uv run ruff format skills/generate-quiz/scripts skills/quiz-book-latex/scripts tools tests
 ```
 
-変更後は`check`と`format --check`を実行し、上記のテストも通します。
+担当のエージェントの定義（`codex/agents/`と`claude/agents/`）は、担当表`roles.json`の`rules`で指定した仕様の節から生成します。担当表か仕様を変更したら、定義を生成し直します。
+
+```bash
+python3 tools/agent_definitions.py codex codex/agents
+python3 tools/agent_definitions.py claude claude/agents
+```
+
+変更後は`check`と`format --check`を実行し、上記のテストも通します。テストは、置かれた定義が担当表と仕様に一致することも確かめます。
 
 `tests/` は開発用で、インストールするファイルには含めません。
 

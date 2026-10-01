@@ -138,6 +138,7 @@ class TestLedgerMerge:
         intersection_state["execution"]["assignments"].extend(
             {
                 "role": "exploration",
+                "agent": "generate-quiz:exploration",
                 "agent_id": f"agent-exploration-{area}",
                 "artifact_refs": [f"{area}.json"],
                 "items": [area],
