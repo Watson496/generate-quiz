@@ -56,13 +56,14 @@ argument-hint: <作問条件（主題・問題数・文字数・履歴など。�
 
 # スクリプトの呼出し
 
-ステップの構成、統括役と担当を起動するエージェントの名前と依頼文、修正時に再実行する担当は、担当表から決める。
+ステップの構成、統括役と担当を起動するエージェントの名前と依頼文、検査の不合格で修正させる担当と再実行する担当は、担当表から決める。
 
 ```bash
 python3 "$SKILL_DIR/scripts/assignment_plan.py" steps
 python3 "$SKILL_DIR/scripts/assignment_plan.py" coordinate 3
 python3 "$SKILL_DIR/scripts/assignment_plan.py" assign exploration
 python3 "$SKILL_DIR/scripts/assignment_plan.py" rerun writer
+python3 "$SKILL_DIR/scripts/assignment_plan.py" fix propositions proposition_support
 ```
 
 ファセットカタログは全文を読まず、必要なブロックだけを取得する。

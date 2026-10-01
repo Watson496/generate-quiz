@@ -316,6 +316,34 @@ class TestRequests:
 class TestRerun:
     """修正時に再実行する担当の判定を確認する。"""
 
+    def test_fix_returns_makers_and_later_reruns(self, load_script):
+        """修正を求めたデータを作る担当と、その後に再実行する担当を返す。"""
+        module = load_script("generate-quiz", "assignment_plan.py")
+        plan = module.fix_plan(
+            module.load_table(), ["propositions", "proposition_support"]
+        )
+        assert plan["fix"] == [
+            {"step": 8, "role": "clue_search"},
+            {"step": 8, "role": "corroboration"},
+        ]
+        rerun = {entry["step"]: entry["roles"] for entry in plan["rerun"]}
+        assert "certainty" in rerun[8]
+        assert "clue_search" not in rerun[8]
+        assert rerun[9] == ["writer"]
+
+    @pytest.mark.parametrize(
+        ("data", "message"),
+        [
+            (["unknown_data"], "担当表にないデータ"),
+            (["user_conditions"], "作る側の担当の成果物ではない"),
+        ],
+    )
+    def test_fix_rejects_data_without_maker(self, load_script, data, message):
+        """担当表にないデータや、作る側の担当の成果物でないデータは拒否する。"""
+        module = load_script("generate-quiz", "assignment_plan.py")
+        with pytest.raises(module.TableError, match=message):
+            module.fix_plan(module.load_table(), data)
+
     def test_rerun_follows_later_inputs(self, load_script):
         """成果物を入力とする後の担当を、連鎖も含めて再実行する。"""
         module = load_script("generate-quiz", "assignment_plan.py")
