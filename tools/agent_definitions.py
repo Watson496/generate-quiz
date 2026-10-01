@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
 """担当表から、担当ごとのエージェントの定義を作る。
 
-エージェントの定義には、担当の名前、workflow_spec.md の担当の節、担当表の rules で
-指定した仕様の節の本文を置く。依頼文とは別に、担当を起動したときに必ず読み込まれる
-指示として判断の規定を渡すためである。
+担当のエージェントの定義には、担当の名前、workflow_spec.md の担当の節、担当表の
+rules で指定した仕様の節の本文を置く。統括役を置くステップごとに、統括役のエージェントの
+定義も作り、workflow_spec.md の「担当の構成」節とそのステップの担当の節、
+work_state_spec.md の「担当の起動の記録」節の本文を置く。依頼文とは別に、起動したときに
+必ず読み込まれる指示として規定を渡すためである。
 
 形式:
-    codex   Codex CLI のカスタムエージェント（TOML）。名前は generate-quiz:担当ID
-    claude  Claude Code のプラグインのエージェント（Markdown）。名前は担当ID で、
+    codex   Codex CLI のカスタムエージェント（TOML）。名前は generate-quiz:ID
+    claude  Claude Code のプラグインのエージェント（Markdown）。名前は ID で、
             プラグイン名 generate-quiz が名前空間になる
+ID は、担当は担当ID、統括役は step03_coordinator のようなステップごとの名前とする。
 
 終了コード:
     0  定義を書き出した。--check では、置かれた定義が担当表と仕様に一致した
@@ -52,67 +55,88 @@ def section_text(text, heading, *, subsections=True):
     raise assignment_plan.TableError(message)
 
 
-def instructions(role):
-    """担当の名前、workflow の担当の節、判断の規定を、エージェントへの指示にまとめる。"""
-    workflow = (assignment_plan.REF_DIR / "workflow_spec.md").read_text(
-        encoding="utf-8"
-    )
-    parts = [
-        f"あなたはgenerate-quizの{role['name']}である。",
-        "依頼文が指定するファイルを読んで手順と記録の書式に従い、判断は次の規定に従う。",
-        f"以下は`workflow_spec.md`の「{role['section']}」節である。",
-        section_text(workflow, role["section"]),
-    ]
+def compose(lead, sections):
+    """冒頭の文と、(仕様, 見出し, 下位の節を含めるか) の並びを、エージェントへの指示にまとめる。"""
     texts = {}
-    for rule in role["rules"]:
-        spec = rule["spec"]
+    parts = list(lead)
+    for spec, heading, subsections in sections:
         if spec not in texts:
             texts[spec] = (assignment_plan.REF_DIR / spec).read_text(encoding="utf-8")
-        parts.append(f"以下は`{spec}`の「{rule['heading']}」節である。")
-        parts.append(
-            section_text(
-                texts[spec],
-                rule["heading"],
-                subsections=rule.get("subsections", True),
-            )
-        )
+        parts.append(f"以下は`{spec}`の「{heading}」節である。")
+        parts.append(section_text(texts[spec], heading, subsections=subsections))
     return "\n\n".join(parts) + "\n"
 
 
-def codex_definition(role):
-    body = instructions(role)
+def role_agent(role):
+    """担当の名前、workflow の担当の節、判断の規定から、担当のエージェントを作る。"""
+    lead = [
+        f"あなたはgenerate-quizの{role['name']}である。",
+        "依頼文が指定するファイルを読んで手順と記録の書式に従い、判断は次の規定に従う。",
+    ]
+    sections = [("workflow_spec.md", role["section"], True)]
+    sections += [
+        (rule["spec"], rule["heading"], rule.get("subsections", True))
+        for rule in role["rules"]
+    ]
+    return role["id"], f"generate-quizの{role['name']}。", compose(lead, sections)
+
+
+def coordinator_agent(number, step):
+    """担当の構成、ステップの担当の節、起動の記録の規定から、統括役のエージェントを作る。"""
+    name = f"ステップ{number}（{step['name']}）の統括役"
+    lead = [
+        f"あなたはgenerate-quizの{name}である。",
+        "依頼文が指定するファイルを読んで手順と記録の書式に従い、次の規定に従う。",
+    ]
+    sections = [("workflow_spec.md", "担当の構成", True)]
+    sections += [
+        ("workflow_spec.md", section, True)
+        for section in dict.fromkeys(role["section"] for role in step["roles"])
+    ]
+    sections.append(("work_state_spec.md", "担当の起動の記録", True))
+    return (
+        assignment_plan.coordinator_id(number),
+        f"generate-quizの{name}。",
+        compose(lead, sections),
+    )
+
+
+def agents(table):
+    """担当と統括役のエージェントを、(ID, 説明, 指示) の並びで返す。"""
+    result = [role_agent(role) for _, role in assignment_plan.ordered_roles(table)]
+    result += [
+        coordinator_agent(number, step)
+        for number, step in enumerate(table["steps"], 1)
+        if assignment_plan.has_coordinator(step)
+    ]
+    return result
+
+
+def codex_definition(agent_id, description, body):
     if "'''" in body:
-        message = f"担当{role['id']}の指示に'''が含まれる"
+        message = f"エージェント{agent_id}の指示に'''が含まれる"
         raise assignment_plan.TableError(message)
     return (
-        f'name = "{PREFIX}:{role["id"]}"\n'
-        f'description = "generate-quizの{role["name"]}。"\n'
+        f'name = "{PREFIX}:{agent_id}"\n'
+        f'description = "{description}"\n'
         f"developer_instructions = '''\n{body}'''\n"
     )
 
 
-def claude_definition(role):
-    return (
-        "---\n"
-        f"name: {role['id']}\n"
-        f"description: generate-quizの{role['name']}。\n"
-        "---\n\n"
-        f"{instructions(role)}"
-    )
+def claude_definition(agent_id, description, body):
+    return f"---\nname: {agent_id}\ndescription: {description}\n---\n\n{body}"
 
 
 FORMATS = {
-    "codex": (codex_definition, lambda role: f"{PREFIX}-{role['id']}.toml"),
-    "claude": (claude_definition, lambda role: f"{role['id']}.md"),
+    "codex": (codex_definition, lambda agent_id: f"{PREFIX}-{agent_id}.toml"),
+    "claude": (claude_definition, lambda agent_id: f"{agent_id}.md"),
 }
 
 
 def definitions(table, form):
-    """担当ごとに、ファイル名と定義の本文を返す。"""
+    """エージェントごとに、ファイル名と定義の本文を返す。"""
     build, filename = FORMATS[form]
-    return {
-        filename(role): build(role) for _, role in assignment_plan.ordered_roles(table)
-    }
+    return {filename(agent[0]): build(*agent) for agent in agents(table)}
 
 
 def mismatches(expected, directory):
