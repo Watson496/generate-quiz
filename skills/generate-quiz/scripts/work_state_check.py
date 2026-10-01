@@ -1646,12 +1646,12 @@ def validate_proposition_support(state, active_props, quote_ids, stage):
     if stage in REVIEWED_STAGES:
         validate_reviews(state, "corroboration_reviews", prop_ids, "proposition_id")
         validate_reviews(state, "certainty_reviews", prop_ids, "proposition_id")
-        validate_proposition_matching(state, prop_ids)
+        validate_proposition_matching(state, prop_ids, set(supports) & certain)
     return [supports[prop_id] for prop_id in prop_ids]
 
 
-def validate_proposition_matching(state, prop_ids):
-    """問題文から独立に取り出した命題が、裏取り済みの命題と過不足なく対応することを検査する。"""
+def validate_proposition_matching(state, prop_ids, verified_ids):
+    """問題文から独立に取り出した命題が裏取り済みの命題で支えられ、実現した命題がすべて照合に現れることを検査する。"""
     draft = state["draft"]
     extracted, extracted_ids = records_with_ids(
         state.get("extracted_propositions"), "extracted_propositions", nonempty=True
@@ -1674,15 +1674,19 @@ def validate_proposition_matching(state, prop_ids):
         latest[item["extracted_id"]] = item
     for extracted_id, item in latest.items():
         name = f"proposition_matching_reviews.{extracted_id}"
+        supporting = required_id_list(
+            item.get("proposition_ids"), f"{name}.proposition_ids", nonempty=True
+        )
+        unverified = sorted(set(supporting) - verified_ids)
         require_condition(
-            item.get("proposition_id") in prop_ids,
-            f"{name}.proposition_idが採用中の命題を参照していない",
+            not unverified,
+            f"{name}.proposition_idsが裏取りと確実性の判定のない命題を参照している: {unverified}",
         )
         require_condition(
             item.get("strength_matches") is True,
             f"{name}の断定の強さが確実性と一致していない",
         )
-        matched.add(item["proposition_id"])
+        matched.update(supporting)
     missing = sorted(set(prop_ids) - matched)
     require_condition(
         not missing, f"問題文から取り出した命題に対応しない命題がある: {missing}"
