@@ -99,8 +99,8 @@ skills/
     assets/
     references/
     scripts/
-codex/agents/              Codex用の担当のエージェントの定義（生成物）
-claude/agents/             Claude Code用の担当のエージェントの定義（生成物）
+codex/agents/              Codex用の担当と統括役のエージェントの定義（生成物）
+claude/agents/             Claude Code用の担当と統括役のエージェントの定義（生成物）
 tools/                     開発用の生成スクリプト
 tests/                     開発用の回帰テスト
 ```
@@ -124,7 +124,7 @@ uv run ruff check --fix skills/generate-quiz/scripts skills/quiz-book-latex/scri
 uv run ruff format skills/generate-quiz/scripts skills/quiz-book-latex/scripts tools tests
 ```
 
-担当のエージェントの定義（`codex/agents/`と`claude/agents/`）は、担当表`roles.json`の`rules`で指定した仕様の節から生成します。担当表か仕様を変更したら、定義を生成し直します。
+担当と統括役のエージェントの定義（`codex/agents/`と`claude/agents/`）は、担当表`roles.json`と、担当表の`rules`で指定した仕様の節から生成します。担当表か仕様を変更したら、定義を生成し直します。
 
 ```bash
 python3 tools/agent_definitions.py codex codex/agents

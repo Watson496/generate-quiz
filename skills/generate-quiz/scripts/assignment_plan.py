@@ -6,7 +6,7 @@
 
 サブコマンド:
     steps              ステップごとの担当と、統括役を置くかを出力する
-    coordinate STEP    統括役への依頼文を出力する
+    coordinate STEP    統括役のエージェントの名前と依頼文を出力する
     assign ROLE        担当の割り当てと依頼文を出力する。分割する担当には
                        --itemsで項目IDを渡す
     rerun ROLE         ROLEの成果物が変わったときに再実行する担当を、
@@ -206,12 +206,26 @@ def coordinator_request(table, number):
         *(f"- {role['name']}（{role['id']}）" for role in step["roles"]),
         "報告は、完了したことと成果物のファイルの場所だけとする。",
     ]
-    return {"step": number, "request": "\n".join(lines)}
+    return {
+        "step": number,
+        "agent": coordinator_agent_name(number),
+        "request": "\n".join(lines),
+    }
 
 
 def agent_name(role):
     """担当を起動するエージェントの名前を返す。"""
     return f"{AGENT_PREFIX}:{role['id']}"
+
+
+def coordinator_id(number):
+    """統括役のエージェントのIDを返す。"""
+    return f"step{number:02d}_coordinator"
+
+
+def coordinator_agent_name(number):
+    """統括役を起動するエージェントの名前を返す。"""
+    return f"{AGENT_PREFIX}:{coordinator_id(number)}"
 
 
 def request_text(table, role, items):

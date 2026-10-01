@@ -230,14 +230,13 @@ class TestSteps:
         assert module.step_plan(table)[0]["coordinator"] is True
 
     def test_coordinator_request_lists_roles(self, load_script):
-        """統括役への依頼文はステップの担当を示し、担当が一つなら出さない。"""
+        """統括役の依頼はステップのエージェント名と担当を示し、担当が一つなら出さない。"""
         module = load_script("generate-quiz", "assignment_plan.py")
         table = small_table()
         table["steps"][1]["roles"].pop()
-        assert (
-            "候補の検査担当（item_checker）"
-            in module.coordinator_request(table, 1)["request"]
-        )
+        result = module.coordinator_request(table, 1)
+        assert result["agent"] == "generate-quiz:step01_coordinator"
+        assert "候補の検査担当（item_checker）" in result["request"]
         with pytest.raises(module.TableError, match="統括役を置かない"):
             module.coordinator_request(table, 2)
 

@@ -66,15 +66,37 @@ class TestDefinitions:
         assert "対象をそのものズバリ説明する説明" in instructions
         assert "### 6.1" not in instructions
 
+    def test_coordinator_carries_step_sections(self, module):
+        """統括役の定義に、担当の構成とステップの担当の節と起動の記録の本文が入る。"""
+        table = module.assignment_plan.load_table()
+        body = module.definitions(table, "codex")[
+            "generate-quiz-step03_coordinator.toml"
+        ]
+        instructions = tomllib.loads(body)["developer_instructions"]
+        assert "ステップ3（題材探索）の統括役" in instructions
+        assert "## 担当の構成" in instructions
+        assert "## 題材探索" in instructions
+        assert "## 担当の起動の記録" in instructions
+        assert "## 所属判定" not in instructions
+
     def test_codex_names_are_prefixed(self, module):
-        """Codexの定義の名前はスキル名を接頭辞にする。"""
+        """Codexの定義の名前はスキル名を接頭辞にし、担当と統括役を置くステップごとに作る。"""
         table = module.assignment_plan.load_table()
         names = {
             tomllib.loads(body)["name"]
             for body in module.definitions(table, "codex").values()
         }
+        coordinated = [
+            step
+            for step in table["steps"]
+            if module.assignment_plan.has_coordinator(step)
+        ]
         assert "generate-quiz:exploration" in names
-        assert len(names) == len(module.assignment_plan.ordered_roles(table))
+        assert "generate-quiz:step01_coordinator" in names
+        assert "generate-quiz:step09_coordinator" not in names
+        assert len(names) == len(module.assignment_plan.ordered_roles(table)) + len(
+            coordinated
+        )
 
     @pytest.mark.parametrize("form", ["codex", "claude"])
     def test_repository_definitions_are_current(self, form):
