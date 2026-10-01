@@ -43,7 +43,7 @@
 
 題材候補の探索状態は最終出力へ含めない。探索が飽和したら所属判定の前に`work_state_check.py --stage discovery`で検査する。抽選に使う探索状態は`--stage selection`で確認する。解答対象を決めた後は探索台帳を含まない作問状態を別に作り、作文担当の起動の記録とともに`--stage target-start`で確認する。
 
-探索状態は、題材を抽選する前に `topic_pick.py` へ渡す。入口には本文を開いたURL、`opened: true`、確認箇所を`access_note`として記録する。下位領域の`source_searches`には、候補名を含めない入口探しを`mode: open`、既知候補からの近接探索を`mode: nearby`として記録する。選択対象の`discovery_entry_point_ids`と`coverage_area_ids`は、同じ`source_searches`の`entry_point_ids`と`found_candidate_ids`に対応させる。最初の候補を記録した時点と入口・候補を追加した節目に`--stage discovery-progress`でこの対応を検査する。内部知識から挙げ、まだ資料で確認していない候補は、途中状態では`discovery_entry_point_ids`を空配列にできる。資料の探索記録にその候補を加えたら発見元も記録し、`--stage discovery`までに対応を確定する。途中検査では探索の完了や露出予備検査の記録を要求しない。途中検査と完了時の検査は、除外していない候補に同じ名称の候補が重複していないことも確認する。選択対象の`name_use_note`には名称の使用箇所を、`candidate_reason`には`selection_and_history_spec.md`第6節の候補に当たると判断した理由として、名前が説明の語から作れないことと、設定された難易度の帯に入ると見込む理由を記す。除外する候補には、名称を`label`、`disposition`、`exclusion_code`、`exclusion_reason`（`duplicate`では`merged_into`も）だけを置けばよく、発見元や下位領域の対応、`name_use_note`、`candidate_reason`は求めない。選択対象の`expansion_searches`には近接探索の検索先・調べた関係・得た候補IDを残す。同時に動く担当が書く断片には、担当の接頭辞を`prefix`として置き、そのほかは探索状態と同じキーで、書き加える記録だけを置く。すでにある記録へ書き加える場合は、その記録の`id`と書き加える項目だけを置く。検査を通った後で候補を追加した場合は、その候補からも探索を展開し、再度検査する。
+探索状態は、題材を抽選する前に `topic_pick.py` へ渡す。入口には本文を開いたURL、`opened: true`、確認箇所を`access_note`として記録する。下位領域の`source_searches`には、候補名を含めない入口探しを`mode: open`、既知候補からの近接探索を`mode: nearby`として記録する。選択対象の`discovery_entry_point_ids`と`coverage_area_ids`は、同じ`source_searches`の`entry_point_ids`と`found_candidate_ids`に対応させる。最初の候補を記録した時点と入口・候補を追加した節目に`--stage discovery-progress`でこの対応を検査する。内部知識から挙げ、まだ資料で確認していない候補は、途中状態では`discovery_entry_point_ids`を空配列にできる。資料の探索記録にその候補を加えたら発見元も記録し、`--stage discovery`までに対応を確定する。途中検査では探索の完了や露出予備検査の記録を要求しない。途中検査と完了時の検査は、除外していない候補に同じ名称の候補が重複していないことも確認する。選択対象の`name_use_note`には名称の使用箇所を、`core_description`には名前であるかを確かめるために書いた、対象をそのものズバリ説明する説明を、`candidate_reason`には`selection_and_history_spec.md`第6節の候補に当たると判断した理由として、名前が説明の語から作れないことと、設定された難易度の帯に入ると見込む理由を記す。除外する候補には、名称を`label`、`disposition`、`exclusion_code`、`exclusion_reason`（`duplicate`では`merged_into`も）だけを置けばよく、発見元や下位領域の対応、`name_use_note`、`core_description`、`candidate_reason`は求めない。選択対象の`expansion_searches`には近接探索の検索先・調べた関係・得た候補IDを残す。同時に動く担当が書く断片には、担当の接頭辞を`prefix`として置き、そのほかは探索状態と同じキーで、書き加える記録だけを置く。すでにある記録へ書き加える場合は、その記録の`id`と書き加える項目だけを置く。検査を通った後で候補を追加した場合は、その候補からも探索を展開し、再度検査する。
 
 `independent_review`には下位領域IDごとに、最初の探索と異なる観点、候補名を含めない検索語、別経路で開いた入口IDと候補ID、照合した元の入口IDと結果を記録する。`saturation_challenge`には別の立場・用途からの検索、開いた入口ID、得た候補ID、未探索経路の処理と完了状態を残す。広さの再評価の結論は`breadth`に、飽和し得るなら`convergent`、飽和する見込みがなく粒度判断へ戻すなら`not_convergent`として置く。`not_convergent`の探索状態は、`--stage discovery`以降の検査に合格しない。選択範囲の概説・入門資料が中核的に扱う対象が選択対象として台帳にあるかを確かめた結果は、`core_check`に、開いた資料の入口IDを`source_entry_point_ids`、確かめた候補IDを`core_candidate_ids`、台帳になく加えた候補IDを`added_candidate_ids`、判断理由を`reason`として置く。形式検査の合格は資料の内容と記録が対応することや、探索の十分さを保証しない。
 
@@ -218,7 +218,7 @@ JSON manifestは、検査対象を具体的な内容へ結び付け、確定的�
     "source_refs": ["https://example.org/outline", "https://example.org/lesson"],
     "candidate_examples": [
       {"name": "アンモニアソーダ法", "source_ref": "https://example.org/outline", "beginner_source_ref": "https://example.org/lesson", "beginner_learning_basis": "高校化学の教材が、炭酸ナトリウムの工業的製法として名称と反応の流れを学習項目にしている"},
-      {"name": "クメン法", "source_ref": "https://example.org/outline"}
+      {"name": "ワッカー法", "source_ref": "https://example.org/outline"}
     ],
     "scope_reason": "産業分類表の化学工業の区分（無機・有機・高分子等）と、実務記事が扱う製法・装置の種類から、区分ごとに探索経路を設けられる",
     "result": "viable"
@@ -232,37 +232,37 @@ JSON manifestは、検査対象を具体的な内容へ結び付け、確定的�
   ],
   "coverage_areas": [
     {"id": "D1", "label": "無機化学工業", "basis": "産業分類表で無機化学工業が独立した区分になっている", "target_kinds": "工業技術", "estimated_candidates": "製法名が10件前後", "explored": true, "entry_point_ids": ["E1"], "source_searches": [{"mode": "open", "query": "無機化学工業 技術", "angle": "分類表の区分に挙がる製法名を探す", "result": "アンモニアソーダ法を発見", "entry_point_ids": ["E1"], "found_candidate_ids": ["K1"], "next_searches": []}]},
-    {"id": "D2", "label": "有機化学工業", "basis": "化学事典の索引で有機工業化学の製法がまとめて挙げられている", "target_kinds": "工業技術", "estimated_candidates": "製法名が10件前後", "explored": true, "entry_point_ids": ["E2"], "source_searches": [{"mode": "open", "query": "有機化学工業 技術", "angle": "事典索引の製法項目を探す", "result": "クメン法を発見", "entry_point_ids": ["E2"], "found_candidate_ids": ["K2"], "next_searches": []}]}
+    {"id": "D2", "label": "有機化学工業", "basis": "化学事典の索引で有機工業化学の製法がまとめて挙げられている", "target_kinds": "工業技術", "estimated_candidates": "製法名が10件前後", "explored": true, "entry_point_ids": ["E2"], "source_searches": [{"mode": "open", "query": "有機化学工業 技術", "angle": "事典索引の製法項目を探す", "result": "ワッカー法を発見", "entry_point_ids": ["E2"], "found_candidate_ids": ["K2"], "next_searches": []}]}
   ],
   "candidates": [
-    {"id": "K1", "label": "アンモニアソーダ法", "coverage_area_ids": ["D1"], "discovery_entry_point_ids": ["E1"], "name_use_note": "化学事典の本文で、炭酸ナトリウムの製法の名称として使われている", "candidate_reason": "製法に固有の呼称で説明の語の組み合わせではできず、化学を学んで1〜2年の人は無機工業化学の代表的な製法として答えられ、一般層は通常答えられない", "disposition": "eligible", "expanded": true, "expansion_searches": [{"source_or_query": "化学事典のアンモニアソーダ法の項の関連項目", "relation_checked": "炭酸ナトリウムを得る別の製法", "found_candidate_ids": []}]},
-    {"id": "K2", "label": "クメン法", "coverage_area_ids": ["D2"], "discovery_entry_point_ids": ["E2"], "name_use_note": "化学事典の索引と本文で、フェノールの製法の名称として使われている", "candidate_reason": "中間体の慣用名に由来し説明の語の組み合わせではできず、化学を学んで1〜2年の人は有機工業化学の代表的な製法として答えられ、一般層は通常答えられない", "disposition": "eligible", "expanded": true, "expansion_searches": [{"source_or_query": "クメン法 原料 製法", "relation_checked": "ベンゼンとプロピレンを原料とする別の製法", "found_candidate_ids": []}]}
+    {"id": "K1", "label": "アンモニアソーダ法", "core_description": "食塩水にアンモニアと二酸化炭素を吹き込んで炭酸水素ナトリウムを沈殿させ、焼いて炭酸ナトリウムを得る工業的製法", "coverage_area_ids": ["D1"], "discovery_entry_point_ids": ["E1"], "name_use_note": "化学事典の本文で、炭酸ナトリウムの製法の名称として使われている", "candidate_reason": "製法に固有の呼称で説明の語の組み合わせではできず、化学を学んで1〜2年の人は無機工業化学の代表的な製法として答えられ、一般層は通常答えられない", "disposition": "eligible", "expanded": true, "expansion_searches": [{"source_or_query": "化学事典のアンモニアソーダ法の項の関連項目", "relation_checked": "炭酸ナトリウムを得る別の製法", "found_candidate_ids": []}]},
+    {"id": "K2", "label": "ワッカー法", "core_description": "塩化パラジウムと塩化銅を触媒に、エチレンを酸素で酸化してアセトアルデヒドを得る工業的製法", "coverage_area_ids": ["D2"], "discovery_entry_point_ids": ["E2"], "name_use_note": "化学事典の索引と本文で、アセトアルデヒドの製法の名称として使われている", "candidate_reason": "開発した企業の名に由来し説明の語の組み合わせではできず、化学を学んで1〜2年の人は有機工業化学の代表的な製法として答えられ、一般層は通常答えられない", "disposition": "eligible", "expanded": true, "expansion_searches": [{"source_or_query": "ワッカー法 原料 製法", "relation_checked": "エチレンを原料とする別の製法", "found_candidate_ids": []}]}
   ],
   "independent_review": [
     {"id": "D1", "difference_from_exploration": "工場の工程を実務者が説明する記事から探す", "source_discovery_query": "無機化学工業 実務者 利用", "checked_entry_point_ids": ["E3"], "found_candidate_ids": [], "spotchecked_entry_point_ids": ["E1"], "spotcheck_result": "分類表の無機化学工業の項目とアンモニアソーダ法の記載を照合した"},
-    {"id": "D2", "difference_from_exploration": "産業誌が扱う製造プロセスから探す", "source_discovery_query": "有機化学工業 産業誌", "checked_entry_point_ids": ["E4"], "found_candidate_ids": [], "spotchecked_entry_point_ids": ["E2"], "spotcheck_result": "事典索引の有機工業化学の項目とクメン法の記載を照合した"}
+    {"id": "D2", "difference_from_exploration": "産業誌が扱う製造プロセスから探す", "source_discovery_query": "有機化学工業 産業誌", "checked_entry_point_ids": ["E4"], "found_candidate_ids": [], "spotchecked_entry_point_ids": ["E2"], "spotcheck_result": "事典索引の有機工業化学の項目とワッカー法の記載を照合した"}
   ],
-  "saturation_challenge": {"search_perspective": "工場見学や業界団体による一般向けの解説", "query": "化学工業 現場 使用", "opened_entry_point_ids": ["E3", "E4"], "found_candidate_ids": [], "breadth": "convergent", "resolution": "開いた資料に新しい製法名はなく、既存の候補と一致した", "resolved": true, "core_check": {"source_entry_point_ids": ["E2"], "core_candidate_ids": ["K1", "K2"], "added_candidate_ids": [], "reason": "化学事典の工業化学の概説が代表的な製法として挙げるアンモニアソーダ法とクメン法が、どちらも台帳にある"}},
+  "saturation_challenge": {"search_perspective": "工場見学や業界団体による一般向けの解説", "query": "化学工業 現場 使用", "opened_entry_point_ids": ["E3", "E4"], "found_candidate_ids": [], "breadth": "convergent", "resolution": "開いた資料に新しい製法名はなく、既存の候補と一致した", "resolved": true, "core_check": {"source_entry_point_ids": ["E2"], "core_candidate_ids": ["K1", "K2"], "added_candidate_ids": [], "reason": "化学事典の工業化学の概説が代表的な製法として挙げるアンモニアソーダ法とワッカー法が、どちらも台帳にある"}},
   "memberships": [
     {"candidate_id": "K1", "axes": {"subject": {"belongs": true, "reason": "食塩と石灰石から炭酸ナトリウムを工業的に製造する方法で、化学工業の製法に当たる"}, "place": {"belongs": true, "reason": "場所を限定していない"}, "time": {"belongs": true, "reason": "時代を限定していない"}, "type": {"belongs": true, "reason": "型を限定していない"}}},
-    {"candidate_id": "K2", "axes": {"subject": {"belongs": true, "reason": "ベンゼンとプロピレンからフェノールとアセトンを製造する方法で、化学工業の製法に当たる"}, "place": {"belongs": true, "reason": "場所を限定していない"}, "time": {"belongs": true, "reason": "時代を限定していない"}, "type": {"belongs": true, "reason": "型を限定していない"}}}
+    {"candidate_id": "K2", "axes": {"subject": {"belongs": true, "reason": "エチレンからアセトアルデヒドを製造する方法で、化学工業の製法に当たる"}, "place": {"belongs": true, "reason": "場所を限定していない"}, "time": {"belongs": true, "reason": "時代を限定していない"}, "type": {"belongs": true, "reason": "型を限定していない"}}}
   ],
   "exposure_prechecks": [
     {"candidate_id": "K1", "result": "keep", "reason": "「食塩と石灰石から炭酸ナトリウムを工業的に得る製法」のように、名称の「アンモニア」を出さずに説明できる"},
-    {"candidate_id": "K2", "result": "keep", "reason": "説明に中間体を出すと「クメン」から名称を作れるが、「ベンゼンとプロピレンからフェノールとアセトンを同時に得る製法」のように中間体を出さずに説明できる"}
+    {"candidate_id": "K2", "result": "keep", "reason": "「エチレンを酸化してアセトアルデヒドを得る工業的製法」のように、名称の「ワッカー」を出さずに説明できる"}
   ],
   "topic_groups": [
     {"id": "G1", "label": "化学工業の製法", "candidate_ids": ["K1", "K2"], "reason": "候補が二つで、一度に比べられる"}
   ],
   "candidate_weights": [
-    {"candidate_id": "K1", "weight": 3.0, "viewpoints": {"sharing": "高校化学で炭酸ナトリウムの製法として学び、名称を聞いたことのある人が多い", "communication": "化学の授業や受験の話題で出る", "background": "化学工業の歴史や塩の利用を理解する前提になる"}, "reason": "学校教育を通じた共有度が高く、クメン法より重要度が高い"},
-    {"candidate_id": "K2", "weight": 1.0, "viewpoints": {"sharing": "高校化学の有機分野で扱われるが、アンモニアソーダ法ほど知られていない", "communication": "化学の授業や受験の話題で出る", "background": "フェノール樹脂などの素材を理解する前提になる"}, "reason": "学校教育で扱われるが共有度はアンモニアソーダ法より低い"}
+    {"candidate_id": "K1", "weight": 3.0, "viewpoints": {"sharing": "高校化学で炭酸ナトリウムの製法として学び、名称を聞いたことのある人が多い", "communication": "化学の授業や受験の話題で出る", "background": "化学工業の歴史や塩の利用を理解する前提になる"}, "reason": "学校教育を通じた共有度が高く、ワッカー法より重要度が高い"},
+    {"candidate_id": "K2", "weight": 1.0, "viewpoints": {"sharing": "大学の有機工業化学で扱われるが、アンモニアソーダ法ほど知られていない", "communication": "化学の授業や化学工業の話題で出る", "background": "アセトアルデヒドや酢酸などの基礎化学品を理解する前提になる"}, "reason": "化学の教育で扱われるが共有度はアンモニアソーダ法より低い"}
   ],
   "topic_group_reviews": [
-    {"group_id": "G1", "status": "passed", "reason": "二つの製法はどちらも高校化学で学ぶ工業的製法で、重要度を直接比べられる"}
+    {"group_id": "G1", "status": "passed", "reason": "二つの製法はどちらも化学の授業で学ぶ工業的製法で、重要度を直接比べられる"}
   ],
   "topic_weight_reviews": [
-    {"target": "G1", "status": "passed", "reason": "学校教育での扱いの差から、アンモニアソーダ法をクメン法より重く見ることに無理がない"}
+    {"target": "G1", "status": "passed", "reason": "学校教育での扱いの差から、アンモニアソーダ法をワッカー法より重く見ることに無理がない"}
   ],
   "topic_distribution_reviews": [
     {"target": "all", "status": "passed", "reason": "3対1の比が、学校教育での扱いと一般の知名度の差に見合っている"}

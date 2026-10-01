@@ -1607,7 +1607,9 @@ class TestSelectionState:
         assert result.returncode == 1
         assert "本文を開いていない" in result.stderr
 
-    @pytest.mark.parametrize("field", ["name_use_note", "candidate_reason"])
+    @pytest.mark.parametrize(
+        "field", ["name_use_note", "core_description", "candidate_reason"]
+    )
     def test_selection_requires_candidate_notes(
         self, run_script, selection_state, field
     ):
@@ -1696,6 +1698,7 @@ class TestSelectionState:
             exclusion_reason="日本語資料中で対象の名称として確認できない",
         )
         del candidate["name_use_note"]
+        del candidate["core_description"]
         del candidate["candidate_reason"]
         drop_from_weights(selection_state, "K1")
         for role in ("membership", "exposure_precheck"):
