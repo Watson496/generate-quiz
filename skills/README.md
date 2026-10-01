@@ -8,19 +8,37 @@
 
 ### インストール
 
-[skills CLI](https://github.com/vercel-labs/skills) でインストールできます。
+generate-quizは、作問の工程を担当ごとのsubagentに分けて進めます。担当ごとの判断の規定と統括役の規定は、エージェントの定義に入っています。スキルとあわせて、エージェントの定義も導入してください。
+
+#### Codex
+
+スキルを[skills CLI](https://github.com/vercel-labs/skills)でインストールするか、リポジトリのルートで次を実行します。
 
 ```bash
 npx skills add Watson496/generate-quiz
-```
-
-手動でインストールする場合は、リポジトリのルートで次を実行します。
-
-```bash
+# または
 cp -r skills/generate-quiz ~/.agents/skills/
 ```
 
-プロジェクト単位で使う場合は `<プロジェクト>/.agents/skills/` に置きます。他のAI agentでは、それぞれのドキュメントに従ってskillの配置先に置いてください。
+続けて、リポジトリのルートでエージェントの定義を導入します。
+
+```bash
+mkdir -p ~/.codex/agents
+cp codex/agents/*.toml ~/.codex/agents/
+```
+
+エージェントの定義は、プロジェクト単位の`.codex/agents/`からは読み込まれないため、`~/.codex/agents/`に置きます。スキルを更新したときは、エージェントの定義も同じ版のものに置き換えてください。
+
+#### Claude Code
+
+プラグインとして導入すると、スキルとエージェントの定義がまとめて導入されます。
+
+```text
+/plugin marketplace add Watson496/generate-quiz
+/plugin install generate-quiz@generate-quiz
+```
+
+#### 共通の要件
 
 Web検索（裏取りに必須）と、Python 3.14以上を実行できるシェル（同梱スクリプトは標準ライブラリのみ使用）が必要です。
 
@@ -58,8 +76,10 @@ AI agentとのセッションで作問を依頼します。条件を指定しな
 ```text
 generate-quiz/
   SKILL.md        作問の工程制御
-  references/     ファセットカタログと3つの仕様
+  references/     ファセットカタログと仕様
   scripts/        履歴補正付き乱択・文字数判定・ファセットノード抽出
+codex/agents/     Codex用の担当と統括役のエージェントの定義
+claude/           Claude Code用のプラグイン（スキルと、担当と統括役のエージェントの定義）
 ```
 
 `SKILL.md` は工程制御、`references/` は詳細な定義と判断基準を担います。ファセットカタログは1ファイル最大約260KBあるため、作問時には `scripts/facet_node.py` で必要なノードのブロックだけを取り出します。
