@@ -1130,6 +1130,7 @@ def validate_execution_assignments(state, stage):
         data.get("assignments"), "execution.assignments", nonempty=True
     )
     roles_by_agent = {}
+    completed_roles = set()
     exposure_versions = {}
     reviewed_outputs = {}
     for index, record in enumerate(records):
@@ -1144,13 +1145,21 @@ def validate_execution_assignments(state, stage):
             record.get("agent") == assignment_plan.agent_name(known[role]),
             f"{name}.agentが担当表の役割のエージェントではない",
         )
+        failed = "status" in record
+        if failed:
+            require_condition(
+                record["status"] == "failed", f"{name}.statusが不正である"
+            )
+            required_text(record, "failure_reason", name)
         required_id_list(
-            record.get("artifact_refs"), f"{name}.artifact_refs", nonempty=True
+            record.get("artifact_refs"), f"{name}.artifact_refs", nonempty=not failed
         )
         require_condition(
             roles_by_agent.setdefault(agent_id, role) == role,
             f"{name}.agent_idを別の役割にも割り当てている",
         )
+        if not failed:
+            completed_roles.add(role)
         size = known[role].get("split_size")
         if size is None:
             require_condition(
@@ -1163,7 +1172,7 @@ def validate_execution_assignments(state, stage):
             require_condition(
                 len(items) <= size, f"{name}.itemsが担当表の件数を超えている"
             )
-        if role in FINAL_REVIEW_ROLES:
+        if role in FINAL_REVIEW_ROLES and not failed:
             digest = required_text(record, "output_sha256", name)
             require_condition(
                 re.fullmatch(r"[0-9a-f]{64}", digest) is not None,
@@ -1173,7 +1182,7 @@ def validate_execution_assignments(state, stage):
                 reviewed_outputs.setdefault(agent_id, digest) == digest,
                 f"{name}.agent_idを別の完成稿の照合に再利用している",
             )
-        if role == "exposure":
+        if role == "exposure" and not failed:
             version = record.get("draft_version")
             require_condition(
                 type(version) is int and version >= 1,
@@ -1184,8 +1193,7 @@ def validate_execution_assignments(state, stage):
                 f"{name}.agent_idを別の版の露出検査に再利用している",
             )
     roles = STAGE_ROLES[stage]
-    assigned = set(roles_by_agent.values())
-    missing = [role for role in roles if role not in assigned]
+    missing = [role for role in roles if role not in completed_roles]
     require_condition(
         not missing, f"execution.assignmentsに担当の記録がない: {missing}"
     )
@@ -1198,12 +1206,19 @@ def validate_execution_assignments(state, stage):
         )
 
 
+def completed_assignments(state):
+    """成果物を残さずに終了した担当を除いた起動の記録を返す。"""
+    return [
+        record for record in state["execution"]["assignments"] if "status" not in record
+    ]
+
+
 def require_role_assigned(state, role):
     """条件によって置く担当の起動の記録があることを確認する。"""
     if not state["execution"]["delegation_available"]:
         return
     require_condition(
-        any(record["role"] == role for record in state["execution"]["assignments"]),
+        any(record["role"] == role for record in completed_assignments(state)),
         f"execution.assignmentsに担当の記録がない: {[role]}",
     )
 
@@ -1214,7 +1229,7 @@ def require_items_assigned(state, role, ids, *, only=False):
         return
     assigned = {
         item
-        for record in state["execution"]["assignments"]
+        for record in completed_assignments(state)
         if record["role"] == role
         for item in record["items"]
     }
@@ -2256,7 +2271,7 @@ def validate_final_reviews(state, output_bytes):
             require_condition(
                 any(
                     record["role"] == key and record["output_sha256"] == digest
-                    for record in state["execution"]["assignments"]
+                    for record in completed_assignments(state)
                 ),
                 f"{key}の担当が現行の完成稿について起動されていない",
             )

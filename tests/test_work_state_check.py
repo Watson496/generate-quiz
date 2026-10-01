@@ -1944,6 +1944,27 @@ class TestWorkState:
         assert result.returncode == 1
         assert "source_reliability_reviewsに不合格の項目がある: ['S1']" in result.stderr
 
+    def test_failed_assignment_does_not_count(self, run_script, complete_state):
+        """成果物を残さずに終了した担当の記録は、理由を置けば残せるが、担当の記録に数えない。"""
+        writer = assignment_of(complete_state, "writer")
+        writer.update(status="failed", artifact_refs=[])
+        result = check_state(run_script, "material", complete_state)
+        assert result.returncode == 1
+        assert "failure_reasonがない" in result.stderr
+        writer["failure_reason"] = "実行環境のエラーで止まった"
+        result = check_state(run_script, "material", complete_state)
+        assert result.returncode == 1
+        assert "担当の記録がない: ['writer']" in result.stderr
+        complete_state["execution"]["assignments"].append(
+            {
+                "role": "writer",
+                "agent": "generate-quiz:writer",
+                "agent_id": "agent-writer-retry",
+                "artifact_refs": ["writer.json"],
+            }
+        )
+        assert check_state(run_script, "material", complete_state).returncode == 0
+
     def test_assignment_requires_role_agent(self, run_script, complete_state):
         """起動の記録のエージェントは、担当表の役割のエージェントに限る。"""
         assignment_of(complete_state, "writer")["agent"] = "generate-quiz:exposure"
