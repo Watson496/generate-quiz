@@ -4,7 +4,7 @@
 
 ## 利用方法
 
-Agent Skillsに対応したAI agentに、`skills/generate-quiz/` をインストールして利用します。インストールと利用の手順は[skills/README.md](skills/README.md)を参照してください。
+Agent Skillsに対応したAI agentに、`skills/generate-quiz/` と、作問の担当と統括役のエージェントの定義をインストールして利用します。インストールと利用の手順は[skills/README.md](skills/README.md)を参照してください。
 
 generate-quizのほかに、生成した問題群をLaTeX問題集へ組版する付属スキル [`quiz-book-latex`](skills/quiz-book-latex/) も収録しています。導入方法と依存関係は[skills/README.md](skills/README.md#quiz-book-latex)を参照してください。
 
@@ -100,7 +100,11 @@ skills/
     references/
     scripts/
 codex/agents/              Codex用の担当と統括役のエージェントの定義（生成物）
-claude/agents/             Claude Code用の担当と統括役のエージェントの定義（生成物）
+claude/                    Claude Code用のプラグイン
+  .claude-plugin/
+  agents/                  担当と統括役のエージェントの定義（生成物）
+  skills/generate-quiz     skills/generate-quiz へのリンク
+.claude-plugin/            Claude Code用のマーケットプレイスの定義
 tools/                     開発用の生成スクリプト
 tests/                     開発用の回帰テスト
 ```

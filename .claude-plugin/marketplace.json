@@ -1,0 +1,11 @@
+{
+  "name": "generate-quiz",
+  "owner": {"name": "Watson496"},
+  "plugins": [
+    {
+      "name": "generate-quiz",
+      "source": "./claude",
+      "description": "日本語の競技早押しクイズを作るスキルと、作問の担当と統括役のエージェント"
+    }
+  ]
+}

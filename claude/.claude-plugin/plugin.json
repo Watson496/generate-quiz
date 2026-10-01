@@ -1,0 +1,6 @@
+{
+  "name": "generate-quiz",
+  "description": "日本語の競技早押しクイズを作るスキルと、作問の担当と統括役のエージェント",
+  "author": {"name": "Watson496"},
+  "license": "MIT"
+}
