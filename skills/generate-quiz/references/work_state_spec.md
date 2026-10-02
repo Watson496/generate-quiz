@@ -10,7 +10,7 @@
 
 委譲機能の有無を`execution.delegation_available`に記録する。利用できない場合は、その理由を`execution.unavailable_reason`に記録する。
 
-利用できる場合は、担当を起動するたびに`execution.assignments`へ一件を加える。担当表の役割を`role`、起動に使ったエージェントの名前を`agent`、起動toolが返した正規IDを`agent_id`、回収した成果物の場所を`artifact_refs`に置く。解答を伏せた名称候補の担当の記録には、対象とした問題文の版を`draft_version`に置く。完成稿への反映の照合担当と作業用記録の混入の検査担当の記録には、照合した完成稿のファイル内容のSHA-256を`output_sha256`に置く。担当表で件数を定めて分割する担当の記録には、受け持つ項目のIDを`items`に置く。所属判定とその検査の`items`には選択対象だけを、露出の予備検査の`items`には所属する選択対象だけを置く。一つのagentを複数の役割に使わない。解答を伏せた名称候補の担当は版ごとに、完成稿の照合担当は完成稿ごとに別のagentとし、同じ版を新しい担当が再検査した場合も一件を加える。解答対象を替えた後も、既存の記録を消したり、別の担当の記録へ書き換えたりしない。起動した担当が成果物を残さずに終了した場合（実行環境のエラーで止まった場合など）は、その記録を消さずに`status`を`failed`とし、理由を`failure_reason`に置く。`failed`の記録の`artifact_refs`は空でよい。その担当の受け持ちは、新しく起動した担当の記録で受け持つ。`work_state_check.py`は、`failed`の記録を担当の記録や項目の受け持ちに数えない。
+利用できる場合は、担当を起動するたびに`execution.assignments`へ一件を加える。担当表の役割を`role`、起動に使ったエージェントの名前を`agent`、起動toolが返した正規IDを`agent_id`、回収した成果物の場所を`artifact_refs`に置く。解答を伏せた名称候補の担当の記録には、対象とした問題文の版を`draft_version`に置く。完成稿への反映の照合担当と作業用記録の混入の検査担当の記録には、照合した完成稿のファイル内容のSHA-256を`output_sha256`に置く。担当表で件数を定めて分割する担当の記録には、受け持つ項目のIDを`items`に置く。所属判定と露出の予備検査の`items`には選択対象だけを置く。一つのagentを複数の役割に使わない。解答を伏せた名称候補の担当は版ごとに、完成稿の照合担当は完成稿ごとに別のagentとし、同じ版を新しい担当が再検査した場合も一件を加える。解答対象を替えた後も、既存の記録を消したり、別の担当の記録へ書き換えたりしない。起動した担当が成果物を残さずに終了した場合（実行環境のエラーで止まった場合など）は、その記録を消さずに`status`を`failed`とし、理由を`failure_reason`に置く。`failed`の記録の`artifact_refs`は空でよい。その担当の受け持ちは、新しく起動した担当の記録で受け持つ。`work_state_check.py`は、`failed`の記録を担当の記録や項目の受け持ちに数えない。
 
 ## ファセットの選択
 
@@ -34,26 +34,26 @@
 - 各選択対象の4軸の各ノードへの所属判定
 - 別経路の探索で各下位領域に開いた入口、元の探索と異なる観点、得た候補、元の資料と台帳を照合した結果
 - 探索完了の反証調査で使った観点・検索語・開いた資料、得た候補と未探索経路の処理結果
-- 所属する各選択対象の解答露出の予備検査の結果
+- 各選択対象の解答露出の予備検査の結果
 - 探索段階で選択対象となるか、除外する場合はその理由
 - 抽選後に題材品質ゲートで棄却した場合は、満たせなかった条件
 - 新しい有力候補が増えなくなったか
 
 一つの解答対象を棄却しても、この状態は同じ問題番号で題材を再選定するために保持する。棄却した対象に固有の引用、推論、問題文、検査の記録は、新しい解答対象の作業状態へ渡さない。
 
-題材候補の探索状態は最終出力へ含めない。探索が飽和したら所属判定の前に`work_state_check.py --stage discovery`で検査する。抽選に使う探索状態は`--stage selection`で確認する。解答対象を決めた後は探索台帳を含まない作問状態を別に作り、作文担当の起動の記録とともに`--stage target-start`で確認する。
+題材候補の探索状態は最終出力へ含めない。探索が飽和したら抽選前の予備検査の前に`work_state_check.py --stage discovery`で検査する。抽選に使う探索状態は`--stage selection`で確認する。解答対象を決めた後は探索台帳を含まない作問状態を別に作り、作文担当の起動の記録とともに`--stage target-start`で確認する。
 
 探索状態は、題材を抽選する前に `topic_pick.py` へ渡す。入口には本文を開いたURL、`opened: true`、確認箇所を`access_note`として記録する。下位領域の`source_searches`には、候補名を含めない入口探しを`mode: open`、既知候補からの近接探索を`mode: nearby`として記録する。選択対象の`discovery_entry_point_ids`と`coverage_area_ids`は、同じ`source_searches`の`entry_point_ids`と`found_candidate_ids`に対応させる。最初の候補を記録した時点と入口・候補を追加した節目に`--stage discovery-progress`でこの対応を検査する。内部知識から挙げ、まだ資料で確認していない候補は、途中状態では`discovery_entry_point_ids`を空配列にできる。資料の探索記録にその候補を加えたら発見元も記録し、`--stage discovery`までに対応を確定する。途中検査では探索の完了や露出予備検査の記録を要求しない。途中検査と完了時の検査は、除外していない候補に同じ名称の候補が重複していないことも確認する。選択対象の`name_use_note`には名称の使用箇所を、`core_description`には名前であるかを確かめるために書いた、対象をそのものズバリ説明する説明を、`candidate_reason`には`selection_and_history_spec.md`第6節の候補に当たると判断した理由として、名前が説明の語から作れないことと、設定された難易度の帯に入ると見込む理由を記す。除外する候補には、名称を`label`、`disposition`、`exclusion_code`、`exclusion_reason`（`duplicate`では`merged_into`も）だけを置けばよく、発見元や下位領域の対応、`name_use_note`、`core_description`、`candidate_reason`は求めない。選択対象の`expansion_searches`には近接探索の検索先・調べた関係・得た候補IDを残す。同時に動く担当が書く断片には、担当の接頭辞を`prefix`として置き、そのほかは探索状態と同じキーで、書き加える記録だけを置く。すでにある記録へ書き加える場合は、その記録の`id`と書き加える項目だけを置く。検査を通った後で候補を追加した場合は、その候補からも探索を展開し、再度検査する。
 
 `independent_review`には下位領域IDごとに、最初の探索と異なる観点、候補名を含めない検索語、別経路で開いた入口IDと候補ID、照合した元の入口IDと結果を記録する。`saturation_challenge`には別の立場・用途からの検索、開いた入口ID、得た候補ID、未探索経路の処理と完了状態を残す。広さの再評価の結論は`breadth`に、飽和し得るなら`convergent`、飽和する見込みがなく粒度判断へ戻すなら`not_convergent`として置く。`not_convergent`の探索状態は、`--stage discovery`以降の検査に合格しない。選択範囲の概説・入門資料が中核的に扱う対象が選択対象として台帳にあるかを確かめた結果は、`core_check`に、開いた資料の入口IDを`source_entry_point_ids`、確かめた候補IDを`core_candidate_ids`、台帳になく加えた候補IDを`added_candidate_ids`、判断理由を`reason`として置く。形式検査の合格は資料の内容と記録が対応することや、探索の十分さを保証しない。
 
-所属判定は`memberships`に、候補IDを`candidate_id`、4軸ごとの判定を`axes`の`subject`・`place`・`time`・`type`として置き、それぞれに所属するかを`belongs`、理由を`reason`として記録する。所属判定は`--stage membership`で検査する。
+所属判定は`memberships`に、候補IDを`candidate_id`、4軸ごとの判定を`axes`の`subject`・`place`・`time`・`type`として置き、それぞれに所属するかを`belongs`、理由を`reason`として記録する。所属判定と露出の予備検査は`--stage screening`で検査する。
 
 抽選後の予備判定は、観点ごとに`prejudgment_scope`・`prejudgment_membership`・`prejudgment_difficulty`・`prejudgment_otoshi`に、候補IDを`candidate_id`、合格か除外かを`result`（`pass`・`exclude`）、理由を`reason`として置く。`prejudgment_difficulty`には、当該分野を学び始めて1〜2年以内の人が名前を答えられるかの見込みを`learner_estimate`、その分野を学んでいない一般の人が答えられるかの見込みを`general_estimate`として、担当の知識で立てた見込みを置く。見込みが立たない場合は、その旨を書く。再抽選した候補の判定は後ろへ加える。`--stage prejudgment`は、判定した各候補に四つの判定があること、除外した候補に`quality_rejection_reason`があること、四つとも合格して作問へ進む候補が一つであることを確認する。
 
 `disposition`は探索段階で選択対象となるかを表す。台帳に記録した後で除く候補は`excluded`とし、除外の理由の種類を`exclusion_code`（同一対象の重複は`duplicate`、名称を確認できない仮称は`unverified_name`、候補に当たらないと判断したものは`not_candidate`）、理由を`exclusion_reason`として置く。`duplicate`では統合先の候補IDを`merged_into`に置く。抽選後に題材品質ゲートで棄却した候補は`eligible`のまま、満たせなかった条件を`quality_rejection_reason`へ記録する。再抽選では、この記録がある全候補のIDを`topic_pick.py --exclude`へ渡す。
 
-解答露出の予備検査は`exposure_prechecks`に、候補IDを`candidate_id`、残すか除外するかを`result`（`keep`・`exclude`）、判断理由を`reason`として置く。所属する選択対象のうち、`keep`とした候補だけを抽選の対象にする。
+解答露出の予備検査は`exposure_prechecks`に、候補IDを`candidate_id`、残すか除外するかを`result`（`keep`・`exclude`）、判断理由を`reason`として置く。4軸すべてに所属し、予備検査で`keep`とした選択対象だけを抽選の対象にする。
 
 抽選の対象の候補のまとまりは`topic_groups`に、`id`、名前を`label`、含む候補IDを`candidate_ids`、切り方の理由を`reason`として置く。まとまりが複数あれば、まとまり同士のweightを`group_weights`に、まとまりの`group_id`と、ファセットのweightと同じ`weight`・`viewpoints`・`reason`として置く。まとまりの中の各候補のweightは`candidate_weights`に、`candidate_id`と`weight`・`viewpoints`・`reason`、対象再出現の履歴距離を`history_distances`として置く。まとまりの切り方の検査結果は`topic_group_reviews`に、まとまりの`group_id`、判定を`status`（`passed`・`failed`）、理由を`reason`として置く。weightの検査結果は`topic_weight_reviews`に、検査したまとまりのIDまたはまとまり同士のweightを表す`groups`を`target`として、`status`と`reason`を置く。weightの分布全体の検査結果は`topic_distribution_reviews`に、`target`を`all`として`status`と`reason`を置く。`topic_pick.py`は二つのweightの積を基礎weightとして抽選する。
 

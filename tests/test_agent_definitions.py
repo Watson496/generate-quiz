@@ -93,7 +93,7 @@ class TestDefinitions:
         ]
         assert "generate-quiz:exploration" in names
         assert "generate-quiz:step01_coordinator" in names
-        assert "generate-quiz:step09_coordinator" not in names
+        assert "generate-quiz:step08_coordinator" not in names
         assert len(names) == len(module.assignment_plan.ordered_roles(table)) + len(
             coordinated
         )
