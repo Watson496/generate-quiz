@@ -1443,7 +1443,7 @@ class TestSelectionState:
         """所属判定は、題材探索で除いた候補に割り当てない。"""
         add_excluded_candidate(selection_state)
         assignment_of(selection_state, "membership")["items"].append("K3")
-        result = check_state(run_script, "membership", selection_state)
+        result = check_state(run_script, "screening", selection_state)
         assert result.returncode == 1
         assert (
             "membershipの担当に対象でない項目を割り当てている: ['K3']" in result.stderr
@@ -1513,16 +1513,15 @@ class TestSelectionState:
         assert check_state(run_script, "selection", selection_state).returncode == 1
 
     def test_discovery_precedes_exposure_precheck(self, run_script, selection_state):
-        """露出予備検査の前に題材探索と所属判定だけを検査できる。"""
+        """抽選前の予備検査の前に題材探索だけを検査できる。"""
         del selection_state["exposure_prechecks"]
         assert check_state(run_script, "discovery", selection_state).returncode == 0
-        assert check_state(run_script, "membership", selection_state).returncode == 0
-        assert check_state(run_script, "selection", selection_state).returncode == 1
+        assert check_state(run_script, "screening", selection_state).returncode == 1
 
     def test_selection_requires_precheck_of_every_member(
         self, run_script, selection_state
     ):
-        """所属する選択対象ごとに露出の予備検査を要求する。"""
+        """選択対象ごとに露出の予備検査を要求する。"""
         selection_state["exposure_prechecks"].pop()
         result = check_state(run_script, "selection", selection_state)
         assert result.returncode == 1
@@ -1634,7 +1633,7 @@ class TestSelectionState:
     def test_membership_requires_every_candidate(self, run_script, selection_state):
         """所属判定のない選択対象を残さない。"""
         selection_state["memberships"].pop()
-        result = check_state(run_script, "membership", selection_state)
+        result = check_state(run_script, "screening", selection_state)
         assert result.returncode == 1
         assert "所属判定のない候補がある: ['K2']" in result.stderr
 
@@ -1642,7 +1641,7 @@ class TestSelectionState:
     def test_membership_requires_each_axis(self, run_script, selection_state, field):
         """4軸それぞれについて所属と理由を記録する。"""
         del selection_state["memberships"][0]["axes"]["time"][field]
-        result = check_state(run_script, "membership", selection_state)
+        result = check_state(run_script, "screening", selection_state)
         assert result.returncode == 1
         assert f"memberships[0].axes.time.{field}" in result.stderr
 

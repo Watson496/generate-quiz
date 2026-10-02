@@ -135,7 +135,7 @@ class TestBundledTable:
         """探索台帳が変わっても、解答対象ごとの担当は再実行しない。"""
         module = load_script("generate-quiz", "assignment_plan.py")
         plan = module.rerun_plan(module.load_table(), "exploration")
-        assert [step["step"] for step in plan] == [3, 4, 5, 6, 7]
+        assert [step["step"] for step in plan] == [3, 4, 5, 6]
 
 
 class TestTableValidation:
@@ -302,7 +302,7 @@ class TestRequests:
         [
             ("assign", "unknown_role"),
             ("assign", "exposure", "--items", "K1"),
-            ("coordinate", "9"),
+            ("coordinate", "8"),
             ("coordinate", "99"),
         ],
     )
@@ -323,13 +323,13 @@ class TestRerun:
             module.load_table(), ["propositions", "proposition_support"]
         )
         assert plan["fix"] == [
-            {"step": 8, "role": "clue_search"},
-            {"step": 8, "role": "corroboration"},
+            {"step": 7, "role": "clue_search"},
+            {"step": 7, "role": "corroboration"},
         ]
         rerun = {entry["step"]: entry["roles"] for entry in plan["rerun"]}
-        assert "certainty" in rerun[8]
-        assert "clue_search" not in rerun[8]
-        assert rerun[9] == ["writer"]
+        assert "certainty" in rerun[7]
+        assert "clue_search" not in rerun[7]
+        assert rerun[8] == ["writer"]
 
     @pytest.mark.parametrize(
         ("data", "message"),

@@ -2,7 +2,7 @@
 """題材探索と作問状態の内容、参照関係、工程境界を検査する。
 
 入力はJSONファイルのパスまたは標準入力から受け取る。--stageには
-facet-selection、intersection-checkpoint、discovery、membership、selection、prejudgment、
+facet-selection、intersection-checkpoint、discovery、screening、selection、prejudgment、
 target-start、difficulty-gate、writing、review、material、finalのいずれかを指定する。
 
 終了コード:
@@ -143,10 +143,11 @@ STAGE_ROLES = {
     "intersection-checkpoint": INTERSECTION_ROLES,
     "discovery-progress": (*INTERSECTION_ROLES, "exploration"),
     "discovery": (*INTERSECTION_ROLES, *SELECTION_ROLES),
-    "membership": (
+    "screening": (
         *INTERSECTION_ROLES,
         *SELECTION_ROLES,
         "membership",
+        "exposure_precheck",
     ),
     "selection": (
         *INTERSECTION_ROLES,
@@ -814,10 +815,12 @@ def validate_selection_candidates(state, entry_ids, areas, area_ids):
     return candidates, candidate_ids
 
 
-def validate_exposure_prechecks(state, members, known_ids):
-    """所属する選択対象ごとに予備検査の結果があることを検査し、残す候補を返す。"""
+def validate_exposure_prechecks(state, candidate_ids, known_ids):
+    """選択対象ごとに予備検査の結果があることを検査し、残す候補を返す。"""
     records = required_list(
-        state.get("exposure_prechecks"), "exposure_prechecks", nonempty=bool(members)
+        state.get("exposure_prechecks"),
+        "exposure_prechecks",
+        nonempty=bool(candidate_ids),
     )
     results = {}
     for index, item in enumerate(records):
@@ -835,12 +838,12 @@ def validate_exposure_prechecks(state, members, known_ids):
         )
         required_text(item, "reason", name)
         results[candidate_id] = item["result"]
-    missing = sorted(set(members) - set(results))
+    missing = sorted(set(candidate_ids) - set(results))
     require_condition(not missing, f"予備検査のない候補がある: {missing}")
     return {
         candidate_id
         for candidate_id, result in results.items()
-        if result == "keep" and candidate_id in members
+        if result == "keep" and candidate_id in candidate_ids
     }
 
 
@@ -1095,10 +1098,11 @@ def validate_selection_state(state, stage):
     require_condition(state.get("saturated") is True, "探索が飽和していない")
     if stage == "discovery":
         return
-    members = validate_memberships(state, eligible_candidate_ids(state), candidate_ids)
-    if stage == "membership":
+    eligible = eligible_candidate_ids(state)
+    members = validate_memberships(state, eligible, candidate_ids)
+    pickable = members & validate_exposure_prechecks(state, eligible, candidate_ids)
+    if stage == "screening":
         return
-    pickable = validate_exposure_prechecks(state, members, candidate_ids)
     validate_topic_weights(state, pickable)
     if stage == "prejudgment":
         validate_prejudgments(state, pickable)
@@ -1260,13 +1264,12 @@ def validate_selection_execution(state, stage):
     require_items_assigned(state, "nearby_exploration", eligible)
     if stage != "discovery":
         require_items_assigned(state, "membership", eligible, only=True)
+        require_items_assigned(state, "exposure_precheck", eligible, only=True)
     if stage in {"selection", "prejudgment"}:
         groups = [group["id"] for group in state["topic_groups"]]
         require_items_assigned(state, "topic_weighting", groups)
         if len(groups) > 1:
             require_role_assigned(state, "group_weighting")
-        members = member_candidate_ids(state)
-        require_items_assigned(state, "exposure_precheck", sorted(members), only=True)
 
 
 def validate_source_quotes(state):
@@ -2684,7 +2687,7 @@ def main():
             "intersection-checkpoint",
             "discovery-progress",
             "discovery",
-            "membership",
+            "screening",
             "selection",
             "prejudgment",
             "target-start",
@@ -2720,7 +2723,7 @@ def main():
         elif args.stage == "discovery-progress":
             validate_discovery_progress(state)
             validate_execution_assignments(state, args.stage)
-        elif args.stage in {"discovery", "membership", "selection", "prejudgment"}:
+        elif args.stage in {"discovery", "screening", "selection", "prejudgment"}:
             validate_selection_state(state, args.stage)
             validate_selection_execution(state, args.stage)
         elif args.stage == "target-start":
