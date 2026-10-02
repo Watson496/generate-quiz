@@ -11,7 +11,7 @@
                        --itemsで項目IDを渡す
     rerun ROLE         ROLEの成果物が変わったときに再実行する担当を、
                        表の順にステップごとに出力する
-    fix DATA...        検査が修正を求めたデータを成果物とする作る側の担当と、
+    fix DATA...        検査が修正を求めたデータを成果物とする担当と、
                        修正の後に再実行する担当を出力する
 
 終了コード:
@@ -295,21 +295,28 @@ def rerun_plan(table, role_id):
 
 
 def fix_plan(table, data_ids):
-    """検査が修正を求めたデータを成果物とする作る側の担当と、その後に再実行する担当を返す。"""
+    """検査が修正を求めたデータを成果物とする担当と、その後に再実行する担当を返す。
+
+    修正を求められたデータを成果物とする検査側の担当が、作る側の担当の修正の後で再実行される場合は、
+    その検査側の担当には修正させず、再実行だけを行う。
+    """
     require(bool(data_ids), "データIDが必要である")
     unknown = sorted(set(data_ids) - set(table["data"]))
     require(not unknown, f"担当表にないデータである: {unknown}")
-    makers = [
-        role
-        for _, role in ordered_roles(table)
-        if role["side"] == "make" and set(role["outputs"]) & set(data_ids)
+    producers = [
+        role for _, role in ordered_roles(table) if set(role["outputs"]) & set(data_ids)
     ]
-    require(bool(makers), f"作る側の担当の成果物ではないデータである: {data_ids}")
+    require(bool(producers), f"担当の成果物ではないデータである: {data_ids}")
     reruns = {}
-    for maker in makers:
-        for entry in rerun_plan(table, maker["id"]):
+    for producer in producers:
+        for entry in rerun_plan(table, producer["id"]):
             reruns.setdefault(entry["step"], set()).update(entry["roles"])
-    fixed = {maker["id"] for maker in makers}
+    rerun_ids = set().union(*reruns.values()) if reruns else set()
+    fixed = {
+        producer["id"]
+        for producer in producers
+        if producer["side"] == "make" or producer["id"] not in rerun_ids
+    }
     plan = []
     for number, role in ordered_roles(table):
         if role["id"] in reruns.get(number, set()) - fixed:

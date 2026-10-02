@@ -331,15 +331,30 @@ class TestRerun:
         assert "clue_search" not in rerun[7]
         assert rerun[8] == ["writer"]
 
+    def test_fix_returns_checker_whose_output_is_wrong(self, load_script):
+        """検査側の担当の成果物の修正を求めたら、その担当と後の担当を返す。"""
+        module = load_script("generate-quiz", "assignment_plan.py")
+        plan = module.fix_plan(module.load_table(), ["extracted_propositions"])
+        assert plan["fix"] == [{"step": 9, "role": "proposition_extraction"}]
+        assert plan["rerun"] == [{"step": 9, "roles": ["proposition_matching"]}]
+
+    def test_checker_reruns_after_maker_fix(self, load_script):
+        """作る側の担当も修正するなら、検査側の担当は修正させずに再実行する。"""
+        module = load_script("generate-quiz", "assignment_plan.py")
+        plan = module.fix_plan(module.load_table(), ["draft", "extracted_propositions"])
+        assert plan["fix"] == [{"step": 8, "role": "writer"}]
+        rerun = {entry["step"]: entry["roles"] for entry in plan["rerun"]}
+        assert "proposition_extraction" in rerun[9]
+
     @pytest.mark.parametrize(
         ("data", "message"),
         [
             (["unknown_data"], "担当表にないデータ"),
-            (["user_conditions"], "作る側の担当の成果物ではない"),
+            (["user_conditions"], "担当の成果物ではない"),
         ],
     )
     def test_fix_rejects_data_without_maker(self, load_script, data, message):
-        """担当表にないデータや、作る側の担当の成果物でないデータは拒否する。"""
+        """担当表にないデータや、担当の成果物でないデータは拒否する。"""
         module = load_script("generate-quiz", "assignment_plan.py")
         with pytest.raises(module.TableError, match=message):
             module.fix_plan(module.load_table(), data)

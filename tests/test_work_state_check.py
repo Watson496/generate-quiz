@@ -1846,6 +1846,17 @@ class TestWorkState:
         assert result.returncode == 1
         assert message in result.stderr
 
+    @pytest.mark.parametrize(("value", "code"), [("規定に従っている", 0), (" ", 1)])
+    def test_kept_extraction_needs_reason(
+        self, run_script, complete_state, value, code
+    ):
+        """取り出しの誤りの指摘を受けて残した命題には、残す理由を要する。"""
+        complete_state["extracted_propositions"][0]["kept_reason"] = value
+        result = check_state(run_script, "material", complete_state)
+        assert result.returncode == code
+        if code:
+            assert "kept_reasonがない" in result.stderr
+
     def test_extracted_proposition_may_rest_on_several(
         self, run_script, complete_state
     ):
