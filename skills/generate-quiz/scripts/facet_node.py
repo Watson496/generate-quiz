@@ -8,6 +8,10 @@
     facet_node.py 'subject::ROOT'          # 索引側の FACET_ROOT ブロック
     facet_node.py --grep '音楽'             # ラベル部分一致で NODE_KEY を探す
     facet_node.py --children 'subject::7'  # DIRECT_CHILDREN 行のみ
+    facet_node.py --scope state.json       # 状態JSONのfacet_nodesの分類経路と範囲
+
+ノードにINCLUDINGがなく、子孫のノードにある場合は、ブロックの後に、INCLUDINGを持つ
+最も近い子孫のINCLUDINGを続けて示す。
 
 終了コード:
     0  ブロック（または --grep の該当）を出力した
@@ -16,6 +20,7 @@
 """
 
 import argparse
+import json
 import re
 import sys
 import unicodedata
@@ -25,7 +30,7 @@ REF_DIR = Path(__file__).resolve().parent.parent / "references"
 
 BLOCK_RE_TMPL = r"^## FACET_(?:NODE|ROOT) `{key}`$"
 END_RE = re.compile(r"^<!-- END_FACET_(?:NODE|ROOT) -->$")
-CHILD_RE = re.compile(r"^- `([^`]+)` \| CODE `([^`]*)` \| (.+)$")
+CHILD_RE = re.compile(r"^- `(.+?)` \| CODE `(.*?)` \| (.+)$")
 
 EXIT_OK, EXIT_NOT_FOUND, EXIT_USAGE = 0, 1, 2
 
@@ -68,6 +73,120 @@ def find_block(key):
     return None, None
 
 
+def child_keys(key):
+    """ノードの直接の子のキーを返す。ノードがなければNoneを返す。"""
+    _, block = find_block(key)
+    if block is None:
+        return None
+    return [match.group(1) for line in block if (match := CHILD_RE.match(line))]
+
+
+def block_including(block):
+    """ブロックのINCLUDINGの本文を返す。INCLUDINGがなければNoneを返す。"""
+    if "### INCLUDING" not in block:
+        return None
+    lines = block[block.index("### INCLUDING") + 1 :]
+    text = []
+    for line in lines:
+        if line.startswith("### ") or END_RE.match(line):
+            break
+        if line.strip():
+            text.append(line.strip())
+    return " ".join(text)
+
+
+def descendant_includings(key):
+    """INCLUDINGのない子孫をたどり、INCLUDINGを持つ最も近い子孫のキー、ラベル、INCLUDINGを返す。"""
+    found = []
+    for child in child_keys(key) or []:
+        _, block = find_block(child)
+        if block is None:
+            continue
+        including = block_including(block)
+        if including is None:
+            found.extend(descendant_includings(child))
+            continue
+        label = next(
+            (
+                line.removeprefix("- LABEL: ")
+                for line in block
+                if line.startswith("- LABEL: ")
+            ),
+            "",
+        )
+        found.append((child, label, including))
+    return found
+
+
+def block_field(block, name):
+    prefix = f"- {name}: "
+    return next(
+        (line.removeprefix(prefix) for line in block if line.startswith(prefix)), ""
+    )
+
+
+def is_unrestricted(key):
+    """最上位、または最上位から子が一つだけのノードをたどった先のノードかを返す。"""
+    node = f"{key.split('::', 1)[0]}::ROOT"
+    while True:
+        if node == key:
+            return True
+        children = child_keys(node) or []
+        if len(children) != 1:
+            return False
+        node = children[0]
+
+
+def scope_lines(key, subdivisions):
+    """一つの軸について、選んだノードの分類経路と範囲を表す行を返す。"""
+    derived = []
+    while key not in {"", None} and find_block(key)[1] is None:
+        record = next(
+            (
+                item
+                for item in subdivisions
+                if any(child["key"] == key for child in item["children"])
+            ),
+            None,
+        )
+        if record is None:
+            return [f"- ノード：`{key}`（カタログにも細分にもない）"]
+        child = next(child for child in record["children"] if child["key"] == key)
+        derived.insert(0, child)
+        key = record["parent"]
+    _, block = find_block(key)
+    node = derived[-1]["key"] if derived else key
+    path = " ＞ ".join(
+        [block_field(block, "PATH_LABELS") or block_field(block, "LABEL")]
+        + [child["label"] for child in derived]
+    )
+    lines = [f"- ノード：`{node}`"]
+    if not derived and is_unrestricted(key):
+        return [*lines, "- 範囲：限定なし"]
+    lines.append(f"- 分類経路：{path}")
+    if derived:
+        lines.append(f"- 範囲：{derived[-1]['scope']}")
+    elif (including := block_including(block)) is not None:
+        lines.append(f"- 範囲：{including}")
+    elif found := descendant_includings(key):
+        lines.append("- 範囲：")
+        lines.extend(f"  - {label}：{text}" for _, label, text in found)
+    return lines
+
+
+def scope_text(state):
+    """状態のfacet_nodesについて、4軸それぞれの分類経路と範囲を表すMarkdownを返す。"""
+    subdivisions = state.get("facet_subdivisions", [])
+    lines = ["# 選んだ4軸の範囲"]
+    for axis in ("subject", "place", "time", "type"):
+        lines += [
+            "",
+            f"## {axis}",
+            *scope_lines(state["facet_nodes"][axis], subdivisions),
+        ]
+    return "\n".join(lines)
+
+
 def grep_labels(needle, limit):
     needle = unicodedata.normalize("NFC", needle)
     seen = set()
@@ -100,7 +219,18 @@ def main():
         "--children", action="store_true", help="DIRECT_CHILDREN の行だけを出す"
     )
     ap.add_argument("--limit", type=int, default=40, help="--grep の最大件数（既定40）")
+    ap.add_argument(
+        "--scope", metavar="STATE", help="状態JSONのfacet_nodesの分類経路と範囲を出す"
+    )
     args = ap.parse_args()
+
+    if args.scope is not None:
+        try:
+            state = json.loads(Path(args.scope).read_text(encoding="utf-8"))
+            print(scope_text(state))
+        except (OSError, json.JSONDecodeError, KeyError, TypeError) as exc:
+            fail(f"状態JSONを読めません: {exc}")
+        return EXIT_OK
 
     if args.grep is not None:
         if not args.grep.strip():
@@ -139,6 +269,14 @@ def main():
 
     print(f"# source: references/{path.name}")
     print("\n".join(block))
+    if block_including(block) is None and (found := descendant_includings(args.key)):
+        print()
+        print(
+            "### 子孫のINCLUDING（このノードにINCLUDINGがないため、子孫の範囲を合わせて示す）"
+        )
+        print()
+        for child, label, including in found:
+            print(f"- `{child}` | {label} | {including}")
     return EXIT_OK
 
 

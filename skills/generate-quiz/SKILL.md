@@ -29,24 +29,24 @@ argument-hint: <作問条件（主題・問題数・文字数・履歴など。�
 1. [`references/workflow_spec.md`](references/workflow_spec.md)
 2. [`references/work_state_spec.md`](references/work_state_spec.md)
 
-複数問でも一問でも、`workflow_spec.md`の工程を一問ずつ完了させる。作業状態は`work_state_spec.md`の単位で保持し、解答対象を変更したときは旧対象の状態を引き継がない。
+複数問でも一問でも、`workflow_spec.md`のステップを一問ずつ完了させる。作業状態は`work_state_spec.md`の単位で保持し、解答対象を変更したときは旧対象の状態を引き継がない。
 
-# 工程ごとに読む仕様
+# 担当ごとに読む仕様
 
-- ファセットと題材候補を選ぶ前に、[`references/selection_and_history_spec.md`](references/selection_and_history_spec.md)と[`references/facet_index.md`](references/facet_index.md)を全文読む。ファセットカタログは必要な親ブロックだけを`facet_node.py`で取得する。
-- 解答対象の品質を判定し、手掛かりを選び、問題文を作る前に、[`references/quiz_generation_spec.md`](references/quiz_generation_spec.md)を全文読む。
-- 外部資料による論証、別解、正誤判定、出典作成を始める前に、[`references/verification_and_judging_spec.md`](references/verification_and_judging_spec.md)を全文読む。
-- 最終出力用の限定入力を作った後に、[`references/output_structure_spec.md`](references/output_structure_spec.md)を全文読む。
+判断は、工程のステップごとに起動する担当が行う。各担当が読む仕様は担当表[`references/roles.json`](references/roles.json)で定め、依頼文で指定する。担当は、判断を始める前に指定された仕様を全文読む。
 
-出力直前に全仕様を読み直して済ませず、各仕様を必要とする工程へ入る前に読む。作業状態の検査単位を使い、適用済みかを記録する。
+出力直前に全仕様を読み直して済ませず、各仕様を必要とする判断へ入る前に読む。作業状態の検査単位を使い、適用済みかを記録する。
 
 # 必須ツール
 
 - 同梱スクリプトにはPython 3.14以上を使用する。
 - 毎問Web検索を使う。検索手段が一切使えない場合は、内部知識で代替せず作問を中止する。
-- 重み付き乱択、履歴補正、文字数判定、作業状態の構造検査は、必ず同梱スクリプトを実行する。
+- 担当の割り当て、重み付き乱択、履歴補正、台帳の断片の統合、資料の写しの取得と保存、文字数判定、作業状態の構造検査は、必ず同梱スクリプトを実行する。
+  - 担当の割り当てと再実行の範囲：`scripts/assignment_plan.py`
   - ファセットの抽選：`scripts/weighted_pick.py`
   - 題材候補の抽選：`scripts/topic_pick.py`
+  - 台帳の断片の統合：`scripts/ledger_merge.py`
+  - 資料の写しの取得と保存：`scripts/source_cache.py`
   - 文字数と採否：`scripts/length_check.py`
   - ファセットノードの取得：`scripts/facet_node.py`
   - 作業状態の構造検査：`scripts/work_state_check.py`
@@ -56,6 +56,16 @@ argument-hint: <作問条件（主題・問題数・文字数・履歴など。�
 
 # スクリプトの呼出し
 
+ステップの構成、統括役と担当を起動するエージェントの名前と依頼文、検査の不合格で修正させる担当と再実行する担当は、担当表から決める。
+
+```bash
+python3 "$SKILL_DIR/scripts/assignment_plan.py" steps
+python3 "$SKILL_DIR/scripts/assignment_plan.py" coordinate 3
+python3 "$SKILL_DIR/scripts/assignment_plan.py" assign exploration
+python3 "$SKILL_DIR/scripts/assignment_plan.py" rerun writer
+python3 "$SKILL_DIR/scripts/assignment_plan.py" fix propositions proposition_support
+```
+
 ファセットカタログは全文を読まず、必要なブロックだけを取得する。
 
 ```bash
@@ -64,49 +74,68 @@ python3 "$SKILL_DIR/scripts/facet_node.py" --children 'place::(1/9)'
 python3 "$SKILL_DIR/scripts/facet_node.py" --grep '音楽'
 ```
 
-抽選は、候補ごとの基礎weightと履歴距離をJSONで渡す。
+ファセットの抽選は、ファセット選択の記録のファイルをすべてと、抽選する階層のIDを渡す。スクリプトは、その階層の粒度判断、区分の分け方、weight、weightの分布の各検査の最後の結果が合格でなければ抽選しない。
 
 ```bash
-python3 "$SKILL_DIR/scripts/weighted_pick.py" <<'JSON'
-{"candidates":[
-  {"key":"subject::78","label":"音楽","base_weight":3.2,"history_distances":[2]},
-  {"key":"subject::79","label":"レクリエーション．娯楽．スポーツ","base_weight":2.4}
-]}
-JSON
+python3 "$SKILL_DIR/scripts/weighted_pick.py" facet_granularity.json facet_weighting.json \
+  facet_granularity_review.json facet_weight_review.json facet_distribution_review.json --level L2
 ```
 
-題材候補の抽選には、探索状態のJSONを`topic_pick.py`へ渡す。このスクリプトは探索状態にある選択対象のIDと抽選用JSONの候補IDが一致することを検査する。題材品質ゲートで候補を棄却した場合は、その候補の`quality_rejection_reason`に理由を記録し、記録済みの全候補IDを`--exclude <key>`で渡して再抽選する。探索段階の`disposition`は書き換えない。ファセットの抽選には`weighted_pick.py`を使う。
+題材候補の抽選には、探索状態のJSONを`topic_pick.py`へ渡す。このスクリプトは探索状態を検査し、まとまりのweightとまとまりの中のweightの積を各候補の基礎weightとして抽選する。題材品質ゲートで候補を棄却した場合は、その候補の`quality_rejection_reason`に理由を記録し、記録済みの全候補IDを`--exclude <key>`で渡して再抽選する。探索段階の`disposition`は書き換えない。ファセットの抽選には`weighted_pick.py`を使う。
 
 ```bash
-python3 "$SKILL_DIR/scripts/topic_pick.py" state.json --json candidates.json
+python3 "$SKILL_DIR/scripts/topic_pick.py" state.json
 ```
 
-問題文の版ごとに文字数判定の`DRAW`を保持する。同じ版を監査するときは`--draw`へ同じ値を渡し、再抽選しない。
+選んだ4軸の分類経路と範囲は、ファセット選択の記録から`facet_node.py --scope`で作る。
+
+```bash
+python3 "$SKILL_DIR/scripts/facet_node.py" --scope facet.json > facet_scope.md
+```
+
+資料のページは、資料の写しの置き場を通して開く。取得できない形式のページは、開いた本文を標準入力で渡して保存する。
+
+```bash
+python3 "$SKILL_DIR/scripts/source_cache.py" _sources fetch https://example.org/page
+python3 "$SKILL_DIR/scripts/source_cache.py" _sources put https://example.org/paper.pdf < 本文.txt
+```
+
+同時に動いた担当が書いた台帳の断片は、`ledger_merge.py`で探索状態へまとめる。まとめた後は`work_state_check.py`で探索状態を検査する。
+
+```bash
+python3 "$SKILL_DIR/scripts/ledger_merge.py" state.json fragment_D1.json fragment_D2.json -o state.json
+```
+
+問題文の版ごとに文字数判定の`DRAW`を保持する。同じ版を検査するときは`--draw`へ同じ値を渡し、再抽選しない。
 
 作業状態のJSON manifestは、工程に応じて次のいずれかで検査する。
 
 ```bash
+python3 "$SKILL_DIR/scripts/work_state_check.py" --stage facet-selection facet.json
 python3 "$SKILL_DIR/scripts/work_state_check.py" --stage intersection-checkpoint state.json
 python3 "$SKILL_DIR/scripts/work_state_check.py" --stage discovery-progress state.json
 python3 "$SKILL_DIR/scripts/work_state_check.py" --stage discovery state.json
+python3 "$SKILL_DIR/scripts/work_state_check.py" --stage screening state.json
 python3 "$SKILL_DIR/scripts/work_state_check.py" --stage selection state.json
-python3 "$SKILL_DIR/scripts/work_state_check.py" --stage generation-start state.json
-python3 "$SKILL_DIR/scripts/work_state_check.py" --stage difficulty state.json
-python3 "$SKILL_DIR/scripts/work_state_check.py" --stage generation state.json
-python3 "$SKILL_DIR/scripts/work_state_check.py" --stage audit state.json
+python3 "$SKILL_DIR/scripts/work_state_check.py" --stage prejudgment state.json
+python3 "$SKILL_DIR/scripts/work_state_check.py" --stage target-start state.json
+python3 "$SKILL_DIR/scripts/work_state_check.py" --stage difficulty-gate state.json
+python3 "$SKILL_DIR/scripts/work_state_check.py" --stage writing state.json
+python3 "$SKILL_DIR/scripts/work_state_check.py" --stage review state.json
+python3 "$SKILL_DIR/scripts/work_state_check.py" --stage material state.json
 python3 "$SKILL_DIR/scripts/work_state_check.py" --stage final --output completed.md state.json
 ```
 
 # 最終出力
 
-最終出力には、`work_state_spec.md`で定めた限定入力だけを使い、`output_structure_spec.md`に従う。内部のweight、コード、抽選過程、不採用候補、予定命題、検索過程、監査の往復、スクリプトの生出力を表示しない。
+最終出力には、`work_state_spec.md`で定めた限定入力だけを使い、`output_structure_spec.md`に従う。内部のweight、コード、抽選過程、不採用候補、予定命題、検索過程、検査の往復、スクリプトの生出力を表示しない。
 
 # 完了条件
 
 次をすべて満たしたときだけ、一問を確定する。
 
-- 生成側の全検査単位が完了している。
-- 独立監査の全検査単位が合格している。
+- 作る側の全検査単位が完了している。
+- 観点別の検査担当の検査がすべて合格している。
 - 現行問題文の版について、文字数判定と作業状態の検査に合格している。
 - 最終出力が限定入力と一致し、検討過程を含まない。
 

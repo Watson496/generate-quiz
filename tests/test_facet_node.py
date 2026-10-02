@@ -1,5 +1,7 @@
 """facet_node.pyのカタログ検索とCLI動作を検査する。"""
 
+import json
+
 import pytest
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
@@ -82,6 +84,24 @@ class TestFacetNodeFunctions:
             "subject::2",
         ]
 
+    def test_children_match_direct_children_count(self, facet_module):
+        """キーに逆引用符を含む子も含め、全ノードで読み取る子の数がカタログの件数と一致する。"""
+        for path in facet_module.ref_files():
+            key, count, children = None, None, 0
+            for line in facet_module.read_lines(path):
+                if line.startswith("## FACET_NODE `"):
+                    key, count, children = line, None, 0
+                elif line.startswith("- DIRECT_CHILDREN_COUNT:"):
+                    count = int(line.split(":")[1])
+                elif facet_module.CHILD_RE.match(line):
+                    children += 1
+                elif facet_module.END_RE.match(line) and count is not None:
+                    assert children == count, key
+
+    def test_child_keys_keep_backquoted_key(self, facet_module):
+        """UDCの固有補助番号の逆引用符をキーの一部として読む。"""
+        assert "subject::81`01/`08" in facet_module.child_keys("subject::81")
+
 
 class TestFacetNode:
     """ファセットカタログの参照。カタログにないノードを返さないことを主に見る。"""
@@ -118,6 +138,58 @@ class TestFacetNode:
         assert r.returncode == 1
         assert "subject::99999" in r.stderr
         assert r.stdout == ""
+
+    def test_node_without_including_shows_descendant_including(self, run_script):
+        """INCLUDINGのないノードでは、子孫のINCLUDINGを続けて示す。"""
+        r = run_script("facet_node.py", "type::abstract")
+        assert r.returncode == 0
+        assert "### 子孫のINCLUDING" in r.stdout
+        assert "- `type::abstract.quantity` | 数量 | 数，定数，単位" in r.stdout
+
+    @pytest.mark.parametrize("key", ["type::abstract.quantity", "subject::33"])
+    def test_descendant_including_is_not_shown(self, run_script, key):
+        """INCLUDINGを持つノードや、子孫にもINCLUDINGがないノードでは示さない。"""
+        r = run_script("facet_node.py", key)
+        assert r.returncode == 0
+        assert "子孫のINCLUDING" not in r.stdout
+
+    def test_scope_shows_path_and_range_of_each_axis(self, run_script, tmp_path):
+        """状態のfacet_nodesについて、軸ごとに分類経路と範囲を示す。"""
+        state = {
+            "facet_nodes": {
+                "subject": "subject::338*1",
+                "place": "place::(1/9)",
+                "time": "time::ROOT",
+                "type": "type::abstract",
+            },
+            "facet_subdivisions": [
+                {
+                    "parent": "subject::338",
+                    "children": [
+                        {
+                            "key": "subject::338*1",
+                            "label": "景気",
+                            "scope": "景気の局面と状態",
+                        },
+                        {
+                            "key": "subject::338*2",
+                            "label": "物価",
+                            "scope": "物価の状態",
+                        },
+                    ],
+                }
+            ],
+        }
+        path = tmp_path / "state.json"
+        path.write_text(json.dumps(state, ensure_ascii=False), encoding="utf-8")
+        r = run_script("facet_node.py", "--scope", path)
+        assert r.returncode == 0
+        subject, place, time, type_ = r.stdout.split("## ")[1:]
+        assert "＞ 経済状態．経済政策．経済運営 ＞ 景気" in subject
+        assert "- 範囲：景気の局面と状態" in subject
+        assert "- 範囲：限定なし" in place
+        assert "- 範囲：限定なし" in time
+        assert "  - 数量：数，定数，単位，測定量，指標値" in type_
 
     def test_children_only_lists_children(self, run_script):
         """子ノード一覧では親ノードの本文を出さないことを確認する。"""
