@@ -248,8 +248,8 @@ JSON manifestは、検査対象を具体的な内容へ結び付け、確定的�
     {"candidate_id": "K2", "axes": {"subject": {"belongs": true, "reason": "エチレンからアセトアルデヒドを製造する方法で、化学工業の製法に当たる"}, "place": {"belongs": true, "reason": "場所を限定していない"}, "time": {"belongs": true, "reason": "時代を限定していない"}, "type": {"belongs": true, "reason": "型を限定していない"}}}
   ],
   "exposure_prechecks": [
-    {"candidate_id": "K1", "result": "keep", "reason": "「食塩と石灰石から炭酸ナトリウムを工業的に得る製法」のように、名称の「アンモニア」を出さずに説明できる"},
-    {"candidate_id": "K2", "result": "keep", "reason": "「エチレンを酸化してアセトアルデヒドを得る工業的製法」のように、名称の「ワッカー」を出さずに説明できる"}
+    {"candidate_id": "K1", "result": "keep", "reason": "台帳の説明に「アンモニア」と「製法」は現れるが、「ソーダ」に当たる語がなく、別名の「ソルベー法」の「ソルベー」に当たる語もない"},
+    {"candidate_id": "K2", "result": "keep", "reason": "台帳の説明に「ワッカー」に当たる語がない"}
   ],
   "topic_groups": [
     {"id": "G1", "label": "化学工業の製法", "candidate_ids": ["K1", "K2"], "reason": "候補が二つで、一度に比べられる"}

@@ -413,7 +413,7 @@ def selection_state(intersection_state):
             {
                 "candidate_id": candidate_id,
                 "result": "keep",
-                "reason": f"{label}の名称を出さずに説明する書き方がある",
+                "reason": f"{label}の呼び方を組み立てる語が説明にそろわない",
             }
             for candidate_id, label in (("K1", "候補1"), ("K2", "候補2"))
         ],

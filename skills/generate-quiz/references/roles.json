@@ -249,7 +249,7 @@
           "side": "make",
           "section": "露出の予備検査",
           "specs": ["selection_and_history_spec.md", "quiz_generation_spec.md", "work_state_spec.md"],
-          "rules": [{"spec": "selection_and_history_spec.md", "heading": "6.1 解答露出の予備検査"}, {"spec": "quiz_generation_spec.md", "heading": "18. 非自明性と解答露出"}],
+          "rules": [{"spec": "selection_and_history_spec.md", "heading": "6. 具体的な解答候補の探索と抽選", "subsections": false}, {"spec": "selection_and_history_spec.md", "heading": "6.1 解答露出の予備検査"}, {"spec": "quiz_generation_spec.md", "heading": "18. 非自明性と解答露出"}],
           "inputs": [["ledger", "memberships", "source_cache"]],
           "outputs": ["exposure_prechecks"],
           "split_size": 20
