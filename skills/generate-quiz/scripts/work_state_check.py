@@ -1668,6 +1668,8 @@ def validate_proposition_matching(state, prop_ids, verified_ids):
         required_text(item, "claim", name)
         passage = required_text(item, "passage", name)
         require_condition(passage in draft["text"], f"{name}.passageが問題文にない")
+        if "kept_reason" in item:
+            required_text(item, "kept_reason", name)
     validate_reviews(
         state, "proposition_matching_reviews", sorted(extracted_ids), "extracted_id"
     )

@@ -693,7 +693,7 @@
           "side": "check",
           "section": "命題の裏取りと確実性",
           "specs": ["quiz_generation_spec.md", "verification_and_judging_spec.md", "work_state_spec.md"],
-          "rules": [{"spec": "quiz_generation_spec.md", "heading": "7.7 双方向照合"}, {"spec": "quiz_generation_spec.md", "heading": "20. 最終平叙文化・命題照合チェック"}, {"spec": "verification_and_judging_spec.md", "heading": "2.5 予定命題と実現命題の双方向照合"}, {"spec": "verification_and_judging_spec.md", "heading": "3.5 確実性の判定"}, {"spec": "verification_and_judging_spec.md", "heading": "7. 裏取りを問題文へ反映する"}],
+          "rules": [{"spec": "quiz_generation_spec.md", "heading": "7.7 双方向照合"}, {"spec": "quiz_generation_spec.md", "heading": "20. 最終平叙文化・命題照合チェック"}, {"spec": "verification_and_judging_spec.md", "heading": "2.2 作文後の実現命題台帳"}, {"spec": "verification_and_judging_spec.md", "heading": "2.5 予定命題と実現命題の双方向照合"}, {"spec": "verification_and_judging_spec.md", "heading": "3.5 確実性の判定"}, {"spec": "verification_and_judging_spec.md", "heading": "7. 裏取りを問題文へ反映する"}],
           "inputs": [["draft", "extracted_propositions", "propositions", "realized_propositions", "proposition_certainty", "source_cache"]],
           "outputs": ["proposition_matching_reviews"]
         },
