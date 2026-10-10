@@ -1502,8 +1502,9 @@ def validate_source_quotes(state):
 
 
 def validate_condition_list(conditions, clue_text, evidence, name):
-    """条件ごとの照合を検査し、相違する条件の箇所を返す。"""
+    """条件ごとの照合を検査し、相違する条件の箇所と、確かめられなかった条件の箇所を返す。"""
     differences = set()
+    unknowns = set()
     for position, condition in enumerate(conditions):
         condition_name = f"{name}.conditions[{position}]"
         require_condition(
@@ -1515,11 +1516,16 @@ def validate_condition_list(conditions, clue_text, evidence, name):
             passage in clue_text, f"{condition_name}.passageが手掛かり本文にない"
         )
         require_condition(
-            isinstance(condition.get("matches"), bool),
-            f"{condition_name}.matchesが真偽値ではない",
+            "matches" in condition
+            and (
+                condition["matches"] is None or isinstance(condition["matches"], bool)
+            ),
+            f"{condition_name}.matchesが真偽値またはnullではない",
         )
-        if not condition["matches"]:
+        if condition["matches"] is False:
             differences.add(passage)
+        elif condition["matches"] is None:
+            unknowns.add(passage)
         required_text(condition, "reason", condition_name)
         condition_evidence = required_id_list(
             condition.get("evidence_ids"),
@@ -1530,7 +1536,7 @@ def validate_condition_list(conditions, clue_text, evidence, name):
             set(condition_evidence) <= set(evidence),
             f"{condition_name}.evidence_idsが候補の引用に含まれていない",
         )
-    return differences
+    return differences, unknowns
 
 
 def validate_competitors(state, active_clues, quote_ids, stage):
@@ -1571,7 +1577,7 @@ def validate_competitors(state, active_clues, quote_ids, stage):
         conditions = required_list(
             item.get("conditions"), f"{name}.conditions", nonempty=True
         )
-        differences = validate_condition_list(
+        differences, unknowns = validate_condition_list(
             conditions, clue_fact[pair[0]], evidence_of[pair[1]], name
         )
         disposition = item.get("disposition")
@@ -1589,6 +1595,11 @@ def validate_competitors(state, active_clues, quote_ids, stage):
             require_condition(
                 not differences and "exclusion_passage" not in item,
                 f"{name}は相違する条件のない候補として扱う条件と矛盾している",
+            )
+        if disposition == "same_target":
+            require_condition(
+                not unknowns,
+                f"{name}は確かめられなかった条件のある候補を同一対象としている",
             )
         required_text(item, "reason", name)
         compared[pair] = disposition

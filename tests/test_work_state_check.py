@@ -2876,11 +2876,23 @@ class TestWorkState:
         assert result.returncode == 1
         assert "相違する条件のない候補として扱う条件と矛盾している" in result.stderr
 
+    def test_unverified_condition_cannot_make_same_target(
+        self, run_script, complete_state
+    ):
+        """資料に記載がなく確かめられない条件は、違いにも一致にも数えない。"""
+        comparison = complete_state["competitor_comparisons"][0]
+        comparison["conditions"][0]["matches"] = None
+        comparison["disposition"] = "same_target"
+        del comparison["exclusion_passage"]
+        result = check_state(run_script, "material", complete_state)
+        assert result.returncode == 1
+        assert "確かめられなかった条件のある候補を同一対象としている" in result.stderr
+
     def test_adopted_clue_must_not_retain_competitor(self, run_script, complete_state):
         """手掛かりで退けられない対抗候補は照合に残せるが、その手掛かりを採用した問題は確定しない。"""
         comparison = complete_state["competitor_comparisons"][0]
         comparison["disposition"] = "retained"
-        comparison["conditions"][0]["matches"] = True
+        comparison["conditions"][0]["matches"] = None
         del comparison["exclusion_passage"]
         review = complete_state["competitor_comparison_reviews"][0]
         review["disposition"] = "retained"
