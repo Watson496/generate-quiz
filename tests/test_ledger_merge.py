@@ -209,6 +209,32 @@ class TestLedgerMerge:
         )
         assert check.returncode == 0, check.stderr
 
+    def test_keeps_launch_records_of_current_state(
+        self, run_script, tmp_path, intersection_state
+    ):
+        """ステップの始めの写しからまとめ直しても、出力先の探索状態の起動の記録を残す。"""
+        base = write_json(tmp_path / "selection-start.json", intersection_state)
+        current = copy.deepcopy(intersection_state)
+        current["execution"]["assignments"].append(
+            {
+                "role": "exploration",
+                "agent": "generate-quiz:exploration",
+                "agent_id": "agent-exploration-D1",
+                "artifact_refs": ["D1.json"],
+                "items": ["D1"],
+            }
+        )
+        output = write_json(tmp_path / "selection.json", current)
+        fragment = write_json(
+            tmp_path / "D1.json",
+            exploration_fragment("D1", "D1", "アンモニアソーダ法"),
+        )
+        result = run_script("ledger_merge.py", base, fragment, "-o", output)
+        assert result.returncode == 0
+        merged = json.loads(output.read_text(encoding="utf-8"))
+        assert merged["execution"] == current["execution"]
+        assert merged["candidates"][0]["id"] == "D1-K1"
+
     def test_reports_unmergeable_fragment(
         self, run_script, tmp_path, intersection_state
     ):

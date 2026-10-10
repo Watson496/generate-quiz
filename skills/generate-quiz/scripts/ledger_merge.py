@@ -14,6 +14,8 @@
     `id`を持つ記録の配列以外のキーも、まだない場合だけ置く。
     最後に、反証調査の記録（`saturation_challenge`）の`exclusions`に挙げた候補を、
     挙げた除外の理由の種類と理由で除外する。
+    出力先にすでに探索状態があれば、その担当の起動の記録（`execution`）を引き継ぐ。
+    ステップを始めたときの写しには、その後に起動した担当の記録がないため。
 
 終了コード:
     0  まとめた探索状態を出力した
@@ -128,6 +130,11 @@ def main():
             for path in args.fragments
         ]
         merged = merge_fragments(state, fragments)
+        output = Path(args.output)
+        if output.exists():
+            current = json.loads(output.read_text(encoding="utf-8"))
+            if isinstance(current, dict) and "execution" in current:
+                merged["execution"] = current["execution"]
         Path(args.output).write_text(
             json.dumps(merged, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
         )
