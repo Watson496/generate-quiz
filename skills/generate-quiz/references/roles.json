@@ -381,7 +381,7 @@
           "section": "名称と正答範囲",
           "specs": ["verification_and_judging_spec.md", "work_state_spec.md"],
           "rules": [{"spec": "verification_and_judging_spec.md", "heading": "11. 解答欄"}, {"spec": "verification_and_judging_spec.md", "heading": "12. 別解"}, {"spec": "verification_and_judging_spec.md", "heading": "13. 正しさの基本観"}, {"spec": "verification_and_judging_spec.md", "heading": "3.1 外的評価"}],
-          "inputs": [["answer_target", "research_requests", "source_cache"]],
+          "inputs": [["answer_target", "sources", "research_requests", "source_cache"]],
           "outputs": ["sources", "names"]
         },
         {
