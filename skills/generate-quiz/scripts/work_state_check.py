@@ -2934,9 +2934,13 @@ def validate_target_start(state):
             isinstance(nodes, dict) and set(nodes) == set(FACET_AXES),
             "facet_nodesに4軸の正規ノードキーがない",
         )
-        require_condition(
-            state.get("answer_context") is not None, "answer_contextがない"
-        )
+        context = state.get("answer_context")
+        require_condition(isinstance(context, dict), "answer_contextがない")
+        paths = context.get("facet_paths")
+        require_condition(isinstance(paths, dict), "answer_context.facet_pathsがない")
+        for axis in FACET_AXES:
+            required_text(paths, axis, "answer_context.facet_paths")
+        required_text(context, "history_result", "answer_context")
 
 
 def validate_difficulty_gate(state):

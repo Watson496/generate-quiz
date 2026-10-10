@@ -171,7 +171,15 @@ def complete_state():
         },
         "execution": {"delegation_available": True, "assignments": assignments},
         "answer_target": "ミュラー・リヤー錯視",
-        "answer_context": "心理学 > 知覚心理学 > 錯視、場所と時代は限定なし。履歴補正の対象なし",
+        "answer_context": {
+            "facet_paths": {
+                "subject": "心理学 > 知覚心理学",
+                "place": "限定なし",
+                "time": "限定なし",
+                "type": "限定なし",
+            },
+            "history_result": "履歴補正の対象なし",
+        },
         "user_conditions": {"count": 1},
         "asked_knowledge": "図形条件からミュラー・リヤー錯視の名称を答える",
         "answer_granularity": "錯視の名称と図形条件の対応",
@@ -2227,6 +2235,15 @@ class TestWorkState:
         result = check_state(run_script, "target-start", complete_state)
         assert result.returncode == 1
         assert message in result.stderr
+
+    def test_answer_context_holds_paths_not_file_location(
+        self, run_script, complete_state
+    ):
+        """answer_contextには、分類経路と履歴補正の結果の内容を置く。"""
+        complete_state["answer_context"] = {"facet_scope_ref": "facet_scope.md"}
+        result = check_state(run_script, "target-start", complete_state)
+        assert result.returncode == 1
+        assert "answer_context.facet_pathsがない" in result.stderr
 
     def test_research_checks_records_before_writing(self, run_script, complete_state):
         """作文の前に、素材の調査の記録の形を検査する。"""
