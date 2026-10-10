@@ -13,8 +13,10 @@
                        --itemsで項目IDを渡す
     rerun ROLE         ROLEの成果物が変わったときに再実行する担当を、
                        表の順にステップごとに出力する
-    fix DATA...        検査が修正を求めたデータを成果物とする担当と、
-                       修正の後に再実行する担当を出力する
+    fix [DATA...]      検査が修正を求めたデータを成果物とする担当と、
+                       修正の後に再実行する担当を出力する。--stateで状態ファイルを渡すと、
+                       最後の判定が不合格の検査の`fix_data`をすべて集め、修正させる担当ごとに
+                       渡す検査の成果物の場所を出力する
     inputs ROLE        --stateで渡した状態ファイルから担当の入力のデータだけを取り出し、
                        --outputのファイルに書く。状態ファイルにない入力を出力する。
                        分割する担当には--itemsで受け持つ項目を渡し、その記録だけを取り出す
@@ -735,6 +737,78 @@ def fix_plan(table, data_ids):
     }
 
 
+def fix_from_state(table, data_ids, state_path):
+    """修正の計画を返す。状態ファイルを渡すと、最後の判定が不合格の検査の`fix_data`をすべて集める。"""
+    failures = []
+    data = list(data_ids)
+    if state_path is not None:
+        failures = failed_reviews(table, read_state(state_path))
+        for failure in failures:
+            fix_data = failure["record"].get("fix_data") or []
+            data.extend(item for item in fix_data if item not in data)
+    require(bool(data), "修正を求められたデータがない")
+    plan = fix_plan(table, data)
+    if state_path is None:
+        return plan
+    for entry in plan["fix"]:
+        outputs = set(find_role(table, entry["role"])["outputs"])
+        reviews = {}
+        for failure in failures:
+            if outputs & set(failure["record"].get("fix_data") or []):
+                reviews[failure["data"]] = failure["artifacts"]
+        entry["reviews"] = [
+            {"data": key, "artifacts": artifacts} for key, artifacts in reviews.items()
+        ]
+    plan["failed_reviews"] = failures
+    return plan
+
+
+def review_identity(record):
+    """検査結果の記録が何を検査したかを表す組を返す。"""
+    return tuple(
+        sorted(
+            (key, value)
+            for key, value in record.items()
+            if (key.endswith("_id") or key == "target") and isinstance(value, str | int)
+        )
+    )
+
+
+def failed_reviews(table, state):
+    """状態ファイルの検査結果のうち、最後の判定が不合格のものを返す。"""
+    reviewers = {}
+    for _, role in ordered_roles(table):
+        if role["side"] == "check":
+            for item in role["outputs"]:
+                reviewers.setdefault(item, []).append(role["id"])
+    records = (state.get("execution") or {}).get("assignments") or []
+    failed = []
+    for key, roles in reviewers.items():
+        value = state.get(key)
+        if isinstance(value, dict):
+            latest = [value]
+        elif isinstance(value, list):
+            by_target = {}
+            for item in value:
+                if isinstance(item, dict):
+                    by_target[review_identity(item)] = item
+            latest = list(by_target.values())
+        else:
+            continue
+        artifacts = [
+            ref
+            for record in records
+            if record.get("role") in roles and "status" not in record
+            for ref in record.get("artifact_refs") or []
+        ]
+        failed.extend(
+            {"data": key, "record": item, "artifacts": artifacts}
+            for item in latest
+            if item.get("status") == "failed"
+        )
+    return failed
+
+
 def build_parser():
     parser = argparse.ArgumentParser(description="担当表から割り当てと再実行を決める")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -748,7 +822,8 @@ def build_parser():
     rerun = commands.add_parser("rerun")
     rerun.add_argument("role")
     fix = commands.add_parser("fix")
-    fix.add_argument("data", nargs="+")
+    fix.add_argument("data", nargs="*")
+    fix.add_argument("--state", type=Path)
     inputs = commands.add_parser("inputs")
     inputs.add_argument("role")
     inputs.add_argument("--state", type=Path, nargs="+", required=True)
@@ -842,7 +917,7 @@ def main():
         elif args.command == "rerun":
             result = rerun_plan(table, args.role)
         elif args.command == "fix":
-            result = fix_plan(table, args.data)
+            result = fix_from_state(table, args.data, args.state)
         else:
             result = run_state_command(table, args)
     except ArtifactError as error:

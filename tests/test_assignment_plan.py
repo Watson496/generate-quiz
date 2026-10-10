@@ -808,6 +808,71 @@ class TestRecord:
         assert "a1のmembershipの起動の記録がない" in result.stderr
 
 
+class TestFixFromState:
+    """状態ファイルの不合格の検査から修正の計画を作ることを確認する。"""
+
+    def test_collects_every_failed_review(self, run_script, tmp_path):
+        """最後の判定が不合格の検査の修正対象をすべて集め、修正させる担当ごとに検査の成果物を示す。"""
+        state = tmp_path / "target.json"
+        state.write_text(
+            json.dumps(
+                {
+                    "certainty_reviews": [
+                        {
+                            "proposition_id": "P1",
+                            "status": "failed",
+                            "reason": "r",
+                            "fix_data": ["proposition_certainty"],
+                        },
+                        {
+                            "proposition_id": "P2",
+                            "status": "failed",
+                            "reason": "r",
+                            "fix_data": ["proposition_certainty"],
+                        },
+                        {"proposition_id": "P2", "status": "passed", "reason": "r"},
+                    ],
+                    "naturalness_review": {
+                        "status": "failed",
+                        "reason": "r",
+                        "fix_data": ["draft"],
+                    },
+                    "execution": {
+                        "delegation_available": True,
+                        "assignments": [
+                            {
+                                "role": "certainty_review",
+                                "agent": "a",
+                                "agent_id": "c1",
+                                "artifact_refs": ["009/certainty_review.json"],
+                            },
+                            {
+                                "role": "naturalness_review",
+                                "agent": "a",
+                                "agent_id": "n1",
+                                "artifact_refs": ["009/naturalness_review.json"],
+                            },
+                        ],
+                    },
+                }
+            )
+        )
+        result = run_script("assignment_plan.py", "fix", "--state", state)
+        assert result.returncode == 0, result.stderr
+        plan = json.loads(result.stdout)
+        assert sorted(
+            (item["data"], item["record"].get("proposition_id", ""))
+            for item in plan["failed_reviews"]
+        ) == [("certainty_reviews", "P1"), ("naturalness_review", "")]
+        reviews = {entry["role"]: entry["reviews"] for entry in plan["fix"]}
+        assert reviews["certainty"] == [
+            {"data": "certainty_reviews", "artifacts": ["009/certainty_review.json"]}
+        ]
+        assert reviews["writer"] == [
+            {"data": "naturalness_review", "artifacts": ["009/naturalness_review.json"]}
+        ]
+
+
 class TestEntryCheck:
     """統括役を起動する前に、前のステップの検査を行うことを確認する。"""
 
