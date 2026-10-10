@@ -2544,7 +2544,7 @@ def validate_term_reviews(state, terms, term_ids, quote_ids, version):
             )
 
 
-def validate_exposure_analysis(state, checks, version):
+def validate_exposure_analysis(state, version):
     """解答を伏せて挙げた名称候補と、露出の分析が全候補に対応することを検査する。"""
     blind, blind_ids = records_with_ids(
         state.get("blind_candidates"), "blind_candidates"
@@ -2558,8 +2558,7 @@ def validate_exposure_analysis(state, checks, version):
         require_condition(
             item.get("draft_version") == version, f"{name}の問題文の版が一致しない"
         )
-    exposure = next(item for item in checks if item["id"] == "answer_exposure")
-    semantic_ids = {item["id"] for item in exposure["semantic_candidates"]}
+    semantic_ids = {item["id"] for item in state["exposure_candidates"]}
     require_condition(not blind_ids & semantic_ids, "露出候補のidが重複している")
     analyses = required_list(state.get("exposure_analysis"), "exposure_analysis")
     for index, item in enumerate(analyses):
@@ -2649,7 +2648,7 @@ def validate_reviewed_answer(item, name, quote_ids):
     return judgment
 
 
-def validate_answer_review(state, answers, checks, quote_ids, version):
+def validate_answer_review(state, answers, quote_ids, version):
     review = state.get("answer_review")
     require_condition(isinstance(review, dict), "answer_reviewがない")
     require_condition(
@@ -2671,12 +2670,11 @@ def validate_answer_review(state, answers, checks, quote_ids, version):
             judgment == by_id[item["id"]]["judgment"],
             f"{name}.judgmentが採用判定と一致しない",
         )
-    exposure = next(item for item in checks if item["id"] == "answer_exposure")
     exposure_candidates = {
         item["id"]: item
-        for item in [*state["blind_candidates"], *exposure["semantic_candidates"]]
+        for item in [*state["blind_candidates"], *state["exposure_candidates"]]
     }
-    semantic_ids = {item["id"] for item in exposure["semantic_candidates"]}
+    semantic_ids = {item["id"] for item in state["exposure_candidates"]}
     candidates = required_list(
         review.get("candidate_reviews"), "answer_review.candidate_reviews"
     )
@@ -2777,35 +2775,37 @@ def validate_work_state(state, stage):
         if item["id"] == "structure":
             validate_structure_check(item, name, draft["text"], active_clues)
         if item["id"] == "answer_exposure":
-            semantic = required_list(
-                item.get("semantic_candidates"), f"{name}.semantic_candidates"
-            )
             required_text(item, "answer_side_knowledge_required", name)
-            answer_ids = {answer["id"] for answer in answers}
-            candidate_ids = []
-            for index, candidate in enumerate(semantic):
-                cname = f"{name}.semantic_candidates[{index}]"
-                validate_name_formation(candidate, cname)
-                candidate_ids.append(required_text(candidate, "id", cname))
-                require_condition(
-                    "answer_id" in candidate
-                    and candidate["answer_id"] in answer_ids | {None},
-                    f"{cname}.answer_idが解答候補を参照していない",
-                )
-            require_condition(
-                len(candidate_ids) == len(set(candidate_ids)),
-                f"{name}の露出候補のidが重複している",
-            )
         if item["id"] != "expression.naturalness":
             referenced_ids(item, "evidence_ids", quote_ids, name)
+    validate_exposure_candidates(state, answers)
     if stage in REVIEWED_STAGES:
         validate_expression_reviews(state, checks, active_clues, version)
-        validate_exposure_analysis(state, checks, version)
-        validate_answer_review(state, answers, checks, quote_ids, version)
+        validate_exposure_analysis(state, version)
+        validate_answer_review(state, answers, quote_ids, version)
     if stage in {"material", "final"}:
         validate_final_input(
             state, version, active_props, active_clues, difficulty_assessment
         )
+
+
+def validate_exposure_candidates(state, answers):
+    """作文担当が問題文の意味と語形成から挙げた名称候補を検査する。"""
+    candidates = required_list(state.get("exposure_candidates"), "exposure_candidates")
+    answer_ids = {answer["id"] for answer in answers}
+    candidate_ids = []
+    for index, candidate in enumerate(candidates):
+        name = f"exposure_candidates[{index}]"
+        validate_name_formation(candidate, name)
+        candidate_ids.append(required_text(candidate, "id", name))
+        require_condition(
+            "answer_id" in candidate and candidate["answer_id"] in answer_ids | {None},
+            f"{name}.answer_idが解答候補を参照していない",
+        )
+    require_condition(
+        len(candidate_ids) == len(set(candidate_ids)),
+        "exposure_candidatesのidが重複している",
+    )
 
 
 def require_no_selection_ledger(state):

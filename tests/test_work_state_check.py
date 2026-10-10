@@ -105,24 +105,6 @@ def complete_state():
             ),
             **(
                 {
-                    "semantic_candidates": [
-                        {
-                            "id": "X1",
-                            "answer_id": None,
-                            "name": "一般名称",
-                            "formation_rule": "対象との既知の対応から名称を選ぶ",
-                            "components": [
-                                {
-                                    "form": "一般名称",
-                                    "source": "対象と名称の既知の対応",
-                                    "knowledge": "answer_side",
-                                    "answer_side_reason": "名称そのものを知っている必要がある",
-                                }
-                            ],
-                            "formation_requires_answer_side_knowledge": True,
-                            "standard_name_confirmation_requires_answer_side_knowledge": True,
-                        }
-                    ],
                     "answer_side_knowledge_required": "図形条件と名称の対応を知っている必要がある",
                 }
                 if check_id == "answer_exposure"
@@ -556,6 +538,24 @@ def complete_state():
             ],
         },
         "checks": checks,
+        "exposure_candidates": [
+            {
+                "id": "X1",
+                "answer_id": None,
+                "name": "一般名称",
+                "formation_rule": "対象との既知の対応から名称を選ぶ",
+                "components": [
+                    {
+                        "form": "一般名称",
+                        "source": "対象と名称の既知の対応",
+                        "knowledge": "answer_side",
+                        "answer_side_reason": "名称そのものを知っている必要がある",
+                    }
+                ],
+                "formation_requires_answer_side_knowledge": True,
+                "standard_name_confirmation_requires_answer_side_knowledge": True,
+            }
+        ],
         "relative_clauses": [
             {
                 "passage": "同じ長さの線分が矢羽の向きで異なる長さに見える錯視",
@@ -2896,12 +2896,7 @@ class TestWorkState:
         self, run_script, complete_state
     ):
         """意味から挙げた候補には、挙げた担当による解答との対応付けを要求する。"""
-        exposure = next(
-            check
-            for check in complete_state["checks"]
-            if check["id"] == "answer_exposure"
-        )
-        del exposure["semantic_candidates"][0]["answer_id"]
+        del complete_state["exposure_candidates"][0]["answer_id"]
         result = check_state(run_script, "material", complete_state)
         assert result.returncode == 1
         assert "answer_idが解答候補を参照していない" in result.stderr
@@ -2943,12 +2938,9 @@ class TestWorkState:
 
     def test_answer_side_component_requires_reason(self, run_script, complete_state):
         """解答側の知識とした名称要素には理由を要求する。"""
-        exposure = next(
-            check
-            for check in complete_state["checks"]
-            if check["id"] == "answer_exposure"
-        )
-        del exposure["semantic_candidates"][0]["components"][0]["answer_side_reason"]
+        del complete_state["exposure_candidates"][0]["components"][0][
+            "answer_side_reason"
+        ]
         result = check_state(run_script, "material", complete_state)
         assert result.returncode == 1
         assert "answer_side_reasonがない" in result.stderr
@@ -2957,12 +2949,7 @@ class TestWorkState:
         self, run_script, complete_state
     ):
         """意味から挙げた名称候補にも形成要素を要求する。"""
-        exposure = next(
-            check
-            for check in complete_state["checks"]
-            if check["id"] == "answer_exposure"
-        )
-        exposure["semantic_candidates"] = ["ミュラー・リヤー錯視"]
+        complete_state["exposure_candidates"] = ["ミュラー・リヤー錯視"]
         assert check_state(run_script, "material", complete_state).returncode == 1
 
     def test_review_rejects_old_draft_version(self, run_script, complete_state):

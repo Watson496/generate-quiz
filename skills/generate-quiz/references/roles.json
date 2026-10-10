@@ -64,7 +64,7 @@
     "names": "解答対象の正式な名称と別名、それぞれが使われている箇所",
     "answers": "解答・別解の候補のIDと名称",
     "answer_judgments": "解答・別解の候補ごとの正誤判定の案",
-    "generation_checks": "作る側の検査単位の判断と理由",
+    "checks": "作る側の検査単位の判断と理由",
     "relative_clauses": "連体修飾節の内外関係と、対応する命題",
     "final_input": "最終出力用の限定入力",
     "term_listing": "問題文から独立に列挙した専門用語と、作る側の語IDへの対応",
@@ -495,7 +495,7 @@
           "specs": ["quiz_generation_spec.md", "verification_and_judging_spec.md", "selection_and_history_spec.md", "work_state_spec.md"],
           "rules": [{"spec": "quiz_generation_spec.md", "heading": "1. 目的"}, {"spec": "quiz_generation_spec.md", "heading": "2. 題材を文章化する前の必須ゲート"}, {"spec": "quiz_generation_spec.md", "heading": "3. SC型"}, {"spec": "quiz_generation_spec.md", "heading": "4. OV型"}, {"spec": "quiz_generation_spec.md", "heading": "5. SC型・OV型の選択"}, {"spec": "quiz_generation_spec.md", "heading": "6. 節構造"}, {"spec": "quiz_generation_spec.md", "heading": "7. 予定命題台帳と実現命題台帳"}, {"spec": "quiz_generation_spec.md", "heading": "8. 複数の修飾節と連用中止"}, {"spec": "quiz_generation_spec.md", "heading": "9. 意味上の被修飾対象"}, {"spec": "quiz_generation_spec.md", "heading": "10. 同格指示語"}, {"spec": "quiz_generation_spec.md", "heading": "11. 解答と核名詞の意味関係"}, {"spec": "quiz_generation_spec.md", "heading": "12. 抽象度と射程"}, {"spec": "quiz_generation_spec.md", "heading": "13. 手掛かり単位の設計と二段階検査"}, {"spec": "quiz_generation_spec.md", "heading": "14. 終端の代表説明（落とし）"}, {"spec": "quiz_generation_spec.md", "heading": "15. 問題文の表現"}, {"spec": "quiz_generation_spec.md", "heading": "16. 情報順"}, {"spec": "quiz_generation_spec.md", "heading": "17. 情報量"}, {"spec": "quiz_generation_spec.md", "heading": "18. 非自明性と解答露出"}, {"spec": "quiz_generation_spec.md", "heading": "19. 一意性"}, {"spec": "quiz_generation_spec.md", "heading": "20. 最終平叙文化・命題照合チェック"}, {"spec": "quiz_generation_spec.md", "heading": "21. 文字数"}, {"spec": "quiz_generation_spec.md", "heading": "22. 解答表記"}, {"spec": "verification_and_judging_spec.md", "heading": "5. 手掛かりの設計"}, {"spec": "verification_and_judging_spec.md", "heading": "7. 裏取りを問題文へ反映する"}, {"spec": "verification_and_judging_spec.md", "heading": "22.3 外国語資料と翻訳"}],
           "inputs": [["user_conditions", "history", "answer_target", "names", "answers", "answer_judgments", "sources", "source_assessments", "clues", "propositions", "clue_centrality", "proposition_support", "proposition_certainty", "competitors", "competitor_comparisons", "asked_knowledge", "answer_granularity", "difficulty_assessment", "source_cache"]],
-          "outputs": ["draft", "clue_uses", "clue_checks", "realized_propositions", "terms", "exposure_candidates", "generation_checks", "relative_clauses"]
+          "outputs": ["draft", "clue_uses", "clue_checks", "realized_propositions", "terms", "exposure_candidates", "checks", "relative_clauses"]
         }
       ]
     },
@@ -737,7 +737,7 @@
           "section": "最終出力",
           "specs": ["output_structure_spec.md", "verification_and_judging_spec.md", "work_state_spec.md"],
           "rules": [{"spec": "output_structure_spec.md", "heading": "1. 根拠の示し方"}, {"spec": "output_structure_spec.md", "heading": "2. 見出し順"}, {"spec": "output_structure_spec.md", "heading": "3. 問題から正誤判定基準まで"}, {"spec": "output_structure_spec.md", "heading": "4. 題材選択"}, {"spec": "output_structure_spec.md", "heading": "5. 難易度"}, {"spec": "output_structure_spec.md", "heading": "6. 裏取り"}, {"spec": "output_structure_spec.md", "heading": "7. 手掛かりの設計"}, {"spec": "output_structure_spec.md", "heading": "8. 問題の成立性"}, {"spec": "output_structure_spec.md", "heading": "9. 問題文の構成"}, {"spec": "output_structure_spec.md", "heading": "10. 問題文の表現"}, {"spec": "output_structure_spec.md", "heading": "11. 問題文の長さ"}, {"spec": "output_structure_spec.md", "heading": "12. 解答と正誤判定"}, {"spec": "output_structure_spec.md", "heading": "13. 参考文献"}, {"spec": "verification_and_judging_spec.md", "heading": "21. 問題文・実現命題・出典記述の三者対応"}, {"spec": "verification_and_judging_spec.md", "heading": "22. 直接引用・所在情報・参考文献"}, {"spec": "verification_and_judging_spec.md", "heading": "23. 各出力欄に適用する検証"}],
-          "inputs": [["answer_target", "draft", "names", "answers", "answer_judgments", "sources", "clues", "clue_uses", "clue_checks", "propositions", "realized_propositions", "proposition_support", "proposition_certainty", "clue_centrality", "competitors", "competitor_comparisons", "asked_knowledge", "answer_granularity", "difficulty_assessment", "terms", "exposure_candidates", "generation_checks", "relative_clauses", "answer_review", "competitor_search_reviews", "beginner_difficulty_review", "general_difficulty_review", "source_cache"]],
+          "inputs": [["answer_target", "draft", "names", "answers", "answer_judgments", "sources", "clues", "clue_uses", "clue_checks", "propositions", "realized_propositions", "proposition_support", "proposition_certainty", "clue_centrality", "competitors", "competitor_comparisons", "asked_knowledge", "answer_granularity", "difficulty_assessment", "terms", "exposure_candidates", "checks", "relative_clauses", "answer_review", "competitor_search_reviews", "beginner_difficulty_review", "general_difficulty_review", "source_cache"]],
           "outputs": ["final_input"]
         },
         {
