@@ -139,6 +139,7 @@ python3 "$SKILL_DIR/scripts/work_state_check.py" --stage selection selection.jso
 python3 "$SKILL_DIR/scripts/work_state_check.py" --stage prejudgment selection.json
 python3 "$SKILL_DIR/scripts/work_state_check.py" --stage target-start target-X1-K1.json
 python3 "$SKILL_DIR/scripts/work_state_check.py" --stage difficulty-gate target-X1-K1.json
+python3 "$SKILL_DIR/scripts/work_state_check.py" --stage research target-X1-K1.json
 python3 "$SKILL_DIR/scripts/work_state_check.py" --stage writing target-X1-K1.json
 python3 "$SKILL_DIR/scripts/work_state_check.py" --stage review target-X1-K1.json
 python3 "$SKILL_DIR/scripts/work_state_check.py" --stage material target-X1-K1.json

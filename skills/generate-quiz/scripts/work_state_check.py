@@ -181,6 +181,7 @@ STAGE_ROLES = {
         "asked_knowledge",
         "difficulty_assessment",
     ),
+    "research": step_roles("素材の調査"),
     "writing": step_roles("素材の調査", "作文"),
     "review": step_roles("素材の調査", "作文", "検査"),
     "material": (*step_roles("素材の調査", "作文", "検査"), "material_writer"),
@@ -2915,6 +2916,36 @@ def validate_difficulty_gate(state):
     )
 
 
+def validate_research(state):
+    """素材の調査の記録を、作文の前に、すべての命題と手掛かり候補について検査する。"""
+    validate_target_start(state)
+    validate_execution_assignments(state, "research")
+    quote_ids = validate_source_quotes(state)
+    props, prop_ids = records_with_ids(
+        state.get("propositions"), "propositions", nonempty=True
+    )
+    all_props = [
+        {
+            "id": item["id"],
+            "claim": required_text(item, "claim", f"propositions.{item['id']}"),
+        }
+        for item in props
+    ]
+    clues, _ = records_with_ids(state.get("clues"), "clues", nonempty=True)
+    all_clues = []
+    for item in clues:
+        name = f"clues.{item['id']}"
+        fact = required_text(item, "fact", name)
+        referenced_ids(item, "proposition_ids", prop_ids, name)
+        all_clues.append({**item, "text": fact})
+    supports = validate_proposition_support(state, all_props, quote_ids, "research")
+    validate_source_assessments(state, supports, "research")
+    validate_clue_centrality(state, all_clues, quote_ids, "research")
+    validate_competitors(state, all_clues, quote_ids, "research")
+    validate_difficulty_assessment(state, quote_ids)
+    validate_answers(state, quote_ids)
+
+
 def main():
     parser = argparse.ArgumentParser(description="題材探索と作問状態を検査する")
     parser.add_argument("path", nargs="?")
@@ -2930,6 +2961,7 @@ def main():
             "prejudgment",
             "target-start",
             "difficulty-gate",
+            "research",
             "writing",
             "review",
             "material",
@@ -2968,6 +3000,8 @@ def main():
             validate_target_start(state)
         elif args.stage == "difficulty-gate":
             validate_difficulty_gate(state)
+        elif args.stage == "research":
+            validate_research(state)
         elif args.stage == "final":
             require_condition(args.output, "final段階には--outputが必要である")
             output_bytes = Path(args.output).read_bytes()

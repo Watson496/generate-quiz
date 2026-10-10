@@ -2183,6 +2183,16 @@ class TestWorkState:
         complete_state["execution"]["assignments"] = []
         assert check_state(run_script, "target-start", complete_state).returncode == 0
 
+    def test_research_checks_records_before_writing(self, run_script, complete_state):
+        """作文の前に、素材の調査の記録の形を検査する。"""
+        for key in ("draft", "clue_uses", "clue_checks", "realized_propositions"):
+            del complete_state[key]
+        assert check_state(run_script, "research", complete_state).returncode == 0
+        complete_state["proposition_support"][0]["inference_type"] = "直接記載"
+        result = check_state(run_script, "research", complete_state)
+        assert result.returncode == 1
+        assert "proposition_support[0].inference_typeが不正である" in result.stderr
+
     def test_difficulty_gate_requires_assessment_of_every_source(
         self, run_script, complete_state
     ):
