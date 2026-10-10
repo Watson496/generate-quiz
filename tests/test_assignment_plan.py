@@ -412,6 +412,36 @@ class TestInputs:
             "facet_scope",
         ]
 
+    def test_inputs_take_only_assigned_items(self, run_script, tmp_path):
+        """分割する担当には、受け持つ項目の記録だけを取り出す。"""
+        state = tmp_path / "target.json"
+        state.write_text(
+            json.dumps(
+                {
+                    "answer_target": "セデル",
+                    "sources": [{"id": "S1"}, {"id": "S2"}, {"id": "S3"}],
+                }
+            )
+        )
+        output = tmp_path / "input.json"
+        result = run_script(
+            "assignment_plan.py",
+            "inputs",
+            "source_reliability",
+            "--state",
+            state,
+            "--items",
+            "S1",
+            "S3",
+            "--output",
+            output,
+        )
+        assert result.returncode == 0
+        assert json.loads(output.read_text()) == {
+            "answer_target": "セデル",
+            "sources": [{"id": "S1"}, {"id": "S3"}],
+        }
+
     def test_inputs_take_one_phase(self, run_script, tmp_path):
         """段階を指定すると、その段階の入力だけを取り出す。"""
         state = tmp_path / "target.json"

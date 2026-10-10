@@ -16,7 +16,8 @@
     fix DATA...        検査が修正を求めたデータを成果物とする担当と、
                        修正の後に再実行する担当を出力する
     inputs ROLE        --stateで渡した状態ファイルから担当の入力のデータだけを取り出し、
-                       --outputのファイルに書く。状態ファイルにない入力を出力する
+                       --outputのファイルに書く。状態ファイルにない入力を出力する。
+                       分割する担当には--itemsで受け持つ項目を渡し、その記録だけを取り出す
     record ROLE        担当の起動の記録を--stateの状態ファイルのexecution.assignmentsに
                        書く。--agent-idだけなら起動の記録を加え、--artifactを付けると
                        成果物の場所を、--failedを付けると失敗をその記録に加える
@@ -421,11 +422,12 @@ def assignments(table, role_id, items=None):
     ]
 
 
-def role_inputs(table, role_id, states, phase=None):
+def role_inputs(table, role_id, states, phase=None, items=None):
     """状態ファイルから担当の入力のデータを取り出し、取り出したものと状態ファイルにない入力を返す。
 
     データは状態ファイルの同じ名前のキーに置く。state_keysで複数のキーを定めたデータは、
     そのキーをすべて取り出す。同じキーが複数の状態ファイルにあれば、後に渡したファイルのものを使う。
+    受け持つ項目（items）を渡すと、項目のIDを持つ記録の配列からは、その項目の記録だけを取り出す。
     """
     role = find_role(table, role_id)
     phases = role["inputs"]
@@ -441,12 +443,24 @@ def role_inputs(table, role_id, states, phase=None):
         keys = table.get("state_keys", {}).get(item, [item])
         found = [key for key in keys if any(key in state for state in states)]
         for key in found:
-            extracted[key] = next(
-                state[key] for state in reversed(states) if key in state
+            extracted[key] = only_items(
+                next(state[key] for state in reversed(states) if key in state), items
             )
         if not found:
             missing.append(item)
     return extracted, missing
+
+
+def only_items(value, items):
+    """記録の配列に受け持つ項目のIDの記録があれば、その記録だけを返す。"""
+    if not items or not isinstance(value, list):
+        return value
+    ids = {item.get("id") for item in value if isinstance(item, dict)}
+    if not ids & set(items):
+        return value
+    return [
+        item for item in value if isinstance(item, dict) and item.get("id") in items
+    ]
 
 
 class ArtifactError(ValueError):
@@ -715,6 +729,7 @@ def build_parser():
     inputs.add_argument("role")
     inputs.add_argument("--state", type=Path, nargs="+", required=True)
     inputs.add_argument("--phase", type=int)
+    inputs.add_argument("--items", nargs="+")
     inputs.add_argument("--output", type=Path, required=True)
     record = commands.add_parser("record")
     record.add_argument("role")
@@ -750,7 +765,9 @@ def run_state_command(table, args):
     """状態ファイルを読み書きするサブコマンドを実行し、出力する結果を返す。"""
     if args.command == "inputs":
         states = [read_state(path) for path in args.state]
-        extracted, missing = role_inputs(table, args.role, states, args.phase)
+        extracted, missing = role_inputs(
+            table, args.role, states, args.phase, args.items
+        )
         args.output.write_text(
             json.dumps(extracted, ensure_ascii=False, indent=2) + "\n",
             encoding="utf-8",
