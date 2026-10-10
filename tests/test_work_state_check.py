@@ -171,6 +171,8 @@ def complete_state():
         },
         "execution": {"delegation_available": True, "assignments": assignments},
         "answer_target": "ミュラー・リヤー錯視",
+        "answer_context": "心理学 > 知覚心理学 > 錯視、場所と時代は限定なし。履歴補正の対象なし",
+        "user_conditions": {"count": 1},
         "asked_knowledge": "図形条件からミュラー・リヤー錯視の名称を答える",
         "answer_granularity": "錯視の名称と図形条件の対応",
         "difficulty_assessment": {
@@ -2182,6 +2184,23 @@ class TestWorkState:
         """担当を起動する前の、作ったばかりの作問状態を検査できる。"""
         complete_state["execution"]["assignments"] = []
         assert check_state(run_script, "target-start", complete_state).returncode == 0
+
+    @pytest.mark.parametrize(
+        ("field", "message"),
+        [
+            ("answer_context", "answer_contextがない"),
+            ("facet_nodes", "facet_nodesに4軸の正規ノードキーがない"),
+            ("user_conditions", "user_conditionsがない"),
+        ],
+    )
+    def test_target_start_requires_target_context(
+        self, run_script, complete_state, field, message
+    ):
+        """抽選した解答対象の作問状態には、作問条件、4軸のノード、分類経路と履歴補正の結果を置く。"""
+        del complete_state[field]
+        result = check_state(run_script, "target-start", complete_state)
+        assert result.returncode == 1
+        assert message in result.stderr
 
     def test_research_checks_records_before_writing(self, run_script, complete_state):
         """作文の前に、素材の調査の記録の形を検査する。"""

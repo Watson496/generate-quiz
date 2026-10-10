@@ -2863,9 +2863,19 @@ def require_no_selection_ledger(state):
 
 def validate_target_start(state):
     require_no_selection_ledger(state)
-    validate_selection_mode(state)
+    mode = validate_selection_mode(state)
     validate_execution_assignments(state, "target-start")
     required_text(state, "answer_target", "state")
+    require_condition(state.get("user_conditions") is not None, "user_conditionsがない")
+    if mode == "random":
+        nodes = state.get("facet_nodes")
+        require_condition(
+            isinstance(nodes, dict) and set(nodes) == set(FACET_AXES),
+            "facet_nodesに4軸の正規ノードキーがない",
+        )
+        require_condition(
+            state.get("answer_context") is not None, "answer_contextがない"
+        )
 
 
 def validate_difficulty_gate(state):

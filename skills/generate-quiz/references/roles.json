@@ -33,7 +33,8 @@
     "prejudgment_otoshi": "抽選した候補の、落としを作れる見込みの予備判定",
     "picked_candidate": "抽選した候補の台帳の記録（topic_pick.py --outputが書き出す）",
     "research_requests": "作文担当から調査担当への依頼",
-    "answer_target": "解答対象と、抽選した場合の四軸の日本語の分類経路と履歴補正の適用結果",
+    "answer_target": "解答対象の名称",
+    "answer_context": "抽選した場合の、選んだ4軸の正規ノードキーと日本語の分類経路、履歴補正の適用結果",
     "source_cache": "資料の写しの置き場（依頼全体で一つ。source_cache.pyで使う）",
     "sources": "資料の書誌情報、逐語引用、所在、周辺文脈、対象読者と日本語文化圏との関係",
     "source_assessments": "資料ごとの信頼性の水準、明白な誤り、使ってよい用途",
@@ -85,7 +86,7 @@
     "final_reflection_review": "完成稿への反映の照合結果",
     "final_contamination_review": "完成稿への作業用記録の混入の検査結果"
   },
-  "given_data": ["user_conditions", "history", "facet_picks", "granularity_return", "facet_scope", "picked_candidate", "answer_target", "research_requests", "source_cache"],
+  "given_data": ["user_conditions", "history", "facet_picks", "granularity_return", "facet_scope", "picked_candidate", "answer_target", "answer_context", "research_requests", "source_cache"],
   "state_keys": {"ledger": ["entry_points", "candidates"]},
   "merge_rules": {"union": {"facet_weights": ["level_id"], "coverage_areas": ["id"], "memberships": ["candidate_id"], "exposure_prechecks": ["candidate_id"], "group_weights": ["group_id"], "candidate_weights": ["candidate_id"], "sources": ["id"], "names": ["id"], "clues": ["id"], "propositions": ["id"], "source_assessments": ["source_id"], "clue_centrality": ["clue_id"], "proposition_support": ["proposition_id"], "proposition_certainty": ["proposition_id"], "competitors": ["id"], "competitor_comparisons": ["clue_id", "competitor_id"]}, "append": ["facet_level_reviews", "facet_subdivision_reviews", "facet_weight_reviews", "facet_distribution_reviews", "coverage_area_reviews", "topic_group_reviews", "topic_weight_reviews", "topic_distribution_reviews", "prejudgment_scope", "prejudgment_membership", "prejudgment_difficulty", "prejudgment_otoshi", "source_reliability_reviews", "centrality_reviews", "familiarity_reviews", "corroboration_reviews", "certainty_reviews", "competitor_search_reviews", "competitor_comparison_reviews", "term_necessity_reviews", "term_sense_reviews", "term_audience_reviews"], "lists": ["facet_levels", "facet_subdivisions", "topic_groups", "answers", "answer_judgments", "clue_uses", "clue_checks", "realized_propositions", "terms", "exposure_candidates", "checks", "relative_clauses", "blind_candidates", "exposure_analysis", "extracted_propositions", "proposition_matching_reviews"], "scopes": {"facet_weights": {"field": "level_id", "data": "facet_levels", "values": "id", "where": {"decision": "descend"}}, "facet_picks": {"field": "level_id", "data": "facet_levels", "values": "id", "where": {"decision": "descend"}}, "group_weights": {"field": "group_id", "data": "topic_groups", "values": "id"}, "candidate_weights": {"field": "candidate_id", "data": "topic_groups", "values": "candidate_ids"}}},
   "steps": [
@@ -739,7 +740,7 @@
           "section": "最終出力",
           "specs": ["output_structure_spec.md", "verification_and_judging_spec.md", "work_state_spec.md"],
           "rules": [{"spec": "output_structure_spec.md", "heading": "1. 根拠の示し方"}, {"spec": "output_structure_spec.md", "heading": "2. 見出し順"}, {"spec": "output_structure_spec.md", "heading": "3. 問題から正誤判定基準まで"}, {"spec": "output_structure_spec.md", "heading": "4. 題材選択"}, {"spec": "output_structure_spec.md", "heading": "5. 難易度"}, {"spec": "output_structure_spec.md", "heading": "6. 裏取り"}, {"spec": "output_structure_spec.md", "heading": "7. 手掛かりの設計"}, {"spec": "output_structure_spec.md", "heading": "8. 問題の成立性"}, {"spec": "output_structure_spec.md", "heading": "9. 問題文の構成"}, {"spec": "output_structure_spec.md", "heading": "10. 問題文の表現"}, {"spec": "output_structure_spec.md", "heading": "11. 問題文の長さ"}, {"spec": "output_structure_spec.md", "heading": "12. 解答と正誤判定"}, {"spec": "output_structure_spec.md", "heading": "13. 参考文献"}, {"spec": "verification_and_judging_spec.md", "heading": "21. 問題文・実現命題・出典記述の三者対応"}, {"spec": "verification_and_judging_spec.md", "heading": "22. 直接引用・所在情報・参考文献"}, {"spec": "verification_and_judging_spec.md", "heading": "23. 各出力欄に適用する検証"}],
-          "inputs": [["answer_target", "draft", "names", "answers", "answer_judgments", "sources", "clues", "clue_uses", "clue_checks", "propositions", "realized_propositions", "proposition_support", "proposition_certainty", "clue_centrality", "competitors", "competitor_comparisons", "asked_knowledge", "answer_granularity", "difficulty_assessment", "terms", "exposure_candidates", "checks", "relative_clauses", "answer_review", "competitor_search_reviews", "beginner_difficulty_review", "general_difficulty_review", "source_cache"]],
+          "inputs": [["answer_target", "answer_context", "draft", "names", "answers", "answer_judgments", "sources", "clues", "clue_uses", "clue_checks", "propositions", "realized_propositions", "proposition_support", "proposition_certainty", "clue_centrality", "competitors", "competitor_comparisons", "asked_knowledge", "answer_granularity", "difficulty_assessment", "terms", "exposure_candidates", "checks", "relative_clauses", "answer_review", "competitor_search_reviews", "beginner_difficulty_review", "general_difficulty_review", "source_cache"]],
           "outputs": ["final_input"]
         },
         {
