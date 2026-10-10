@@ -7,8 +7,8 @@
     再正規化して1回だけ抽選する。
 
 入力:
-    ファセット選択の記録のJSON（work_state_spec.md）と、抽選する階層のID。記録が担当ごとの
-    ファイルに分かれている場合は、すべてのファイルを渡す。同じキーの配列は渡した順につなぐ。
+    ファセット選択の記録のJSON（work_state_spec.md）と、抽選する階層のID。複数のファイルを
+    渡した場合は、同じキーの配列を渡した順につなぐ。
     指定した階層の`facet_weights`の最後の記録の候補を、`weight`を基礎weightとして抽選する。
 
 抽選の前に、指定した階層について次を確認する。
@@ -24,9 +24,7 @@
     2  入力の不備、または抽選の前の確認を満たさない
 
 使用例:
-    python3 weighted_pick.py facet_granularity.json facet_weighting.json \\
-        facet_granularity_review.json facet_weight_review.json \\
-        facet_distribution_review.json --level L2
+    python3 weighted_pick.py facet.json --level L2
 """
 
 import argparse

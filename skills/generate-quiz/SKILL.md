@@ -60,7 +60,7 @@ argument-hint: <作問条件（主題・問題数・文字数・履歴など。�
 
 ```bash
 python3 "$SKILL_DIR/scripts/assignment_plan.py" steps
-python3 "$SKILL_DIR/scripts/assignment_plan.py" coordinate 3 --state state.json
+python3 "$SKILL_DIR/scripts/assignment_plan.py" coordinate 3 --state selection.json
 python3 "$SKILL_DIR/scripts/assignment_plan.py" assign exploration
 python3 "$SKILL_DIR/scripts/assignment_plan.py" rerun writer
 python3 "$SKILL_DIR/scripts/assignment_plan.py" fix propositions proposition_support
@@ -74,17 +74,16 @@ python3 "$SKILL_DIR/scripts/facet_node.py" --children 'place::(1/9)'
 python3 "$SKILL_DIR/scripts/facet_node.py" --grep '音楽'
 ```
 
-ファセットの抽選は、ファセット選択の記録のファイルをすべてと、抽選する階層のIDを渡す。スクリプトは、その階層の粒度判断、区分の分け方、weight、weightの分布の各検査の最後の結果が合格でなければ抽選しない。
+ファセットの抽選は、ファセット選択の記録（`facet.json`）と、抽選する階層のIDを渡す。スクリプトは、その階層の粒度判断、区分の分け方、weight、weightの分布の各検査の最後の結果が合格でなければ抽選しない。
 
 ```bash
-python3 "$SKILL_DIR/scripts/weighted_pick.py" facet_granularity.json facet_weighting.json \
-  facet_granularity_review.json facet_weight_review.json facet_distribution_review.json --level L2
+python3 "$SKILL_DIR/scripts/weighted_pick.py" facet.json --level L2
 ```
 
 題材候補の抽選には、探索状態のJSONを`topic_pick.py`へ渡す。このスクリプトは探索状態を検査し、まとまりのweightとまとまりの中のweightの積を各候補の基礎weightとして抽選する。題材品質ゲートで候補を棄却した場合は、その候補の`quality_rejection_reason`に理由を記録し、記録済みの全候補IDを`--exclude <key>`で渡して再抽選する。再抽選では、まとまりとweightを推定し直さない。探索段階の`disposition`は書き換えない。ファセットの抽選には`weighted_pick.py`を使う。
 
 ```bash
-python3 "$SKILL_DIR/scripts/topic_pick.py" state.json --output picked.json
+python3 "$SKILL_DIR/scripts/topic_pick.py" selection.json --output picked.json
 ```
 
 選んだ4軸の分類経路と範囲は、ファセット選択の記録から`facet_node.py --scope`で作る。
@@ -103,7 +102,7 @@ python3 "$SKILL_DIR/scripts/source_cache.py" _sources put https://example.org/pa
 同時に動いた担当が書いた台帳の断片は、`ledger_merge.py`で探索状態へまとめる。まとめた後は`work_state_check.py`で探索状態を検査する。
 
 ```bash
-python3 "$SKILL_DIR/scripts/ledger_merge.py" state.json fragment_D1.json fragment_D2.json -o state.json
+python3 "$SKILL_DIR/scripts/ledger_merge.py" selection.json fragment_D1.json fragment_D2.json -o selection.json
 ```
 
 文字数判定では、問題ごとの抽選値の記録ファイルを`--record`で渡す。スクリプトは問題文と目標値の組ごとに抽選値を記録し、同じ問題文の判定では記録した抽選値で判定を再現し、問題文が変われば新しく抽選する。
@@ -116,18 +115,18 @@ python3 "$SKILL_DIR/scripts/length_check.py" --record _work/q001/length_draws.js
 
 ```bash
 python3 "$SKILL_DIR/scripts/work_state_check.py" --stage facet-selection facet.json
-python3 "$SKILL_DIR/scripts/work_state_check.py" --stage intersection-checkpoint state.json
-python3 "$SKILL_DIR/scripts/work_state_check.py" --stage discovery-progress state.json
-python3 "$SKILL_DIR/scripts/work_state_check.py" --stage discovery state.json
-python3 "$SKILL_DIR/scripts/work_state_check.py" --stage screening state.json
-python3 "$SKILL_DIR/scripts/work_state_check.py" --stage selection state.json
-python3 "$SKILL_DIR/scripts/work_state_check.py" --stage prejudgment state.json
-python3 "$SKILL_DIR/scripts/work_state_check.py" --stage target-start state.json
-python3 "$SKILL_DIR/scripts/work_state_check.py" --stage difficulty-gate state.json
-python3 "$SKILL_DIR/scripts/work_state_check.py" --stage writing state.json
-python3 "$SKILL_DIR/scripts/work_state_check.py" --stage review state.json
-python3 "$SKILL_DIR/scripts/work_state_check.py" --stage material state.json
-python3 "$SKILL_DIR/scripts/work_state_check.py" --stage final --output completed.md state.json
+python3 "$SKILL_DIR/scripts/work_state_check.py" --stage intersection-checkpoint selection.json
+python3 "$SKILL_DIR/scripts/work_state_check.py" --stage discovery-progress selection.json
+python3 "$SKILL_DIR/scripts/work_state_check.py" --stage discovery selection.json
+python3 "$SKILL_DIR/scripts/work_state_check.py" --stage screening selection.json
+python3 "$SKILL_DIR/scripts/work_state_check.py" --stage selection selection.json
+python3 "$SKILL_DIR/scripts/work_state_check.py" --stage prejudgment selection.json
+python3 "$SKILL_DIR/scripts/work_state_check.py" --stage target-start target-X1-K1.json
+python3 "$SKILL_DIR/scripts/work_state_check.py" --stage difficulty-gate target-X1-K1.json
+python3 "$SKILL_DIR/scripts/work_state_check.py" --stage writing target-X1-K1.json
+python3 "$SKILL_DIR/scripts/work_state_check.py" --stage review target-X1-K1.json
+python3 "$SKILL_DIR/scripts/work_state_check.py" --stage material target-X1-K1.json
+python3 "$SKILL_DIR/scripts/work_state_check.py" --stage final --output completed.md target-X1-K1.json
 ```
 
 # 最終出力
