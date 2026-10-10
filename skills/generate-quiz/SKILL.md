@@ -66,6 +66,13 @@ python3 "$SKILL_DIR/scripts/assignment_plan.py" rerun writer
 python3 "$SKILL_DIR/scripts/assignment_plan.py" fix propositions proposition_support
 ```
 
+担当への入力は、状態ファイルから担当の入力のデータだけを取り出したファイルにして渡す。
+
+```bash
+python3 "$SKILL_DIR/scripts/assignment_plan.py" inputs membership --state facet.json selection.json \
+  --output 004-step04/membership-input.json
+```
+
 ファセットカタログは全文を読まず、必要なブロックだけを取得する。
 
 ```bash

@@ -86,6 +86,7 @@
     "final_contamination_review": "完成稿への作業用記録の混入の検査結果"
   },
   "given_data": ["user_conditions", "history", "facet_picks", "granularity_return", "facet_scope", "picked_candidate", "answer_target", "research_requests", "source_cache"],
+  "state_keys": {"ledger": ["entry_points", "candidates", "frontier_ids", "saturated"]},
   "steps": [
     {
       "name": "ファセット選択",

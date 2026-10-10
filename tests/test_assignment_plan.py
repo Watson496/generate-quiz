@@ -198,6 +198,10 @@ class TestTableValidation:
                 ),
                 "rulesは、specsにある仕様の見出しの一覧",
             ),
+            (
+                lambda table: table.update(state_keys={"unknown": ["a"]}),
+                "state_keysは",
+            ),
         ],
     )
     def test_invalid_table(self, load_script, change, message):
@@ -296,7 +300,11 @@ class TestRequests:
             in request
         )
         assert (
-            "成果物（指定されたファイルに書く）：\n- 問題文の検査記録（`draft_review`）"
+            '成果物（担当の節が書き方を定めていなければ、指定されたファイルに、データIDをキーとするJSONのオブジェクト`{"draft_review": …}`として書く）：\n- 問題文の検査記録（`draft_review`）'
+            in request
+        )
+        assert (
+            "作業場所のファイル（状態ファイル、ほかの担当の成果物、前の実行の記録）を探したり読んだりしない"
             in request
         )
         assert request.endswith(
@@ -317,6 +325,78 @@ class TestRequests:
         result = run_script("assignment_plan.py", *args)
         assert result.returncode == 2
         assert "入力エラー" in result.stderr
+
+
+class TestInputs:
+    """状態ファイルから担当の入力だけを取り出すことを確認する。"""
+
+    def test_inputs_extract_only_role_data(self, run_script, tmp_path):
+        """担当の入力のキーだけを書き出し、台帳は定めたキーをまとめて取り出す。状態ファイルにない入力は示す。"""
+        facet = tmp_path / "facet.json"
+        facet.write_text(
+            json.dumps(
+                {
+                    "facet_nodes": {"subject": "subject::1"},
+                    "facet_levels": [{"id": "L1"}],
+                }
+            )
+        )
+        selection = tmp_path / "selection.json"
+        selection.write_text(
+            json.dumps(
+                {
+                    "facet_nodes": {"subject": "subject::2"},
+                    "entry_points": [{"id": "E1"}],
+                    "candidates": [{"id": "K1"}],
+                    "saturated": True,
+                    "memberships": [{"candidate_id": "K1"}],
+                    "execution": {"assignments": []},
+                }
+            )
+        )
+        output = tmp_path / "input.json"
+        result = run_script(
+            "assignment_plan.py",
+            "inputs",
+            "membership",
+            "--state",
+            facet,
+            selection,
+            "--output",
+            output,
+        )
+        assert result.returncode == 0
+        assert json.loads(output.read_text()) == {
+            "facet_nodes": {"subject": "subject::2"},
+            "entry_points": [{"id": "E1"}],
+            "candidates": [{"id": "K1"}],
+            "saturated": True,
+        }
+        assert json.loads(result.stdout)["not_in_state"] == [
+            "facet_subdivisions",
+            "facet_scope",
+        ]
+
+    def test_inputs_take_one_phase(self, run_script, tmp_path):
+        """段階を指定すると、その段階の入力だけを取り出す。"""
+        state = tmp_path / "target.json"
+        state.write_text(
+            json.dumps({"draft": {"text": "問題文"}, "names": [{"id": "N1"}]})
+        )
+        output = tmp_path / "input.json"
+        result = run_script(
+            "assignment_plan.py",
+            "inputs",
+            "exposure",
+            "--state",
+            state,
+            "--phase",
+            "1",
+            "--output",
+            output,
+        )
+        assert result.returncode == 0
+        assert json.loads(output.read_text()) == {"draft": {"text": "問題文"}}
 
 
 class TestEntryCheck:

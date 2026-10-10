@@ -15,6 +15,8 @@
                        表の順にステップごとに出力する
     fix DATA...        検査が修正を求めたデータを成果物とする担当と、
                        修正の後に再実行する担当を出力する
+    inputs ROLE        --stateで渡した状態ファイルから担当の入力のデータだけを取り出し、
+                       --outputのファイルに書く。状態ファイルにない入力を出力する
 
 終了コード:
     0  結果を出力した
@@ -28,6 +30,8 @@
     python3 assignment_plan.py assign exposure
     python3 assignment_plan.py rerun writer
     python3 assignment_plan.py fix propositions proposition_support
+    python3 assignment_plan.py inputs membership --state facet.json selection.json \
+        --output 004-step04/membership-input.json
 """
 
 import argparse
@@ -161,6 +165,16 @@ def validate_table(table):
     )
     unused = set(data) - produced - set(given_data)
     require(not unused, f"どこからも渡されないデータがある: {sorted(unused)}")
+    state_keys = table.get("state_keys", {})
+    require(
+        isinstance(state_keys, dict)
+        and set(state_keys) <= set(data)
+        and all(
+            isinstance(keys, list) and keys and all(is_text(key) for key in keys)
+            for keys in state_keys.values()
+        ),
+        "state_keysは、定義済みのデータごとの状態ファイルのキーの一覧でなければならない",
+    )
     return table
 
 
@@ -286,7 +300,13 @@ def request_text(table, role, items):
         lines.extend(f"- {table['data'][item]}（`{item}`）" for item in phase)
     if items is not None:
         lines.append("担当する項目：" + "、".join(items))
-    lines.append("成果物（指定されたファイルに書く）：")
+    lines.append(
+        "入力として渡されたファイル、読むよう指定された仕様、資料の写しの置き場、担当の節が読んでよいと定めたファイルのほかに、作業場所のファイル（状態ファイル、ほかの担当の成果物、前の実行の記録）を探したり読んだりしない。"
+    )
+    keys = ", ".join(f'"{item}": …' for item in role["outputs"])
+    lines.append(
+        f"成果物（担当の節が書き方を定めていなければ、指定されたファイルに、データIDをキーとするJSONのオブジェクト`{{{keys}}}`として書く）："
+    )
     lines.extend(f"- {table['data'][item]}（`{item}`）" for item in role["outputs"])
     lines.append("報告は、完了したことと成果物のファイルの場所だけとする。")
     return "\n".join(lines)
@@ -312,6 +332,34 @@ def assignments(table, role_id, items=None):
         }
         for chunk in chunks
     ]
+
+
+def role_inputs(table, role_id, states, phase=None):
+    """状態ファイルから担当の入力のデータを取り出し、取り出したものと状態ファイルにない入力を返す。
+
+    データは状態ファイルの同じ名前のキーに置く。state_keysで複数のキーを定めたデータは、
+    そのキーをすべて取り出す。同じキーが複数の状態ファイルにあれば、後に渡したファイルのものを使う。
+    """
+    role = find_role(table, role_id)
+    phases = role["inputs"]
+    if phase is not None:
+        require(
+            1 <= phase <= len(phases),
+            f"担当{role_id}の入力に第{phase}段階はない",
+        )
+        phases = [phases[phase - 1]]
+    extracted = {}
+    missing = []
+    for item in dict.fromkeys(item for names in phases for item in names):
+        keys = table.get("state_keys", {}).get(item, [item])
+        found = [key for key in keys if any(key in state for state in states)]
+        for key in found:
+            extracted[key] = next(
+                state[key] for state in reversed(states) if key in state
+            )
+        if not found:
+            missing.append(item)
+    return extracted, missing
 
 
 def rerun_plan(table, role_id):
@@ -385,6 +433,11 @@ def main():
     rerun.add_argument("role")
     fix = commands.add_parser("fix")
     fix.add_argument("data", nargs="+")
+    inputs = commands.add_parser("inputs")
+    inputs.add_argument("role")
+    inputs.add_argument("--state", type=Path, nargs="+", required=True)
+    inputs.add_argument("--phase", type=int)
+    inputs.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     try:
         table = load_table()
@@ -400,6 +453,24 @@ def main():
             result = assignments(table, args.role, args.items)
         elif args.command == "rerun":
             result = rerun_plan(table, args.role)
+        elif args.command == "inputs":
+            states = [
+                json.loads(path.read_text(encoding="utf-8")) for path in args.state
+            ]
+            require(
+                all(isinstance(state, dict) for state in states),
+                "状態ファイルはJSONのオブジェクトでなければならない",
+            )
+            extracted, missing = role_inputs(table, args.role, states, args.phase)
+            args.output.write_text(
+                json.dumps(extracted, ensure_ascii=False, indent=2) + "\n",
+                encoding="utf-8",
+            )
+            result = {
+                "output": str(args.output),
+                "keys": list(extracted),
+                "not_in_state": missing,
+            }
         else:
             result = fix_plan(table, args.data)
     except (OSError, json.JSONDecodeError, TableError) as error:
