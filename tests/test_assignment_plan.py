@@ -521,6 +521,23 @@ class TestMerge:
         assert [source["id"] for source in merged["sources"]] == ["S1", "S2"]
         assert merged["clues"] == artifact["clues"]
 
+    def test_rejects_new_id_for_recorded_source_url(self, run_script, tmp_path):
+        """記録済みの資料と同じURLに別の資料IDを付けた成果物は、状態ファイルを変えずに拒む。"""
+        state = {
+            "sources": [{"id": "S1", "url": "https://example.org/a", "quotes": []}]
+        }
+        artifact = {
+            "sources": [{"id": "S9", "url": "https://example.org/a", "quotes": []}],
+            "clues": [],
+            "propositions": [],
+        }
+        result, merged = self.merge(
+            run_script, tmp_path, "clue_search", state, artifact
+        )
+        assert result.returncode == 1
+        assert "資料S9は、記録済みの資料S1と同じURLである" in result.stderr
+        assert merged == state
+
     def test_split_records_replace_same_item(self, run_script, tmp_path):
         """件数ごとに分けた担当の記録は、同じ項目の記録を置き換え、ほかの項目の記録を残す。"""
         state = {

@@ -527,6 +527,8 @@ def merge_artifact(table, role_id, state, artifact):
     shared = {
         key for key in union if sum(key in writer["outputs"] for writer in writers) > 1
     }
+    if "sources" in artifact:
+        require_one_id_per_url(state.get("sources") or [], artifact["sources"])
     for key, value in artifact.items():
         current = merged.get(key)
         if key in union or key in append or key in lists:
@@ -648,6 +650,26 @@ def record_assignment(table, role_id, state, agent_id, **fields):
         if fields.get(key) is not None:
             record[key] = fields[key]
     return recorded
+
+
+def require_one_id_per_url(current, added):
+    """記録済みの資料と同じURLの資料に、別の資料IDを付けた成果物を拒む。"""
+    require_records(added, "sources")
+    ids_by_url = {}
+    for record in current:
+        if isinstance(record, dict) and record.get("url"):
+            ids_by_url.setdefault(record["url"], record.get("id"))
+    for record in added:
+        url = record.get("url")
+        if not url:
+            continue
+        known = ids_by_url.setdefault(url, record.get("id"))
+        if known != record.get("id"):
+            message = (
+                f"成果物の資料{record.get('id')}は、記録済みの資料{known}と同じURLである。"
+                f"資料{known}に新しい引用だけを加える形で書き直す"
+            )
+            raise ArtifactError(message)
 
 
 def require_records(value, key):
