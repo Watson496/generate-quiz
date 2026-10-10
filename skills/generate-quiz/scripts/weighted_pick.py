@@ -18,6 +18,8 @@
     - 区分に分けた階層では、区分の分け方の検査の最後の結果が合格である
 
 出力（既定）: 選ばれた1件のみ。weight・確率・抽選過程は出力しない。
+    --record を付けると、抽選結果をファセット選択の記録の`facet_picks`へ書く。同じ階層の
+    抽選結果がすでにあれば抽選しない。
     --verbose を付けたときだけ補正後の内訳を stderr へ出す（調整用。ユーザーには表示しない）。
 
 終了コード:
@@ -25,7 +27,7 @@
     2  入力の不備、または抽選の前の確認を満たさない
 
 使用例:
-    python3 weighted_pick.py facet.json --level L2
+    python3 weighted_pick.py facet.json --level L2 --record
 """
 
 import argparse
@@ -195,9 +197,29 @@ def main():
     ap.add_argument(
         "--verbose", action="store_true", help="補正後weightの内訳も出す（内部用）"
     )
+    ap.add_argument(
+        "--record",
+        action="store_true",
+        help="抽選結果を、渡したファセット選択の記録のfacet_picksへ書く",
+    )
     args = ap.parse_args()
 
-    choose(level_candidates(load_state(args.state), args.level), verbose=args.verbose)
+    state = load_state(args.state)
+    if args.record:
+        if len(args.state) != 1:
+            fail("--recordでは、ファセット選択の記録のファイルを一つだけ渡す")
+        if last_for_level(state, "facet_picks", args.level) is not None:
+            fail(f"{args.level}の抽選結果はすでに記録されている")
+    chosen = choose(level_candidates(state, args.level), verbose=args.verbose)
+    if args.record:
+        path = Path(args.state[0])
+        record = json.loads(path.read_text(encoding="utf-8"))
+        record.setdefault("facet_picks", []).append(
+            {"level_id": args.level, "key": chosen["key"]}
+        )
+        path.write_text(
+            json.dumps(record, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+        )
     return EXIT_OK
 
 

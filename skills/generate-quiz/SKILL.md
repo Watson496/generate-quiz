@@ -99,10 +99,10 @@ python3 "$SKILL_DIR/scripts/facet_node.py" --children 'place::(1/9)'
 python3 "$SKILL_DIR/scripts/facet_node.py" --grep '音楽'
 ```
 
-ファセットの抽選は、ファセット選択の記録（`facet.json`）と、抽選する階層のIDを渡す。スクリプトは、その階層の粒度判断、区分の分け方、weight、weightの分布の各検査の最後の結果が合格で、weightの候補がノードの子と一致しなければ抽選しない。
+ファセットの抽選は、ファセット選択の記録（`facet.json`）と、抽選する階層のIDを渡し、`--record`で抽選結果を記録に書かせる。スクリプトは、その階層の粒度判断、区分の分け方、weight、weightの分布の各検査の最後の結果が合格で、weightの候補がノードの子と一致しなければ抽選しない。
 
 ```bash
-python3 "$SKILL_DIR/scripts/weighted_pick.py" facet.json --level L2
+python3 "$SKILL_DIR/scripts/weighted_pick.py" facet.json --level L2 --record
 ```
 
 題材候補の抽選には、探索状態のJSONを`topic_pick.py`へ渡す。このスクリプトは探索状態を検査し、まとまりのweightとまとまりの中のweightの積を各候補の基礎weightとして抽選する。題材品質ゲートで候補を棄却した場合は、その候補の`quality_rejection_reason`に理由を記録し、記録済みの全候補IDを`--exclude <key>`で渡して再抽選する。再抽選では、まとまりとweightを推定し直さない。探索段階の`disposition`は書き換えない。ファセットの抽選には`weighted_pick.py`を使う。

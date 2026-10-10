@@ -147,6 +147,21 @@ class TestWeightedPick:
         assert key in {candidate["key"] for candidate in candidates}
         assert result.stderr == ""
 
+    def test_record_writes_pick_once(self, run_script, tmp_path, facet_state):
+        """--recordで抽選結果を記録し、同じ階層を二度は抽選しない。"""
+        facet_state["facet_picks"] = [
+            item for item in facet_state["facet_picks"] if item["level_id"] != "F2"
+        ]
+        state = write_json(tmp_path / "facet.json", facet_state)
+        result = run_script("weighted_pick.py", state, "--level", "F2", "--record")
+        assert result.returncode == 0, result.stderr
+        key = result.stdout.split("\t")[1]
+        picks = json.loads(state.read_text(encoding="utf-8"))["facet_picks"]
+        assert picks[-1] == {"level_id": "F2", "key": key}
+        again = run_script("weighted_pick.py", state, "--level", "F2", "--record")
+        assert again.returncode == 2
+        assert "F2の抽選結果はすでに記録されている" in again.stderr
+
     def test_zero_weight_candidate_is_never_chosen(
         self, run_script, tmp_path, facet_state
     ):
