@@ -187,6 +187,7 @@ STAGE_ROLES = {
     "final": step_roles("素材の調査", "作文", "検査", "最終出力"),
 }
 GRANULARITY_RETURN_KINDS = {"intersection", "saturation", "exhausted"}
+BEGINNER_AUDIENCES = {"beginner_learning", "general", "specialist"}
 MIN_ENTRY_POINTS = 2
 MIN_COVERAGE_AREAS = 2
 MIN_EXPRESSION_ALTERNATIVES = 2
@@ -1932,6 +1933,7 @@ def validate_difficulty_assessment(state, quote_ids):
         required_text(item, "reason", name)
         evidence_ids = referenced_ids(item, "evidence_ids", quote_ids, name)
         if group == "beginner":
+            validate_beginner_audiences(state, item, name)
             for aspect in ("name_learning", "relation_learning", "learning_connection"):
                 learning = item.get(aspect)
                 learning_name = f"{name}.{aspect}"
@@ -1981,6 +1983,42 @@ def validate_wording(wording, name, quote_ids):
         return
     referenced_ids(wording, "foreign_quote_ids", quote_ids, name)
     required_text(wording, "usage_check", name)
+
+
+def validate_beginner_audiences(state, item, name):
+    """初学者側の根拠の資料の読み手を記録し、名称と関係の学習をそれぞれ初学者向けの資料で示したことを検査する。"""
+    source_of = {
+        quote["id"]: source["id"]
+        for source in state["sources"]
+        for quote in source["quotes"]
+    }
+    audiences = item.get("source_audiences")
+    require_condition(isinstance(audiences, dict), f"{name}.source_audiencesがない")
+    cited = {
+        source_of[quote_id]
+        for key in ("evidence_ids",)
+        for quote_id in item.get(key, [])
+        if quote_id in source_of
+    }
+    missing = sorted(cited - set(audiences))
+    require_condition(
+        not missing, f"{name}.source_audiencesに読み手のない資料がある: {missing}"
+    )
+    require_condition(
+        set(audiences.values()) <= BEGINNER_AUDIENCES,
+        f"{name}.source_audiencesの読み手が不正である",
+    )
+    for aspect in ("name_learning", "relation_learning"):
+        learning = item.get(aspect)
+        if not isinstance(learning, dict):
+            continue
+        sources = {
+            source_of.get(quote_id) for quote_id in learning.get("evidence_ids", [])
+        }
+        require_condition(
+            any(audiences.get(source) == "beginner_learning" for source in sources),
+            f"{name}.{aspect}の根拠に初学者向けの学習資料がない",
+        )
 
 
 def validate_challenge_item(item, name, quote_ids):

@@ -197,6 +197,7 @@ def complete_state():
                 "status": "passed",
                 "reason": "日本語の初学者向け資料で学習対象として扱う",
                 "evidence_ids": evidence,
+                "source_audiences": {"S1": "beginner_learning"},
                 "name_learning": {
                     "reason": "初級教材が解答対象の名称を学習項目として扱う",
                     "evidence_ids": evidence,
@@ -1028,6 +1029,25 @@ class TestWording:
         result = check_state(run_script, "material", complete_state)
         assert result.returncode == 1
         assert "wordingがない" in result.stderr
+
+
+class TestBeginnerAudiences:
+    """初学者側の難易度の根拠に、初学者向けの学習資料を求めることを検査する。"""
+
+    def test_relation_needs_beginner_learning_source(self, run_script, complete_state):
+        """問う関係の根拠が専門家向けの資料だけなら不合格にする。"""
+        beginner = complete_state["difficulty_assessment"]["beginner"]
+        beginner["source_audiences"]["S1"] = "specialist"
+        result = check_state(run_script, "material", complete_state)
+        assert result.returncode == 1
+        assert "初学者向けの学習資料がない" in result.stderr
+
+    def test_cited_sources_need_audience(self, run_script, complete_state):
+        """初学者側の根拠に使った資料には読み手を記録する。"""
+        complete_state["difficulty_assessment"]["beginner"]["source_audiences"] = {}
+        result = check_state(run_script, "material", complete_state)
+        assert result.returncode == 1
+        assert "読み手のない資料がある" in result.stderr
 
 
 class TestFacetGrouping:
@@ -2513,6 +2533,7 @@ class TestWorkState:
         )
         beginner = complete_state["difficulty_assessment"]["beginner"]
         beginner["evidence_ids"] = ["Q1", "Q2"]
+        beginner["source_audiences"]["S2"] = "beginner_learning"
         beginner["relation_learning"]["evidence_ids"] = ["Q2"]
         beginner["learning_connection"]["evidence_ids"] = ["Q1", "Q2"]
         complete_state["final_input"]["quote_ids"] = ["Q1", "Q2"]

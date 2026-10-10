@@ -192,7 +192,7 @@ JSON manifestは、検査対象を具体的な内容へ結び付け、確定的�
 
 問う知識の内容を`asked_knowledge`、要求する解答知識の細かさを`answer_granularity`に記録し、難易度の判断は`difficulty_assessment`に記録する。後者の`asked_knowledge`には判断の対象とした問う知識、`beginner`と`general`には各集団の`status`、`reason`、`evidence_ids`を置く。いずれかの集団の`status`が`passed`でない場合は、記録された手掛かり候補のどれかを問う知識にすれば帯に入る見込みがあるかを`band_reachable`に、`status`（`reachable`・`unreachable`）と`reason`として置く。`work_state_check.py --stage difficulty-gate`は、この記録と両集団の判断の形式を検査し、`unreachable`なら不合格とする。一般層側の`other_access_paths`には、定義的な資料とは別に名称と代表情報の対応が共有され得る経路を`path`、実際に調べた内容を`search_record`、その対応への接触を確認できたかを`outcome`、調査結果を`result`、確認した資料の引用IDを`evidence_ids`として置く。`outcome`は`confirmed`または`not_confirmed`とし、前者では引用IDを必須とする。後者では引用IDを空にできるが、調べた範囲を超える不在の根拠とは扱わない。
 
-初学者側の`name_learning`には解答対象の名称を学ぶ位置を、`relation_learning`には問う関係を対象の特徴として学ぶ位置を記録する。`learning_connection`には両者を結び付け、要求する粒度の知識を1〜2年以内に学びうると判断する推論を記録する。それぞれに`reason`と`evidence_ids`を置き、引用IDを初学者側の`evidence_ids`にも含める。同じ引用を複数の判断に使えるが、その引用が各判断をどう支えるかは別々に示す。
+初学者側の`name_learning`には解答対象の名称を学ぶ位置を、`relation_learning`には問う関係を対象の特徴として学ぶ位置を記録する。`learning_connection`には両者を結び付け、要求する粒度の知識を1〜2年以内に学びうると判断する推論を記録する。それぞれに`reason`と`evidence_ids`を置き、引用IDを初学者側の`evidence_ids`にも含める。同じ引用を複数の判断に使えるが、その引用が各判断をどう支えるかは別々に示す。初学者側の`source_audiences`には、初学者側の根拠に使った資料ごとに、資料IDをキーとして読み手を置く（想定分野を学び始めた人が学ぶための教材・授業・入門書・学生向けの学習活動の記録は`beginner_learning`、一般向けの資料は`general`、研究論文・専門書など専門家向けの資料は`specialist`）。`name_learning`と`relation_learning`には、それぞれ`beginner_learning`の資料の引用を一つ以上含める。専門家向けの資料は、初学者向けの資料が示す学習内容を補う根拠にはできるが、それだけで学ぶ位置の根拠にはしない。
 
 問う知識を変更したら難易度を判断し直し、`difficulty_assessment.asked_knowledge`を更新する。構造検査は、問う知識と問題文の意味上の一致や、資料からの推論の妥当性を保証しない。
 
