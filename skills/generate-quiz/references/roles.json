@@ -593,7 +593,7 @@
           "section": "難易度",
           "specs": ["verification_and_judging_spec.md", "quiz_generation_spec.md", "work_state_spec.md"],
           "rules": [{"spec": "quiz_generation_spec.md", "heading": "2.2 難易度帯"}, {"spec": "verification_and_judging_spec.md", "heading": "10. 難易度の校正と出力"}, {"spec": "verification_and_judging_spec.md", "heading": "1.1 間接的な論証"}, {"spec": "work_state_spec.md", "heading": "検査結果"}],
-          "inputs": [["answer_target", "draft", "asked_knowledge", "answer_granularity", "sources", "difficulty_assessment", "source_cache"]],
+          "inputs": [["answer_target", "draft", "asked_knowledge", "answer_granularity", "sources", "source_cache"]],
           "outputs": ["beginner_difficulty_review"]
         },
         {
@@ -603,7 +603,7 @@
           "section": "難易度",
           "specs": ["verification_and_judging_spec.md", "quiz_generation_spec.md", "work_state_spec.md"],
           "rules": [{"spec": "quiz_generation_spec.md", "heading": "2.2 難易度帯"}, {"spec": "verification_and_judging_spec.md", "heading": "10. 難易度の校正と出力"}, {"spec": "verification_and_judging_spec.md", "heading": "1.1 間接的な論証"}, {"spec": "work_state_spec.md", "heading": "検査結果"}],
-          "inputs": [["answer_target", "draft", "asked_knowledge", "answer_granularity", "sources", "difficulty_assessment", "source_cache"]],
+          "inputs": [["answer_target", "draft", "asked_knowledge", "answer_granularity", "sources", "source_cache"]],
           "outputs": ["general_difficulty_review"]
         },
         {
