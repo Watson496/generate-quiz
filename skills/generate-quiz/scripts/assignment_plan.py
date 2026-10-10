@@ -428,6 +428,7 @@ def role_inputs(table, role_id, states, phase=None, items=None):
     データは状態ファイルの同じ名前のキーに置く。state_keysで複数のキーを定めたデータは、
     そのキーをすべて取り出す。同じキーが複数の状態ファイルにあれば、後に渡したファイルのものを使う。
     受け持つ項目（items）を渡すと、項目のIDを持つ記録の配列からは、その項目の記録だけを取り出す。
+    問題文（draft）は、解答を伏せる担当にも渡るので、版と本文だけを取り出す。
     """
     role = find_role(table, role_id)
     phases = role["inputs"]
@@ -443,9 +444,10 @@ def role_inputs(table, role_id, states, phase=None, items=None):
         keys = table.get("state_keys", {}).get(item, [item])
         found = [key for key in keys if any(key in state for state in states)]
         for key in found:
-            extracted[key] = only_items(
-                next(state[key] for state in reversed(states) if key in state), items
-            )
+            value = next(state[key] for state in reversed(states) if key in state)
+            if key == "draft" and isinstance(value, dict):
+                value = {k: value[k] for k in ("version", "text") if k in value}
+            extracted[key] = only_items(value, items)
         if not found:
             missing.append(item)
     return extracted, missing

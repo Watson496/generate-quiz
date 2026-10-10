@@ -443,10 +443,15 @@ class TestInputs:
         }
 
     def test_inputs_take_one_phase(self, run_script, tmp_path):
-        """段階を指定すると、その段階の入力だけを取り出す。"""
+        """段階を指定すると、その段階の入力だけを取り出し、問題文は版と本文だけを渡す。"""
         state = tmp_path / "target.json"
         state.write_text(
-            json.dumps({"draft": {"text": "問題文"}, "names": [{"id": "N1"}]})
+            json.dumps(
+                {
+                    "draft": {"version": 1, "text": "問題文", "answer_target": "解答"},
+                    "names": [{"id": "N1"}],
+                }
+            )
         )
         output = tmp_path / "input.json"
         result = run_script(
@@ -461,7 +466,9 @@ class TestInputs:
             output,
         )
         assert result.returncode == 0
-        assert json.loads(output.read_text()) == {"draft": {"text": "問題文"}}
+        assert json.loads(output.read_text()) == {
+            "draft": {"version": 1, "text": "問題文"}
+        }
 
 
 class TestMerge:

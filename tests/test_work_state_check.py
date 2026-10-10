@@ -2245,6 +2245,13 @@ class TestWorkState:
         assert result.returncode == 1
         assert "answer_context.facet_pathsがない" in result.stderr
 
+    def test_draft_holds_only_version_and_text(self, run_script, complete_state):
+        """問題文には版と本文だけを置き、解答対象などを置かない。"""
+        complete_state["draft"]["answer_target"] = complete_state["answer_target"]
+        result = check_state(run_script, "writing", complete_state)
+        assert result.returncode == 1
+        assert "draftに版（version）と本文（text）のほかの項目がある" in result.stderr
+
     def test_research_checks_records_before_writing(self, run_script, complete_state):
         """作文の前に、素材の調査の記録の形を検査する。"""
         for key in ("draft", "clue_uses", "clue_checks", "realized_propositions"):

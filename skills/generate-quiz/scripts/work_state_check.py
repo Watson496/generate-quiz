@@ -2827,6 +2827,10 @@ def validate_work_state(state, stage):
     required_text(state, "answer_target", "state")
     draft = state.get("draft")
     require_condition(isinstance(draft, dict), "draftがない")
+    extra = sorted(set(draft) - {"version", "text"})
+    require_condition(
+        not extra, f"draftに版（version）と本文（text）のほかの項目がある: {extra}"
+    )
     version = draft.get("version")
     require_condition(
         isinstance(version, int) and version >= 1, "draft.versionが不正である"
