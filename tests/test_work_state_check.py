@@ -392,6 +392,7 @@ def complete_state():
                 "status": "active",
                 "text": "同じ長さの線分が矢羽の向きで異なる長さに見える錯視",
                 "directly_describes_target": True,
+                "wording": {"japanese_quote_ids": ["Q1"]},
             }
         ],
         "clue_checks": [
@@ -1006,6 +1007,27 @@ class TestFacetSubdivision:
         result = check_state(run_script, "intersection-checkpoint", intersection_state)
         assert result.returncode == 1
         assert "facet_nodes.subjectがカタログにも細分にも存在しない" in result.stderr
+
+
+class TestWording:
+    """手掛かりの表現の拠り所の記録を検査する。"""
+
+    def test_foreign_wording_needs_usage_check(self, run_script, complete_state):
+        """外国語資料に拠った表現は、日本語での用例の確認を要する。"""
+        complete_state["clue_uses"][0]["wording"] = {
+            "japanese_quote_ids": [],
+            "foreign_quote_ids": ["Q1"],
+        }
+        result = check_state(run_script, "material", complete_state)
+        assert result.returncode == 1
+        assert "wording.usage_checkがない" in result.stderr
+
+    def test_active_clue_needs_wording(self, run_script, complete_state):
+        """採用した手掛かりには、表現の拠り所を要する。"""
+        del complete_state["clue_uses"][0]["wording"]
+        result = check_state(run_script, "material", complete_state)
+        assert result.returncode == 1
+        assert "wordingがない" in result.stderr
 
 
 class TestFacetGrouping:

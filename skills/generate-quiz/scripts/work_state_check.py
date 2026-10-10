@@ -1697,6 +1697,7 @@ def validate_sources_propositions_and_clues(state, version):
         if item["status"] != "active":
             continue
         required_text(item, "text", f"clue_uses.{clue_id}")
+        validate_wording(item.get("wording"), f"clue_uses.{clue_id}.wording", quote_ids)
         active_clues.append({**candidates[clue_id], **item, "id": clue_id})
     require_condition(active_clues, "activeな手掛かりがない")
     checks = {}
@@ -1968,6 +1969,18 @@ def validate_difficulty_assessment(state, quote_ids):
                     nonempty=outcome == "confirmed",
                 )
     return review
+
+
+def validate_wording(wording, name, quote_ids):
+    """手掛かりの表現の拠り所が、日本語資料の引用か、外国語資料と日本語での用例の確認であることを検査する。"""
+    require_condition(isinstance(wording, dict), f"{name}がない")
+    japanese = referenced_ids(
+        wording, "japanese_quote_ids", quote_ids, name, nonempty=False
+    )
+    if japanese:
+        return
+    referenced_ids(wording, "foreign_quote_ids", quote_ids, name)
+    required_text(wording, "usage_check", name)
 
 
 def validate_challenge_item(item, name, quote_ids):
