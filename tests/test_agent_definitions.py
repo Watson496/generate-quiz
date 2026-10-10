@@ -66,6 +66,13 @@ class TestDefinitions:
         assert "対象をそのものズバリ説明する説明" in instructions
         assert "### 6.1" not in instructions
 
+    def test_role_definition_forbids_reading_other_files(self, module):
+        """担当の定義にも、渡された入力のほかに作業場所のファイルを読まない規定が入る。"""
+        table = module.assignment_plan.load_table()
+        body = module.definitions(table, "codex")["generate-quiz-certainty_review.toml"]
+        instructions = tomllib.loads(body)["developer_instructions"]
+        assert "成果物の書き方の例を探すためにも読まない" in instructions
+
     def test_reviewer_carries_review_procedure(self, module):
         """検査結果を記録する担当の定義には検査の進め方の本文が入り、作る側の担当には入らない。"""
         table = module.assignment_plan.load_table()

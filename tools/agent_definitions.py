@@ -73,6 +73,7 @@ def role_agent(role):
     lead = [
         f"あなたはgenerate-quizの{role['name']}である。",
         "依頼文が指定するファイルを読んで手順と記録の書式に従い、判断は次の規定に従う。",
+        assignment_plan.ONLY_GIVEN_FILES,
     ]
     sections = [
         ("workflow_spec.md", section, True)

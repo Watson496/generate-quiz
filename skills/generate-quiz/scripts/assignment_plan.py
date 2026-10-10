@@ -61,6 +61,11 @@ SIDES = {"make", "check"}
 EXIT_OK, EXIT_BLOCKED, EXIT_USAGE, EXIT_RETURN = 0, 1, 2, 3
 COORDINATOR_SECTIONS = ("検査で不合格になったとき", "修正と再実行")
 REVIEW_SECTION = "検査の進め方"
+ONLY_GIVEN_FILES = (
+    "入力として渡されたファイル、読むよう指定された仕様、資料の写しの置き場、担当の節が読んでよいと定めたファイルのほかに、"
+    "作業場所のファイル（状態ファイル、ほかの担当の成果物、前の実行の記録）を探したり読んだりしない。"
+    "成果物の書き方の例を探すためにも読まない。"
+)
 READ_REST = "ファイルは一つずつ読み、読んだ出力が途中で切り詰められたら、残りの部分を分けて読む。"
 
 
@@ -379,9 +384,7 @@ def request_text(table, role, items):
         lines.extend(f"- {table['data'][item]}（`{item}`）" for item in phase)
     if items is not None:
         lines.append("担当する項目：" + "、".join(items))
-    lines.append(
-        "入力として渡されたファイル、読むよう指定された仕様、資料の写しの置き場、担当の節が読んでよいと定めたファイルのほかに、作業場所のファイル（状態ファイル、ほかの担当の成果物、前の実行の記録）を探したり読んだりしない。"
-    )
+    lines.append(ONLY_GIVEN_FILES)
     if "ledger" in role["outputs"]:
         names = ["prefix"] + [
             key
