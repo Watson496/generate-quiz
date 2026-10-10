@@ -121,16 +121,16 @@ def write_json(path, value):
 
 
 def set_weights(state, level, weights):
-    """指定した階層の候補に、先頭から順にweightと履歴距離を置く。"""
+    """指定した階層の候補に、先頭から順にweightと履歴距離を置き、残りの候補のweightを0にする。"""
     candidates = next(
         item for item in state["facet_weights"] if item["level_id"] == level
     )["candidates"]
-    for candidate, (weight, distances) in zip(candidates, weights, strict=False):
+    for index, candidate in enumerate(candidates):
+        weight, distances = weights[index] if index < len(weights) else (0.0, [])
         candidate["weight"] = weight
         if distances:
             candidate["history_distances"] = distances
-    del candidates[len(weights) :]
-    return [candidate["key"] for candidate in candidates]
+    return [candidate["key"] for candidate in candidates[: len(weights)]]
 
 
 class TestWeightedPick:
@@ -216,6 +216,20 @@ class TestWeightedPick:
         assert result.returncode == 2
         assert "F2の" in result.stderr
         assert result.stdout == ""
+
+    def test_refuses_candidates_other_than_children(
+        self, run_script, tmp_path, facet_state
+    ):
+        """weightの候補がノードの子と一致しなければ抽選しない。"""
+        weights = next(
+            item for item in facet_state["facet_weights"] if item["level_id"] == "F1"
+        )
+        del weights["candidates"][1:]
+        state = write_json(tmp_path / "facet.json", facet_state)
+        result = run_script("weighted_pick.py", state, "--level", "F1")
+        assert result.returncode == 2
+        assert "F1のweightの候補が" in result.stderr
+        assert "の子ノードと一致しない" in result.stderr
 
     def test_refuses_without_distribution_review(
         self, run_script, tmp_path, facet_state

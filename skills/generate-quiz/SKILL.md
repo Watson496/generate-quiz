@@ -99,7 +99,7 @@ python3 "$SKILL_DIR/scripts/facet_node.py" --children 'place::(1/9)'
 python3 "$SKILL_DIR/scripts/facet_node.py" --grep '音楽'
 ```
 
-ファセットの抽選は、ファセット選択の記録（`facet.json`）と、抽選する階層のIDを渡す。スクリプトは、その階層の粒度判断、区分の分け方、weight、weightの分布の各検査の最後の結果が合格でなければ抽選しない。
+ファセットの抽選は、ファセット選択の記録（`facet.json`）と、抽選する階層のIDを渡す。スクリプトは、その階層の粒度判断、区分の分け方、weight、weightの分布の各検査の最後の結果が合格で、weightの候補がノードの子と一致しなければ抽選しない。
 
 ```bash
 python3 "$SKILL_DIR/scripts/weighted_pick.py" facet.json --level L2

@@ -13,6 +13,7 @@
 
 抽選の前に、指定した階層について次を確認する。
     - `facet_levels`の最後の記録が子へ進む判断である
+    - `facet_weights`の最後の記録の候補が、そのノードの子（区分に分けた場合は区分）と一致する
     - 粒度判断、weight、weightの分布の各検査の最後の結果が合格である
     - 区分に分けた階層では、区分の分け方の検査の最後の結果が合格である
 
@@ -33,6 +34,8 @@ import math
 import random
 import sys
 from pathlib import Path
+
+import facet_node
 
 EXIT_OK, EXIT_USAGE = 0, 2
 REVIEW_KEYS = {
@@ -98,7 +101,24 @@ def level_candidates(state, level):
     for c in candidates:
         if not isinstance(c, dict) or "key" not in c:
             fail("keyのない候補がある")
+    expected = node_children(decision.get("node"), subdivisions)
+    keys = [c["key"] for c in candidates]
+    if sorted(keys) != sorted(expected):
+        fail(f"{level}のweightの候補が{decision.get('node')}の子ノードと一致しない")
     return candidates
+
+
+def node_children(key, subdivisions):
+    """ノードの子を返す。区分に分けたノードと中間の区分では、その記録から返す。"""
+    records = [item for item in subdivisions if isinstance(item, dict)]
+    for record in records:
+        for child in record.get("children") or []:
+            if child.get("key") == key and "members" in child:
+                return list(child["members"])
+    for record in records:
+        if record.get("parent") == key and record.get("kind") != "grouping":
+            return [child.get("key") for child in record.get("children") or []]
+    return facet_node.child_keys(key) or []
 
 
 def weights_for(cands):
