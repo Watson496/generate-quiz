@@ -2819,7 +2819,23 @@ class TestWorkState:
         del comparison["exclusion_passage"]
         result = check_state(run_script, "material", complete_state)
         assert result.returncode == 1
-        assert "同一対象の別名として扱う条件と矛盾している" in result.stderr
+        assert "相違する条件のない候補として扱う条件と矛盾している" in result.stderr
+
+    def test_adopted_clue_must_not_retain_competitor(self, run_script, complete_state):
+        """手掛かりで退けられない対抗候補は照合に残せるが、その手掛かりを採用した問題は確定しない。"""
+        comparison = complete_state["competitor_comparisons"][0]
+        comparison["disposition"] = "retained"
+        comparison["conditions"][0]["matches"] = True
+        del comparison["exclusion_passage"]
+        review = complete_state["competitor_comparison_reviews"][0]
+        review["disposition"] = "retained"
+        for condition in review["conditions"]:
+            condition["match"] = "一致"
+        result = check_state(run_script, "material", complete_state)
+        assert result.returncode == 1
+        assert "採用した手掛かりで退けられていない対抗候補がある: [('C1', 'R1')]" in (
+            result.stderr
+        )
 
     def test_otoshi_requires_directly_descriptive_clue(
         self, run_script, complete_state

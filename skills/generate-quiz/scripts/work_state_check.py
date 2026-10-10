@@ -1525,7 +1525,7 @@ def validate_competitors(state, active_clues, quote_ids, stage):
         )
         disposition = item.get("disposition")
         require_condition(
-            disposition in {"excluded", "same_target"},
+            disposition in {"excluded", "same_target", "retained"},
             f"{name}.dispositionが不正である",
         )
         if disposition == "excluded":
@@ -1537,12 +1537,18 @@ def validate_competitors(state, active_clues, quote_ids, stage):
         else:
             require_condition(
                 not differences and "exclusion_passage" not in item,
-                f"{name}は同一対象の別名として扱う条件と矛盾している",
+                f"{name}は相違する条件のない候補として扱う条件と矛盾している",
             )
         required_text(item, "reason", name)
         compared[pair] = disposition
     missing = sorted(pairs - set(compared))
     require_condition(not missing, f"条件を照合していない対抗候補がある: {missing}")
+    if stage != "research":
+        retained = sorted(pair for pair in pairs if compared[pair] == "retained")
+        require_condition(
+            not retained,
+            f"採用した手掛かりで退けられていない対抗候補がある: {retained}",
+        )
     if stage in REVIEWED_STAGES:
         validate_competitor_reviews(state, clue_text, compared, quote_ids)
 
@@ -1605,7 +1611,7 @@ def validate_competitor_reviews(state, clue_text, compared, quote_ids):
             required_text(condition, "reason", condition_name)
         disposition = item.get("disposition")
         require_condition(
-            disposition in {"excluded", "same_target"},
+            disposition in {"excluded", "same_target", "retained"},
             f"{name}.dispositionが不正である",
         )
         if pair in compared:
@@ -1621,6 +1627,11 @@ def validate_competitor_reviews(state, clue_text, compared, quote_ids):
         if disposition == "excluded":
             require_condition(
                 "不一致" in matches, f"{name}は相違する条件なしに候補を除外している"
+            )
+        elif disposition == "retained":
+            require_condition(
+                "不一致" not in matches,
+                f"{name}は相違する条件のある候補を退けずに残している",
             )
         else:
             require_condition(
