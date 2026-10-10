@@ -431,6 +431,7 @@ def role_inputs(table, role_id, states, phase=None, items=None):
     そのキーをすべて取り出す。同じキーが複数の状態ファイルにあれば、後に渡したファイルのものを使う。
     受け持つ項目（items）を渡すと、項目のIDを持つ記録の配列からは、その項目の記録だけを取り出す。
     問題文（draft）は、解答を伏せる担当にも渡るので、版と本文だけを取り出す。
+    後ろへ加えていく検査結果は、検査した対象ごとの最後の記録だけを取り出す。
     """
     role = find_role(table, role_id)
     phases = role["inputs"]
@@ -442,6 +443,7 @@ def role_inputs(table, role_id, states, phase=None, items=None):
         phases = [phases[phase - 1]]
     extracted = {}
     missing = []
+    append = set(table.get("merge_rules", {}).get("append", []))
     for item in dict.fromkeys(item for names in phases for item in names):
         keys = table.get("state_keys", {}).get(item, [item])
         found = [key for key in keys if any(key in state for state in states)]
@@ -449,10 +451,31 @@ def role_inputs(table, role_id, states, phase=None, items=None):
             value = next(state[key] for state in reversed(states) if key in state)
             if key == "draft" and isinstance(value, dict):
                 value = {k: value[k] for k in ("version", "text") if k in value}
+            if key in append and isinstance(value, list):
+                value = latest_reviews(value)
             extracted[key] = only_items(value, items)
         if not found:
             missing.append(item)
+    if items:
+        matched = {
+            record.get("id")
+            for value in extracted.values()
+            if isinstance(value, list)
+            for record in value
+            if isinstance(record, dict)
+        } & set(items)
+        require(matched, f"受け持つ項目{items}が、どの入力の記録のIDでもない")
     return extracted, missing
+
+
+def latest_reviews(records):
+    """後ろへ加えていく検査結果から、検査した対象ごとの最後の記録だけを返す。"""
+    latest = {}
+    for record in records:
+        if isinstance(record, dict):
+            latest.pop(review_identity(record), None)
+            latest[review_identity(record)] = record
+    return list(latest.values())
 
 
 def only_items(value, items):

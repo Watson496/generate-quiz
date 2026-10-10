@@ -442,6 +442,48 @@ class TestInputs:
             "sources": [{"id": "S1"}, {"id": "S3"}],
         }
 
+    def test_inputs_reject_unknown_items(self, run_script, tmp_path):
+        """受け持つ項目が、どの入力の記録のIDでもなければ拒む。"""
+        state = tmp_path / "target.json"
+        state.write_text(json.dumps({"sources": [{"id": "S1"}, {"id": "S2"}]}))
+        result = run_script(
+            "assignment_plan.py",
+            "inputs",
+            "source_reliability",
+            "--state",
+            state,
+            "--items",
+            "11",
+            "12",
+            "--output",
+            tmp_path / "input.json",
+        )
+        assert result.returncode == 2
+        assert "受け持つ項目['11', '12']が、どの入力の記録のIDでもない" in result.stderr
+
+    def test_inputs_take_latest_review_of_each_target(self, run_script, tmp_path):
+        """後ろへ加えていく検査結果は、検査した対象ごとの最後の記録だけを渡す。"""
+        old = {"clue_id": "C1", "status": "failed", "reason": "前の周"}
+        new = {"clue_id": "C1", "status": "passed", "reason": "今の周"}
+        other = {"clue_id": "C2", "status": "passed", "reason": "別の手掛かり"}
+        state = tmp_path / "target.json"
+        state.write_text(json.dumps({"competitor_search_reviews": [old, other, new]}))
+        output = tmp_path / "input.json"
+        result = run_script(
+            "assignment_plan.py",
+            "inputs",
+            "competitor_comparison_review",
+            "--state",
+            state,
+            "--output",
+            output,
+        )
+        assert result.returncode == 0
+        assert json.loads(output.read_text())["competitor_search_reviews"] == [
+            other,
+            new,
+        ]
+
     def test_inputs_take_one_phase(self, run_script, tmp_path):
         """段階を指定すると、その段階の入力だけを取り出し、問題文は版と本文だけを渡す。"""
         state = tmp_path / "target.json"
