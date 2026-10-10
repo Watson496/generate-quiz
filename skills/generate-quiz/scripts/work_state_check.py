@@ -1636,7 +1636,19 @@ def validate_competitor_reviews(state, clue_text, compared, quote_ids):
                 re.fullmatch(r"https?://\S+", url) is not None,
                 f"{name}.source_urlが資料URLではない",
             )
-            referenced_ids(competitor, "evidence_ids", quote_ids, name)
+            if "quotes" in competitor:
+                for position, quote in enumerate(
+                    required_list(competitor["quotes"], f"{name}.quotes", nonempty=True)
+                ):
+                    quote_name = f"{name}.quotes[{position}]"
+                    require_condition(
+                        isinstance(quote, dict),
+                        f"{quote_name}はオブジェクトでなければならない",
+                    )
+                    required_text(quote, "text", quote_name)
+                    required_text(quote, "location", quote_name)
+            else:
+                referenced_ids(competitor, "evidence_ids", quote_ids, name)
     latest = {}
     for index, item in enumerate(
         required_list(
@@ -2282,7 +2294,7 @@ def clue_quote_ids(state, active_clues):
             cited.update(item["evidence_ids"])
     for item in state["competitor_search_reviews"]:
         for competitor in item["found"]:
-            cited.update(competitor["evidence_ids"])
+            cited.update(competitor.get("evidence_ids", []))
     return cited
 
 

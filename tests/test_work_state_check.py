@@ -2245,6 +2245,17 @@ class TestWorkState:
         assert result.returncode == 1
         assert "answer_context.facet_pathsがない" in result.stderr
 
+    def test_competitor_review_may_quote_new_source(self, run_script, complete_state):
+        """逆引きの検査担当は、作問状態にない資料で見つけた候補をその資料の引用で示せる。"""
+        found = complete_state["competitor_search_reviews"][0]["found"][0]
+        del found["evidence_ids"]
+        found["quotes"] = [{"text": "候補を説明する本文", "location": "第2段落"}]
+        assert check_state(run_script, "material", complete_state).returncode == 0
+        found["quotes"] = [{"text": "候補を説明する本文"}]
+        result = check_state(run_script, "material", complete_state)
+        assert result.returncode == 1
+        assert "found[0].quotes[0].locationがない" in result.stderr
+
     def test_draft_holds_only_version_and_text(self, run_script, complete_state):
         """問題文には版と本文だけを置き、解答対象などを置かない。"""
         complete_state["draft"]["answer_target"] = complete_state["answer_target"]
