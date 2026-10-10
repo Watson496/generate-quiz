@@ -100,15 +100,15 @@ class TestTopicPick:
     def test_pick_reports_no_remaining_candidates(
         self, run_script, tmp_path, selection_state
     ):
-        """選択対象をすべて品質棄却した場合は候補なしとする。"""
+        """選択対象をすべて品質棄却した場合は、粒度判断へ戻る終了コードを返す。"""
         for candidate in selection_state["candidates"]:
             if candidate["disposition"] == "eligible":
                 candidate["quality_rejection_reason"] = "品質条件が不適合"
         result = self.pick(
             run_script, tmp_path, selection_state, "--exclude", "K1", "--exclude", "K2"
         )
-        assert result.returncode == 1
-        assert "抽選可能な候補が残っていない" in result.stderr
+        assert result.returncode == 3
+        assert "粒度判断へ戻る: 抽選できる候補が残っていない" in result.stderr
 
     def test_pick_rejects_incomplete_discovery(
         self, run_script, tmp_path, selection_state

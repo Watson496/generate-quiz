@@ -6,7 +6,9 @@
 
 サブコマンド:
     steps              ステップごとの担当と、統括役を置くかを出力する
-    coordinate STEP    統括役のエージェントの名前と依頼文を出力する
+    coordinate STEP    統括役のエージェントの名前と依頼文を出力する。担当表で前のステップの
+                       検査（entry_check）を定めたステップでは、--stateで渡した状態
+                       ファイルをその段階で検査し、合格した場合だけ出力する
     assign ROLE        担当の割り当てと依頼文を出力する。分割する担当には
                        --itemsで項目IDを渡す
     rerun ROLE         ROLEの成果物が変わったときに再実行する担当を、
@@ -16,11 +18,13 @@
 
 終了コード:
     0  結果を出力した
+    1  前のステップの検査が不合格
     2  担当表の不備、存在しない担当、項目IDの不備など、入力や呼出しの不備
+    3  前のステップの担当が粒度判断へ戻ると判断している、または抽選できる候補がない
 
 使用例:
     python3 assignment_plan.py steps
-    python3 assignment_plan.py coordinate 3
+    python3 assignment_plan.py coordinate 3 --state selection.json
     python3 assignment_plan.py assign exposure
     python3 assignment_plan.py rerun writer
     python3 assignment_plan.py fix propositions proposition_support
@@ -28,6 +32,7 @@
 
 import argparse
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -36,7 +41,7 @@ REF_DIR = SKILL_DIR / "references"
 TABLE_PATH = REF_DIR / "roles.json"
 AGENT_PREFIX = "generate-quiz"
 SIDES = {"make", "check"}
-EXIT_OK, EXIT_USAGE = 0, 2
+EXIT_OK, EXIT_BLOCKED, EXIT_USAGE, EXIT_RETURN = 0, 1, 2, 3
 
 
 class TableError(ValueError):
@@ -141,6 +146,10 @@ def validate_table(table):
             isinstance(roles, list) and roles,
             f"ステップ{step['name']}に担当がない",
         )
+        require(
+            "entry_check" not in step or is_text(step["entry_check"]),
+            f"ステップ{step['name']}のentry_checkが段階の名前ではない",
+        )
         for role in roles:
             validate_role(role, data, available, seen)
             seen.add(role["id"])
@@ -190,6 +199,35 @@ def step_plan(table):
         }
         for number, step in enumerate(table["steps"], 1)
     ]
+
+
+def entry_check(table, number, state_path):
+    """ステップの前のステップの検査を状態ファイルに行い、終了コードと出力を返す。"""
+    step = table["steps"][number - 1]
+    stage = step.get("entry_check")
+    if stage is None:
+        return 0, ""
+    require(
+        state_path is not None, f"ステップ{number}には--stateで状態ファイルが必要である"
+    )
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(Path(__file__).with_name("work_state_check.py")),
+            "--stage",
+            stage,
+            str(state_path),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    message = result.stderr.strip() or result.stdout.strip()
+    require(
+        result.returncode in {EXIT_OK, EXIT_BLOCKED, EXIT_RETURN},
+        f"前のステップの検査を実行できない: {message}",
+    )
+    return result.returncode, message
 
 
 def coordinator_request(table, number):
@@ -339,6 +377,7 @@ def main():
     commands.add_parser("steps")
     coordinate = commands.add_parser("coordinate")
     coordinate.add_argument("step", type=int)
+    coordinate.add_argument("--state", type=Path)
     assign = commands.add_parser("assign")
     assign.add_argument("role")
     assign.add_argument("--items", nargs="+")
@@ -353,6 +392,10 @@ def main():
             result = step_plan(table)
         elif args.command == "coordinate":
             result = coordinator_request(table, args.step)
+            code, message = entry_check(table, args.step, args.state)
+            if code != EXIT_OK:
+                print(message, file=sys.stderr)
+                return code
         elif args.command == "assign":
             result = assignments(table, args.role, args.items)
         elif args.command == "rerun":

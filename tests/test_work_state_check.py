@@ -1251,17 +1251,25 @@ class TestIntersectionState:
             == 1
         )
 
-    def test_checkpoint_accepts_not_viable_result(
+    def test_not_viable_result_returns_to_granularity(
         self, run_script, intersection_state, selection_state
     ):
-        """不成立の確認記録も記録として検査し、題材探索以降では成立を求める。"""
+        """不成立の確認記録は、確認の段階でも題材探索以降でも粒度判断へ戻す。"""
         intersection_state["intersection_review"]["result"] = "not_viable"
         result = check_state(run_script, "intersection-checkpoint", intersection_state)
-        assert result.returncode == 0
+        assert result.returncode == 3
+        assert "粒度判断へ戻る: 交差領域の確認担当" in result.stderr
         selection_state["intersection_review"]["result"] = "not_viable"
-        result = check_state(run_script, "discovery", selection_state)
+        assert check_state(run_script, "discovery", selection_state).returncode == 3
+
+    def test_invalid_not_viable_record_is_rejected(
+        self, run_script, intersection_state
+    ):
+        """不成立の確認記録でも、記録に不備があれば不合格にする。"""
+        intersection_state["intersection_review"]["result"] = "not_viable"
+        del intersection_state["coverage_areas"]
+        result = check_state(run_script, "intersection-checkpoint", intersection_state)
         assert result.returncode == 1
-        assert "4軸の交差領域の独立確認が合格していない" in result.stderr
 
 
 class TestDiscoveryProgressState:
@@ -1418,13 +1426,14 @@ class TestSelectionState:
         )
 
     def test_not_convergent_breadth_reports_return(self, run_script, selection_state):
-        """反証調査が粒度判断へ戻ると判断した探索状態は、その判断として不合格にする。"""
+        """反証調査が粒度判断へ戻ると判断した探索状態は、探索が途中でも粒度判断へ戻す。"""
         selection_state["saturation_challenge"].update(
             breadth="not_convergent", resolved=False
         )
+        selection_state["saturated"] = False
         result = check_state(run_script, "discovery", selection_state)
-        assert result.returncode == 1
-        assert "粒度判断へ戻ると判断している" in result.stderr
+        assert result.returncode == 3
+        assert "粒度判断へ戻る: 探索完了の反証調査担当" in result.stderr
 
     def test_every_area_needs_exploration_assignment(self, run_script, selection_state):
         """下位領域ごとに題材探索担当を割り当てる。"""

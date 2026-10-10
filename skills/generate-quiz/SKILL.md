@@ -52,7 +52,7 @@ argument-hint: <作問条件（主題・問題数・文字数・履歴など。�
   - 作業状態の構造検査：`scripts/work_state_check.py`
 - `python3`の実行に失敗したら再試行する。再試行でも失敗した場合は作問を中止する。ユーザーが明示的に許可した場合だけ、重み付き選択を代替できる。乱数シードは設定・表示しない。
 
-各スクリプトの終了コードは、`0`が正常、`1`が候補なし・改稿・状態修正が必要、`2`が入力や呼出しの不備である。`2`では呼出し方を修正して再実行する。
+各スクリプトの終了コードは、`0`が正常、`1`が改稿・状態修正が必要、`2`が入力や呼出しの不備、`3`が粒度判断へ戻る（交差領域の不成立、探索の未収束、抽選できる候補がない）である。`2`では呼出し方を修正して再実行する。`3`では作問を止めず、`references/workflow_spec.md`の「粒度判断へ戻る」節に従う。
 
 # スクリプトの呼出し
 
@@ -60,7 +60,7 @@ argument-hint: <作問条件（主題・問題数・文字数・履歴など。�
 
 ```bash
 python3 "$SKILL_DIR/scripts/assignment_plan.py" steps
-python3 "$SKILL_DIR/scripts/assignment_plan.py" coordinate 3
+python3 "$SKILL_DIR/scripts/assignment_plan.py" coordinate 3 --state state.json
 python3 "$SKILL_DIR/scripts/assignment_plan.py" assign exploration
 python3 "$SKILL_DIR/scripts/assignment_plan.py" rerun writer
 python3 "$SKILL_DIR/scripts/assignment_plan.py" fix propositions proposition_support

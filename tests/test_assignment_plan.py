@@ -313,6 +313,48 @@ class TestRequests:
         assert "入力エラー" in result.stderr
 
 
+class TestEntryCheck:
+    """統括役を起動する前に、前のステップの検査を行うことを確認する。"""
+
+    def test_coordinate_requires_state_after_step_one(self, run_script):
+        """前のステップの検査を定めたステップでは、状態ファイルを求める。"""
+        result = run_script("assignment_plan.py", "coordinate", "3")
+        assert result.returncode == 2
+        assert "--stateで状態ファイルが必要" in result.stderr
+
+    def test_coordinate_returns_when_intersection_is_not_viable(
+        self, run_script, tmp_path, selection_state
+    ):
+        """交差領域が不成立なら、題材探索の統括役の依頼文を出さず粒度判断へ戻す。"""
+        selection_state["intersection_review"]["result"] = "not_viable"
+        path = tmp_path / "selection.json"
+        path.write_text(json.dumps(selection_state, ensure_ascii=False))
+        result = run_script("assignment_plan.py", "coordinate", "3", "--state", path)
+        assert result.returncode == 3
+        assert "粒度判断へ戻る" in result.stderr
+        assert result.stdout == ""
+
+    def test_coordinate_returns_when_discovery_is_not_convergent(
+        self, run_script, tmp_path, selection_state
+    ):
+        """探索が未収束なら、抽選前の予備検査の統括役の依頼文を出さない。"""
+        selection_state["saturation_challenge"]["breadth"] = "not_convergent"
+        path = tmp_path / "selection.json"
+        path.write_text(json.dumps(selection_state, ensure_ascii=False))
+        result = run_script("assignment_plan.py", "coordinate", "4", "--state", path)
+        assert result.returncode == 3
+
+    def test_coordinate_outputs_request_after_passed_check(
+        self, run_script, tmp_path, selection_state
+    ):
+        """前のステップの検査に合格したら、依頼文を出力する。"""
+        path = tmp_path / "selection.json"
+        path.write_text(json.dumps(selection_state, ensure_ascii=False))
+        result = run_script("assignment_plan.py", "coordinate", "3", "--state", path)
+        assert result.returncode == 0
+        assert json.loads(result.stdout)["agent"] == "generate-quiz:step03_coordinator"
+
+
 class TestRerun:
     """修正時に再実行する担当の判定を確認する。"""
 

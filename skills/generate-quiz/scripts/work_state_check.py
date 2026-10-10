@@ -9,6 +9,7 @@ target-start、difficulty-gate、writing、review、material、finalのいずれ
     0  指定工程の条件を満たす
     1  読み込んだ状態が構造または指定工程の条件を満たさない
     2  JSONを読めない、または引数が不正
+    3  担当が粒度判断へ戻ると判断している（交差領域の不成立、探索の未収束）
 
 使用例:
     python3 work_state_check.py --stage selection selection.json
@@ -190,11 +191,15 @@ MIN_COVERAGE_AREAS = 2
 MIN_EXPRESSION_ALTERNATIVES = 2
 MIN_INTERSECTION_EXAMPLES = 2
 MIN_SUBDIVISION_CHILDREN = 2
-EXIT_OK, EXIT_STATE_INVALID, EXIT_USAGE = 0, 1, 2
+EXIT_OK, EXIT_STATE_INVALID, EXIT_USAGE, EXIT_RETURN = 0, 1, 2, 3
 
 
 class StateError(ValueError):
     pass
+
+
+class GranularityReturnError(Exception):
+    """担当の判断により、粒度判断へ戻る必要があることを表す。"""
 
 
 def require_condition(ok, msg):
@@ -554,8 +559,8 @@ def validate_facet_selection(state):
     validate_reviews(state, "facet_distribution_reviews", sorted(descended), "level_id")
 
 
-def validate_intersection_state(state, *, allow_not_viable=False):
-    """4軸の選択と交差領域の確認記録を検査する。"""
+def validate_intersection_state(state):
+    """4軸の選択と交差領域の確認記録を検査し、不成立なら粒度判断へ戻す。"""
     nodes = state.get("facet_nodes")
     require_condition(
         isinstance(nodes, dict) and set(nodes) == {"subject", "place", "time", "type"},
@@ -620,10 +625,13 @@ def validate_intersection_state(state, *, allow_not_viable=False):
         "intersection_reviewに初級学習資料で確認した候補例がない",
     )
     required_text(review, "scope_reason", "intersection_review")
-    results = {"viable", "not_viable"} if allow_not_viable else {"viable"}
+    result = review.get("result")
     require_condition(
-        review.get("result") in results, "4軸の交差領域の独立確認が合格していない"
+        result in {"viable", "not_viable"}, "intersection_review.resultが不正である"
     )
+    if result == "not_viable":
+        msg = "交差領域の確認担当が、交差領域は成立しないと判断している"
+        raise GranularityReturnError(msg)
 
 
 def validate_selection_entries_areas(state, *, complete=True):
@@ -1049,10 +1057,6 @@ def validate_selection_review(state, areas, candidates, entry_ids):
         breadth in {"convergent", "not_convergent"},
         "saturation_challenge.breadthが不正である",
     )
-    require_condition(
-        breadth == "convergent",
-        "反証調査担当が、飽和する見込みがないとして粒度判断へ戻ると判断している",
-    )
     require_condition(challenge.get("resolved") is True, "反証調査の結果が未処理である")
     core = challenge.get("core_check")
     require_condition(isinstance(core, dict), "saturation_challenge.core_checkがない")
@@ -1085,6 +1089,10 @@ def validate_discovery_progress(state):
 
 def validate_selection_state(state, stage):
     validate_intersection_state(state)
+    challenge = state.get("saturation_challenge")
+    if isinstance(challenge, dict) and challenge.get("breadth") == "not_convergent":
+        msg = "探索完了の反証調査担当が、選択対象が飽和する見込みがないと判断している"
+        raise GranularityReturnError(msg)
     _, entry_ids, areas, area_ids = validate_selection_entries_areas(state)
     candidates, candidate_ids = validate_selection_candidates(
         state, entry_ids, areas, area_ids
@@ -2720,7 +2728,7 @@ def main():
             validate_facet_selection(state)
             validate_facet_execution(state)
         elif args.stage == "intersection-checkpoint":
-            validate_intersection_state(state, allow_not_viable=True)
+            validate_intersection_state(state)
             validate_execution_assignments(state, args.stage)
         elif args.stage == "discovery-progress":
             validate_discovery_progress(state)
@@ -2755,6 +2763,9 @@ def main():
     except StateError as error:
         print(f"不合格: {error}", file=sys.stderr)
         return EXIT_STATE_INVALID
+    except GranularityReturnError as reason:
+        print(f"粒度判断へ戻る: {reason}", file=sys.stderr)
+        return EXIT_RETURN
     print("状態の形式と参照関係の検査に合格")
     return EXIT_OK
 

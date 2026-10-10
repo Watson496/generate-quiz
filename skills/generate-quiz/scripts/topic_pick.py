@@ -9,8 +9,9 @@
 
 終了コード:
     0  1件を抽選した
-    1  探索状態が不合格、または抽選可能な候補が残っていない
+    1  探索状態が不合格
     2  JSONを読めない、または--excludeが品質棄却記録と一致しない
+    3  抽選できる候補が残っていない、または担当が粒度判断へ戻ると判断している
 
 使用例:
     python3 topic_pick.py selection.json
@@ -25,7 +26,7 @@ from pathlib import Path
 import weighted_pick
 import work_state_check
 
-EXIT_SELECTION_BLOCKED, EXIT_USAGE = 1, 2
+EXIT_SELECTION_BLOCKED, EXIT_USAGE, EXIT_RETURN = 1, 2, 3
 
 
 def pick_candidates(state):
@@ -87,14 +88,17 @@ def main():
     except work_state_check.StateError as error:
         print(f"不合格: {error}", file=sys.stderr)
         return EXIT_SELECTION_BLOCKED
+    except work_state_check.GranularityReturnError as reason:
+        print(f"粒度判断へ戻る: {reason}", file=sys.stderr)
+        return EXIT_RETURN
 
     error = validate_exclusions(state, args.exclude)
     if error:
         print(f"入力エラー: {error}", file=sys.stderr)
         return EXIT_USAGE
     if len(args.exclude) == len(work_state_check.pickable_candidate_ids(state)):
-        print("候補なし: 抽選可能な候補が残っていない", file=sys.stderr)
-        return EXIT_SELECTION_BLOCKED
+        print("粒度判断へ戻る: 抽選できる候補が残っていない", file=sys.stderr)
+        return EXIT_RETURN
 
     weighted_pick.choose(
         [item for item in pick_candidates(state) if item["key"] not in args.exclude]

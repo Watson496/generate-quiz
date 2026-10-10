@@ -11,7 +11,7 @@
     "facet_distribution_reviews": "ファセットのweightの分布全体の検査結果",
     "facet_picks": "ファセットの各階層の抽選結果",
     "facet_scope": "選んだ4軸の分類経路と範囲（facet_node.py --scopeの出力）",
-    "granularity_return": "粒度判断へ戻った場合の、戻った理由の記録（交差領域の確認記録、または探索完了の反証調査の記録）",
+    "granularity_return": "粒度判断へ戻った場合の、戻りの種類、戻りの記録の場所、理由（交差領域の確認記録、探索完了の反証調査の記録、または抽選できる候補が残っていないときの題材候補の探索状態）",
     "facet_nodes": "選択した4軸のノード",
     "intersection_review": "交差領域の確認記録",
     "coverage_areas": "探索する下位領域と、下位領域ごとの探索記録",
@@ -154,6 +154,7 @@
     },
     {
       "name": "交差領域の確認",
+      "entry_check": "facet-selection",
       "roles": [
         {
           "id": "intersection",
@@ -179,6 +180,7 @@
     },
     {
       "name": "題材探索",
+      "entry_check": "intersection-checkpoint",
       "roles": [
         {
           "id": "exploration",
@@ -226,6 +228,7 @@
     },
     {
       "name": "抽選前の予備検査",
+      "entry_check": "discovery",
       "roles": [
         {
           "id": "membership",
@@ -253,6 +256,7 @@
     },
     {
       "name": "題材候補のweightと抽選",
+      "entry_check": "screening",
       "roles": [
         {
           "id": "topic_grouping",
@@ -319,6 +323,7 @@
     },
     {
       "name": "抽選後の予備判定",
+      "entry_check": "selection",
       "roles": [
         {
           "id": "prejudgment_scope",
@@ -364,6 +369,7 @@
     },
     {
       "name": "素材の調査",
+      "entry_check": "prejudgment",
       "roles": [
         {
           "id": "name_research",
@@ -495,6 +501,7 @@
     },
     {
       "name": "検査",
+      "entry_check": "writing",
       "roles": [
         {
           "id": "structure_review",
@@ -721,6 +728,7 @@
     },
     {
       "name": "最終出力",
+      "entry_check": "review",
       "roles": [
         {
           "id": "material_writer",
