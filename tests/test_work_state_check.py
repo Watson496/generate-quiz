@@ -962,7 +962,7 @@ class TestFacetSubdivision:
         ][:1]
         result = check_state(run_script, "facet-selection", facet_state)
         assert result.returncode == 1
-        assert "子へ進んでいないノードの細分がある" in result.stderr
+        assert "子へ進んでいないノードの細分" in result.stderr
 
     def test_rejects_history_distance_of_child(
         self, run_script, subdivided_facet_state
@@ -1006,6 +1006,54 @@ class TestFacetSubdivision:
         result = check_state(run_script, "intersection-checkpoint", intersection_state)
         assert result.returncode == 1
         assert "facet_nodes.subjectがカタログにも細分にも存在しない" in result.stderr
+
+
+class TestFacetGrouping:
+    """狭すぎた子と広すぎた親のあいだの中間の区分を検査する。"""
+
+    def test_group_containing_narrow_child_passes(
+        self, run_script, grouped_facet_state
+    ):
+        """狭すぎた子を含むまとまりを選んだ状態を受け付ける。"""
+        result = check_state(run_script, "facet-selection", grouped_facet_state)
+        assert result.returncode == 0, result.stderr
+
+    def test_group_must_contain_narrow_child(self, run_script, grouped_facet_state):
+        """狭すぎた子を含まないまとまりを選ばない。"""
+        level = next(
+            item
+            for item in grouped_facet_state["facet_levels"]
+            if item.get("decision") == "group"
+        )
+        level["narrow_key"] = "place::(53)"
+        result = check_state(run_script, "facet-selection", grouped_facet_state)
+        assert result.returncode == 1
+        assert "narrow_keyが選んだまとまりに含まれない" in result.stderr
+
+    def test_groups_must_cover_children_without_overlap(
+        self, run_script, grouped_facet_state
+    ):
+        """まとまりは親の子を重ならずに覆う。"""
+        groups = grouped_facet_state["facet_subdivisions"][0]["children"]
+        groups[1]["members"] = groups[1]["members"][1:]
+        result = check_state(run_script, "facet-selection", grouped_facet_state)
+        assert result.returncode == 1
+        assert "親の子を重ならずに覆っていない" in result.stderr
+
+    def test_grouping_needs_review(self, run_script, grouped_facet_state):
+        """中間の区分の分け方の検査を要求する。"""
+        grouped_facet_state["facet_subdivision_reviews"] = []
+        result = check_state(run_script, "facet-selection", grouped_facet_state)
+        assert result.returncode == 1
+
+    def test_scope_lists_group_members(self, run_script, tmp_path, grouped_facet_state):
+        """選んだまとまりの範囲として、まとまりに入る子を示す。"""
+        path = tmp_path / "facet.json"
+        path.write_text(json.dumps(grouped_facet_state, ensure_ascii=False))
+        result = run_script("facet_node.py", "--scope", path)
+        assert result.returncode == 0
+        assert "アジア ＞ 東アジア" in result.stdout
+        assert "朝鮮" in result.stdout
 
 
 class TestFacetSelectionState:

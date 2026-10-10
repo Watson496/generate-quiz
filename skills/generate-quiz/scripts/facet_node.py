@@ -164,7 +164,14 @@ def scope_lines(key, subdivisions):
     if not derived and is_unrestricted(key):
         return [*lines, "- 範囲：限定なし"]
     lines.append(f"- 分類経路：{path}")
-    if derived:
+    if derived and "members" in derived[-1]:
+        lines.append("- 範囲：")
+        for member in derived[-1]["members"]:
+            _, member_block = find_block(member)
+            label = block_field(member_block or [], "LABEL") or member
+            including = block_including(member_block) if member_block else None
+            lines.append(f"  - {label}" + (f"：{including}" if including else ""))
+    elif derived:
         lines.append(f"- 範囲：{derived[-1]['scope']}")
     elif (including := block_including(block)) is not None:
         lines.append(f"- 範囲：{including}")

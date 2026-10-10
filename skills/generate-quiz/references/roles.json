@@ -4,7 +4,7 @@
     "history": "確定済み履歴またはその保存先",
     "facet_levels": "ファセットの各階層の粒度判断",
     "facet_weights": "ファセットの兄弟ノードのweightと、候補ごとの三観点の評価と根拠",
-    "facet_subdivisions": "subjectのカタログの最下層より下の細分",
+    "facet_subdivisions": "subjectのカタログの最下層より下の細分と、狭すぎた子と広すぎた親のあいだの中間の区分",
     "facet_level_reviews": "ファセットの粒度判断の検査結果",
     "facet_subdivision_reviews": "ファセットの細分の検査結果",
     "facet_weight_reviews": "ファセットのweightの検査結果",
@@ -126,7 +126,7 @@
           "side": "check",
           "section": "ファセット選択",
           "specs": ["selection_and_history_spec.md", "facet_index.md", "work_state_spec.md"],
-          "rules": [{"spec": "selection_and_history_spec.md", "heading": "2.1 カタログの最下層より下の細分"}],
+          "rules": [{"spec": "selection_and_history_spec.md", "heading": "2.1 カタログの最下層より下の細分"}, {"spec": "selection_and_history_spec.md", "heading": "2.2 狭すぎた子と広すぎた親のあいだの区分"}],
           "inputs": [["user_conditions", "facet_levels", "facet_subdivisions", "facet_picks", "source_cache"]],
           "outputs": ["facet_subdivision_reviews"]
         },

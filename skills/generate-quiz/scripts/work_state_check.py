@@ -385,7 +385,11 @@ def validate_facet_weights(item, node, children, name, *, derived):
 
 
 def validate_facet_subdivisions(state):
-    """カタログの最下層より下の細分が、subjectの最下層または細分した区分を親とし、根拠と範囲を持つことを検査し、親ごとの細分を返す。"""
+    """細分と中間の区分の記録を検査し、親ごとの記録を返す。
+
+    細分（kindなし）は、subjectの最下層または細分した区分を親とし、根拠と範囲を持つ。
+    中間の区分（kindがgrouping）は、親の子を重ならずに覆うまとまりに分ける。
+    """
     records = required_list(state.get("facet_subdivisions", []), "facet_subdivisions")
     subdivisions = {}
     for index, item in enumerate(records):
@@ -395,6 +399,10 @@ def validate_facet_subdivisions(state):
         )
         parent = required_text(item, "parent", name)
         require_condition(parent not in subdivisions, f"{name}.parentが重複している")
+        if item.get("kind") == "grouping":
+            validate_facet_grouping(item, name, subdivisions)
+            subdivisions[parent] = item
+            continue
         derived = {
             child["key"]
             for record in subdivisions.values()
@@ -435,6 +443,57 @@ def validate_facet_subdivisions(state):
     return subdivisions
 
 
+def validate_facet_grouping(item, name, subdivisions):
+    """中間の区分が、根拠を持ち、親の子を重ならずに覆う二つ以上のまとまりであることを検査する。"""
+    parent = item["parent"]
+    members_of_parent = facet_children(parent, subdivisions)
+    require_condition(
+        len(members_of_parent) > MIN_SUBDIVISION_CHILDREN,
+        f"{name}.parentに中間の区分を作れるだけの子がない",
+    )
+    required_text(item, "basis", name)
+    urls = required_id_list(
+        item.get("source_urls"), f"{name}.source_urls", nonempty=True
+    )
+    require_condition(
+        all(is_url(url) for url in urls), f"{name}.source_urlsにURLでない値がある"
+    )
+    groups = required_list(item.get("children"), f"{name}.children")
+    require_condition(
+        MIN_SUBDIVISION_CHILDREN <= len(groups) < len(members_of_parent),
+        f"{name}.childrenが二つ以上、親の子より少ない数のまとまりではない",
+    )
+    covered = []
+    for position, group in enumerate(groups, 1):
+        gname = f"{name}.children[{position - 1}]"
+        require_condition(
+            isinstance(group, dict), f"{gname}はオブジェクトでなければならない"
+        )
+        key = f"{parent}~{position}"
+        require_condition(group.get("key") == key, f"{gname}.keyが{key}ではない")
+        required_text(group, "label", gname)
+        members = required_id_list(
+            group.get("members"), f"{gname}.members", nonempty=True
+        )
+        covered.extend(members)
+    require_condition(
+        sorted(covered) == sorted(members_of_parent),
+        f"{name}のまとまりが親の子を重ならずに覆っていない",
+    )
+
+
+def facet_children(key, subdivisions):
+    """ノードの子を返す。細分した区分と中間の区分では、その記録から返す。"""
+    for record in subdivisions.values():
+        for child in record["children"]:
+            if child["key"] == key and "members" in child:
+                return list(child["members"])
+    record = subdivisions.get(key)
+    if record is not None and record.get("kind") != "grouping":
+        return [child["key"] for child in record["children"]]
+    return facet_node.child_keys(key) or []
+
+
 def facet_node_exists(key, subdivisions):
     return facet_node.find_block(key)[1] is not None or any(
         child["key"] == key
@@ -452,39 +511,35 @@ def through_single_children(key):
     return key, passed
 
 
+def records_by_level(state, key):
+    """階層ごとに一件の記録を、階層のIDから引ける形で返す。"""
+    records = {}
+    for index, item in enumerate(required_list(state.get(key), key)):
+        name = f"{key}[{index}]"
+        require_condition(
+            isinstance(item, dict), f"{name}はオブジェクトでなければならない"
+        )
+        level_id = required_text(item, "level_id", name)
+        require_condition(level_id not in records, f"{name}.level_idが重複している")
+        records[level_id] = item
+    return records
+
+
 def validate_facet_selection(state):
     """4軸の各階層の粒度判断、weight、抽選結果が一続きになっていることを検査する。"""
     levels, _ = records_with_ids(
         state.get("facet_levels"), "facet_levels", nonempty=True
     )
-    weights = required_list(state.get("facet_weights"), "facet_weights")
-    picks = required_list(state.get("facet_picks"), "facet_picks")
-    weights_by_level = {}
-    for index, item in enumerate(weights):
-        name = f"facet_weights[{index}]"
-        require_condition(
-            isinstance(item, dict), f"{name}はオブジェクトでなければならない"
-        )
-        level_id = required_text(item, "level_id", name)
-        require_condition(
-            level_id not in weights_by_level, f"{name}.level_idが重複している"
-        )
-        weights_by_level[level_id] = item
-    picks_by_level = {}
-    for index, item in enumerate(picks):
-        name = f"facet_picks[{index}]"
-        require_condition(
-            isinstance(item, dict), f"{name}はオブジェクトでなければならない"
-        )
-        level_id = required_text(item, "level_id", name)
-        require_condition(
-            level_id not in picks_by_level, f"{name}.level_idが重複している"
-        )
-        picks_by_level[level_id] = required_text(item, "key", name)
+    weights_by_level = records_by_level(state, "facet_weights")
+    picks_by_level = {
+        level_id: required_text(item, "key", f"facet_picks.{level_id}")
+        for level_id, item in records_by_level(state, "facet_picks").items()
+    }
     nodes = state.get("facet_nodes")
     require_condition(isinstance(nodes, dict), "facet_nodesがない")
     subdivisions = validate_facet_subdivisions(state)
     subdivided = {}
+    grouped = {}
     axes = iter(FACET_AXES)
     axis = next(axes)
     expected, passed = through_single_children(f"{axis}::ROOT")
@@ -506,8 +561,13 @@ def validate_facet_selection(state):
         required_text(level, "reason", name)
         decision = level.get("decision")
         require_condition(
-            decision in {"descend", "stop"}, f"{name}.decisionが不正である"
+            decision in {"descend", "stop", "group"}, f"{name}.decisionが不正である"
         )
+        if decision == "group":
+            expected = validate_group_level(level, name, expected, subdivisions)
+            grouped[level["id"]] = expected
+            passed = []
+            continue
         if decision == "stop":
             require_condition(
                 nodes.get(axis) == expected,
@@ -516,13 +576,14 @@ def validate_facet_selection(state):
             axis = next(axes, None)
             expected, passed = through_single_children(f"{axis}::ROOT")
             continue
-        children = facet_node.child_keys(expected)
-        if not children:
+        children = facet_children(expected, subdivisions)
+        if not facet_node.child_keys(expected) and expected not in set(
+            grouped.values()
+        ):
             require_condition(
                 expected in subdivisions, f"{name}で細分せずに最下層から子へ進んでいる"
             )
             subdivided[expected] = level["id"]
-            children = [child["key"] for child in subdivisions[expected]["children"]]
         require_condition(
             level["id"] in weights_by_level, f"{name}の兄弟ノードのweightがない"
         )
@@ -546,19 +607,44 @@ def validate_facet_selection(state):
         "子へ進まない階層にweightまたは抽選結果がある",
     )
     require_condition(set(nodes) == set(FACET_AXES), "facet_nodesに4軸がない")
+    grouping_parents = {key.rsplit("~", 1)[0] for key in grouped.values()}
     require_condition(
-        set(subdivisions) == set(subdivided), "子へ進んでいないノードの細分がある"
+        set(subdivisions) == set(subdivided) | grouping_parents,
+        "子へ進んでいないノードの細分か、使っていない中間の区分がある",
     )
-    if subdivided or state.get("facet_subdivision_reviews"):
-        validate_reviews(
-            state, "facet_subdivision_reviews", sorted(subdivided.values()), "level_id"
-        )
+    divided_levels = sorted({*subdivided.values(), *grouped})
+    if divided_levels or state.get("facet_subdivision_reviews"):
+        validate_reviews(state, "facet_subdivision_reviews", divided_levels, "level_id")
     validate_reviews(
         state, "facet_level_reviews", [level["id"] for level in levels], "level_id"
     )
     validate_reviews(state, "facet_weight_reviews", sorted(descended), "level_id")
     validate_reviews(state, "facet_distribution_reviews", sorted(descended), "level_id")
     validate_granularity_returns(state, levels)
+
+
+def validate_group_level(level, name, node, subdivisions):
+    """中間の区分を選んだ階層が、狭すぎた子を含むまとまりを選んでいることを検査し、そのまとまりのキーを返す。"""
+    record = subdivisions.get(node)
+    require_condition(
+        record is not None and record.get("kind") == "grouping",
+        f"{name}の中間の区分の記録がない",
+    )
+    group_key = required_text(level, "group_key", name)
+    group = next(
+        (child for child in record["children"] if child["key"] == group_key), None
+    )
+    require_condition(group is not None, f"{name}.group_keyが中間の区分にない")
+    narrow = required_text(level, "narrow_key", name)
+    require_condition(
+        narrow in group["members"], f"{name}.narrow_keyが選んだまとまりに含まれない"
+    )
+    require_condition(
+        len(group["members"]) >= MIN_SUBDIVISION_CHILDREN,
+        f"{name}で選んだまとまりが狭すぎた子だけからなる",
+    )
+    require_condition("return_id" in level, f"{name}に戻りのIDがない")
+    return group_key
 
 
 def validate_granularity_returns(state, levels):

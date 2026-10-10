@@ -220,6 +220,87 @@ def subdivided_facet_state(load_script):
     return state
 
 
+EAST_ASIA = [
+    "place::(510)",
+    "place::(512.317)",
+    "place::(512.318)",
+    "place::(515)",
+    "place::(517.9)",
+    "place::(519)",
+    "place::(52)",
+]
+
+
+@pytest.fixture
+def grouped_facet_state(load_script):
+    """朝鮮で狭すぎ、アジアで広すぎた後、アジアの子の中間の区分から東アジアを選んだ状態を作る。"""
+    facet_node = load_script("generate-quiz", "facet_node.py")
+    place = ["place::(1/9)", "place::(3/9)", "place::(4/9)", "place::(5)"]
+    state = build_facet_state(facet_node, {"place": place})
+    others = [
+        key for key in facet_node.child_keys("place::(5)") if key not in EAST_ASIA
+    ]
+    state["facet_subdivisions"] = [
+        {
+            "parent": "place::(5)",
+            "kind": "grouping",
+            "basis": "地域区分の資料がアジアを東アジアとそれ以外の地域に分ける",
+            "source_urls": ["https://example.org/regions"],
+            "children": [
+                {"key": "place::(5)~1", "label": "東アジア", "members": EAST_ASIA},
+                {"key": "place::(5)~2", "label": "東アジア以外", "members": others},
+            ],
+        }
+    ]
+    level = next(item for item in state["facet_levels"] if item["node"] == "place::(5)")
+    level.update(
+        decision="group",
+        group_key="place::(5)~1",
+        narrow_key="place::(519)",
+        return_id="R2",
+    )
+    position = state["facet_levels"].index(level)
+    group_level = {
+        "id": "F-group",
+        "axis": "place",
+        "node": "place::(5)~1",
+        "decision": "stop",
+        "return_id": "R2",
+        "reason": "東アジアで止める",
+    }
+    state["facet_levels"].insert(position + 1, group_level)
+    state["facet_level_reviews"].append(
+        {"level_id": "F-group", "status": "passed", "reason": "東アジアで止める判断"}
+    )
+    state["facet_nodes"]["place"] = "place::(5)~1"
+    state["facet_subdivision_reviews"] = [
+        {"level_id": level["id"], "status": "passed", "reason": "子を重ならずに覆う"}
+    ]
+    state["granularity_returns"] = [
+        {
+            "id": "R1",
+            "kind": "exhausted",
+            "ref": "q001/030-step05/state.selection.json",
+            "reason": "朝鮮で抽選できる候補が残っていない",
+        },
+        {
+            "id": "R2",
+            "kind": "intersection",
+            "ref": "q001/032-step02/intersection.json",
+            "reason": "アジアでは広すぎて探索しきれない",
+        },
+    ]
+    state["execution"]["assignments"].append(
+        {
+            "role": "facet_subdivision_review",
+            "agent": "generate-quiz:facet_subdivision_review",
+            "agent_id": "agent-subdivision-review",
+            "artifact_refs": ["facet_subdivision_review.json"],
+        }
+    )
+    return state
+
+
 @pytest.fixture
 def intersection_state():
     """4軸の交差領域の成立性を確認した状態を作る。"""
