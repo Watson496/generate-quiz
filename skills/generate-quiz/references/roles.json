@@ -285,8 +285,8 @@
           "side": "make",
           "section": "題材候補のweightと抽選",
           "specs": ["selection_and_history_spec.md", "work_state_spec.md"],
-          "rules": [{"spec": "selection_and_history_spec.md", "heading": "4. 基礎local weight"}, {"spec": "selection_and_history_spec.md", "heading": "5. 履歴補正"}],
-          "inputs": [["history", "ledger", "topic_groups", "source_cache"]],
+          "rules": [{"spec": "selection_and_history_spec.md", "heading": "4. 基礎local weight"}],
+          "inputs": [["ledger", "topic_groups", "source_cache"]],
           "outputs": ["group_weights"]
         },
         {
@@ -295,7 +295,7 @@
           "side": "make",
           "section": "題材候補のweightと抽選",
           "specs": ["selection_and_history_spec.md", "work_state_spec.md"],
-          "rules": [{"spec": "selection_and_history_spec.md", "heading": "4. 基礎local weight"}, {"spec": "selection_and_history_spec.md", "heading": "5. 履歴補正"}],
+          "rules": [{"spec": "selection_and_history_spec.md", "heading": "4. 基礎local weight"}, {"spec": "selection_and_history_spec.md", "heading": "9. 顕著な対象の再出現"}],
           "inputs": [["history", "ledger", "topic_groups", "source_cache"]],
           "outputs": ["candidate_weights"],
           "split_size": 1
@@ -306,7 +306,7 @@
           "side": "check",
           "section": "題材候補のweightと抽選",
           "specs": ["selection_and_history_spec.md", "work_state_spec.md"],
-          "rules": [{"spec": "selection_and_history_spec.md", "heading": "4. 基礎local weight"}, {"spec": "selection_and_history_spec.md", "heading": "5. 履歴補正"}, {"spec": "work_state_spec.md", "heading": "検査結果"}],
+          "rules": [{"spec": "selection_and_history_spec.md", "heading": "4. 基礎local weight"}, {"spec": "selection_and_history_spec.md", "heading": "9. 顕著な対象の再出現"}, {"spec": "work_state_spec.md", "heading": "検査結果"}],
           "inputs": [["history", "ledger", "topic_groups", "group_weights", "candidate_weights", "source_cache"]],
           "outputs": ["topic_weight_reviews"]
         },
