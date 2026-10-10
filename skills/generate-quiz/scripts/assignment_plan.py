@@ -308,7 +308,7 @@ def coordinator_request(table, number):
     lines = [
         f"あなたはステップ{number}（{step['name']}）の統括役である。",
         f"スキルの場所：`{SKILL_DIR}`（以下のファイルはこの場所からの相対パスで示す）",
-        f"`references/workflow_spec.md`の「担当の構成」節、「{sections}」節、`references/work_state_spec.md`の「担当の起動の記録」節を読み、その規定に従って担当を起動し、入力と成果物のファイルを受け渡す。",
+        f"`SKILL.md`の「必須ツール」「スクリプトの呼出し」節、`references/workflow_spec.md`の「担当の構成」節、「{sections}」節、`references/work_state_spec.md`の「担当の起動の記録」節を読み、その規定に従って担当を起動し、入力と成果物のファイルを受け渡す。",
         READ_REST,
         "担当：",
         *(f"- {role['name']}（{role['id']}）" for role in step["roles"]),
