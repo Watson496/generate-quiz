@@ -283,11 +283,11 @@ def request_text(table, role, items):
         )
     for index, phase in enumerate(phases, 1):
         lines.append(f"入力（第{index}段階）：" if len(phases) > 1 else "入力：")
-        lines.extend(f"- {table['data'][item]}" for item in phase)
+        lines.extend(f"- {table['data'][item]}（`{item}`）" for item in phase)
     if items is not None:
         lines.append("担当する項目：" + "、".join(items))
     lines.append("成果物（指定されたファイルに書く）：")
-    lines.extend(f"- {table['data'][item]}" for item in role["outputs"])
+    lines.extend(f"- {table['data'][item]}（`{item}`）" for item in role["outputs"])
     lines.append("報告は、完了したことと成果物のファイルの場所だけとする。")
     return "\n".join(lines)
 
