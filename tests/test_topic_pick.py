@@ -88,6 +88,20 @@ class TestTopicPick:
         assert result.returncode == 0
         assert result.stdout.startswith("CHOSEN\tK2")
 
+    def test_pick_writes_only_chosen_candidate_record(
+        self, run_script, tmp_path, selection_state
+    ):
+        """抽選した候補の台帳の記録だけを書き出し、ほかの候補の棄却の理由を含めない。"""
+        selection_state["candidates"][0]["quality_rejection_reason"] = "難易度が不適合"
+        output = tmp_path / "picked.json"
+        result = self.pick(
+            run_script, tmp_path, selection_state, "--exclude", "K1", "--output", output
+        )
+        assert result.returncode == 0
+        picked = json.loads(output.read_text(encoding="utf-8"))["picked_candidate"]
+        assert picked["id"] == "K2"
+        assert "難易度が不適合" not in output.read_text(encoding="utf-8")
+
     def test_pick_requires_recorded_exclusion(
         self, run_script, tmp_path, selection_state
     ):

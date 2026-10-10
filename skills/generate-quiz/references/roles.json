@@ -31,7 +31,7 @@
     "prejudgment_membership": "抽選した候補の、名称が第一義に指す対象の所属の予備判定",
     "prejudgment_difficulty": "抽選した候補の、難易度帯の見込みの予備判定",
     "prejudgment_otoshi": "抽選した候補の、落としを作れる見込みの予備判定",
-    "picked_candidate": "抽選した候補",
+    "picked_candidate": "抽選した候補の台帳の記録（topic_pick.py --outputが書き出す）",
     "research_requests": "作文担当から調査担当への依頼",
     "answer_target": "解答対象と、抽選した場合の四軸の日本語の分類経路と履歴補正の適用結果",
     "source_cache": "資料の写しの置き場（依頼全体で一つ。source_cache.pyで使う）",
@@ -332,7 +332,7 @@
           "section": "抽選後の予備判定",
           "specs": ["selection_and_history_spec.md", "quiz_generation_spec.md", "work_state_spec.md"],
           "rules": [{"spec": "selection_and_history_spec.md", "heading": "7. 題材品質ゲート", "subsections": false}, {"spec": "quiz_generation_spec.md", "heading": "1. 目的"}],
-          "inputs": [["user_conditions", "picked_candidate", "ledger", "source_cache"]],
+          "inputs": [["user_conditions", "picked_candidate", "source_cache"]],
           "outputs": ["prejudgment_scope"]
         },
         {
@@ -342,7 +342,7 @@
           "section": "抽選後の予備判定",
           "specs": ["selection_and_history_spec.md", "facet_index.md", "work_state_spec.md"],
           "rules": [{"spec": "selection_and_history_spec.md", "heading": "7. 題材品質ゲート", "subsections": false}, {"spec": "selection_and_history_spec.md", "heading": "1. 目的と基本モデル"}],
-          "inputs": [["facet_nodes", "facet_subdivisions", "facet_scope", "picked_candidate", "ledger", "source_cache"]],
+          "inputs": [["facet_nodes", "facet_subdivisions", "facet_scope", "picked_candidate", "source_cache"]],
           "outputs": ["prejudgment_membership"]
         },
         {
@@ -352,7 +352,7 @@
           "section": "抽選後の予備判定",
           "specs": ["selection_and_history_spec.md", "quiz_generation_spec.md", "verification_and_judging_spec.md", "work_state_spec.md"],
           "rules": [{"spec": "selection_and_history_spec.md", "heading": "7. 題材品質ゲート", "subsections": false}, {"spec": "selection_and_history_spec.md", "heading": "7.2 二側の難易度"}, {"spec": "quiz_generation_spec.md", "heading": "2.2 難易度帯"}],
-          "inputs": [["user_conditions", "picked_candidate", "ledger", "source_cache"]],
+          "inputs": [["user_conditions", "picked_candidate", "source_cache"]],
           "outputs": ["prejudgment_difficulty"]
         },
         {
@@ -362,7 +362,7 @@
           "section": "抽選後の予備判定",
           "specs": ["selection_and_history_spec.md", "quiz_generation_spec.md", "work_state_spec.md"],
           "rules": [{"spec": "selection_and_history_spec.md", "heading": "7. 題材品質ゲート", "subsections": false}, {"spec": "selection_and_history_spec.md", "heading": "7.5 落としを作れない候補"}, {"spec": "quiz_generation_spec.md", "heading": "14. 終端の代表説明（落とし）"}],
-          "inputs": [["user_conditions", "picked_candidate", "ledger", "source_cache"]],
+          "inputs": [["user_conditions", "picked_candidate", "source_cache"]],
           "outputs": ["prejudgment_otoshi"]
         }
       ]

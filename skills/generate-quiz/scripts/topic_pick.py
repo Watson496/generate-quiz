@@ -13,9 +13,12 @@
     2  JSONを読めない、または--excludeが品質棄却記録と一致しない
     3  抽選できる候補が残っていない、または担当が粒度判断へ戻ると判断している
 
+--outputには、抽選した候補の台帳の記録を書き出すファイルを指定する。抽選後の予備判定
+担当には、このファイルだけを渡す。
+
 使用例:
-    python3 topic_pick.py selection.json
-    python3 topic_pick.py selection.json --exclude K1
+    python3 topic_pick.py selection.json --output picked.json
+    python3 topic_pick.py selection.json --exclude K1 --output picked.json
 """
 
 import argparse
@@ -71,6 +74,9 @@ def main():
     parser.add_argument(
         "--exclude", action="append", default=[], help="棄却した候補ID。複数指定可"
     )
+    parser.add_argument(
+        "--output", type=Path, help="抽選した候補の台帳の記録を書き出すファイル"
+    )
     args = parser.parse_args()
 
     try:
@@ -100,9 +106,19 @@ def main():
         print("粒度判断へ戻る: 抽選できる候補が残っていない", file=sys.stderr)
         return EXIT_RETURN
 
-    weighted_pick.choose(
+    chosen = weighted_pick.choose(
         [item for item in pick_candidates(state) if item["key"] not in args.exclude]
     )
+    if args.output:
+        record = next(
+            candidate
+            for candidate in state["candidates"]
+            if candidate["id"] == chosen["key"]
+        )
+        args.output.write_text(
+            json.dumps({"picked_candidate": record}, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
     return 0
 
 

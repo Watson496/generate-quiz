@@ -84,7 +84,7 @@ python3 "$SKILL_DIR/scripts/weighted_pick.py" facet_granularity.json facet_weigh
 題材候補の抽選には、探索状態のJSONを`topic_pick.py`へ渡す。このスクリプトは探索状態を検査し、まとまりのweightとまとまりの中のweightの積を各候補の基礎weightとして抽選する。題材品質ゲートで候補を棄却した場合は、その候補の`quality_rejection_reason`に理由を記録し、記録済みの全候補IDを`--exclude <key>`で渡して再抽選する。再抽選では、まとまりとweightを推定し直さない。探索段階の`disposition`は書き換えない。ファセットの抽選には`weighted_pick.py`を使う。
 
 ```bash
-python3 "$SKILL_DIR/scripts/topic_pick.py" state.json
+python3 "$SKILL_DIR/scripts/topic_pick.py" state.json --output picked.json
 ```
 
 選んだ4軸の分類経路と範囲は、ファセット選択の記録から`facet_node.py --scope`で作る。
