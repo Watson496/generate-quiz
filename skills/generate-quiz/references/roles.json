@@ -573,7 +573,7 @@
           "section": "専門用語",
           "specs": ["quiz_generation_spec.md", "verification_and_judging_spec.md", "work_state_spec.md"],
           "rules": [{"spec": "quiz_generation_spec.md", "heading": "15.1 評価項目と優先順位"}, {"spec": "verification_and_judging_spec.md", "heading": "問題文の表現"}, {"spec": "work_state_spec.md", "heading": "検査結果"}],
-          "inputs": [["draft", "term_listing", "sources", "source_cache"]],
+          "inputs": [["draft", "term_listing", "term_necessity_reviews", "sources", "source_cache"]],
           "outputs": ["term_sense_reviews"]
         },
         {
@@ -583,7 +583,7 @@
           "section": "専門用語",
           "specs": ["quiz_generation_spec.md", "verification_and_judging_spec.md", "work_state_spec.md"],
           "rules": [{"spec": "quiz_generation_spec.md", "heading": "15.1 評価項目と優先順位"}, {"spec": "verification_and_judging_spec.md", "heading": "問題文の表現"}, {"spec": "quiz_generation_spec.md", "heading": "2.2 難易度帯"}, {"spec": "work_state_spec.md", "heading": "検査結果"}],
-          "inputs": [["user_conditions", "draft", "term_listing", "sources", "source_cache"]],
+          "inputs": [["user_conditions", "draft", "term_listing", "term_necessity_reviews", "sources", "source_cache"]],
           "outputs": ["term_audience_reviews"]
         },
         {
