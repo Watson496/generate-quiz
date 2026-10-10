@@ -14,9 +14,10 @@
     ソフト（前後・程度・くらい・短め・長め）: --target
         → 目標値を最頻値に置いた同じ曲線で確率判定し、自然さを優先する。
 
-ソフト判定の再現:
-    最初の実行が出力した DRAW を --draw に渡すと、同じ問題文と目標値について
-    同じ判定を再現できる。検査では新しい乱数を引かず、この値を引き継ぐ。
+抽選値の記録:
+    --record に問題ごとの記録ファイルを渡すと、問題文と目標値の組ごとに抽選値を記録する。
+    同じ問題文と目標値をもう一度判定するときは、記録した抽選値を使って同じ判定を再現する。
+    問題文か目標値が違えば、新しく抽選して記録する。抽選値を外から指定することはできない。
 
 終了コード:
     0  ACCEPT（ソフト）／制約充足（ハード）
@@ -27,11 +28,12 @@
     python3 length_check.py '……を何というでしょう？'
     python3 length_check.py --max 60 --file draft.txt
     python3 length_check.py --target 100 '……でしょう？'
-    python3 length_check.py --draw 0.314159 '……でしょう？'
+    python3 length_check.py --record _work/q001/length_draws.json '……でしょう？'
     echo '問題：……' | python3 length_check.py
 """
 
 import argparse
+import json
 import math
 import random
 import sys
@@ -58,6 +60,31 @@ def normalize(text):
     return t.replace("\r", "").replace("\n", "").strip()
 
 
+def recorded_draw(path, body, target):
+    """記録にある問題文と目標値の組の抽選値を返し、なければ新しく抽選して記録する。"""
+    if path is None:
+        return random.random()
+    try:
+        record = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        fail(f"抽選値の記録を読めません: {path}: {exc}")
+    if not isinstance(record, dict):
+        fail(f"抽選値の記録はオブジェクトでなければなりません: {path}")
+    key = f"{target:g}\t{body}"
+    if key not in record:
+        record[key] = random.random()
+        try:
+            path.write_text(
+                json.dumps(record, ensure_ascii=False, indent=1), encoding="utf-8"
+            )
+        except OSError as exc:
+            fail(f"抽選値の記録を書けません: {path}: {exc}")
+    draw = record[key]
+    if not (isinstance(draw, float) and 0 <= draw < 1):
+        fail(f"抽選値の記録が不正です: {path}")
+    return draw
+
+
 def acceptance(length, mode):
     """最頻値 mode の対数正規分布での相対許容度 A(L)=f(L)/f(mode)。"""
     if length <= 0:
@@ -80,7 +107,7 @@ def main():
         "--target", type=float, default=80.0, help="ソフト目標＝分布の最頻値（既定80）"
     )
     ap.add_argument(
-        "--draw", type=float, help="ソフト判定を再現する一様乱数値（0以上1未満）"
+        "--record", type=Path, help="問題文と目標値の組ごとの抽選値を記録するJSON"
     )
     ap.add_argument("--max", type=int, dest="max_len", help="ハード上限（以内・以下）")
     ap.add_argument("--min", type=int, dest="min_len", help="ハード下限")
@@ -89,8 +116,6 @@ def main():
 
     if args.target <= 0:
         fail("--target は正の値を指定してください")
-    if args.draw is not None and not 0 <= args.draw < 1:
-        fail("--draw は0以上1未満で指定してください")
     for name, value in (
         ("--max", args.max_len),
         ("--min", args.min_len),
@@ -121,8 +146,6 @@ def main():
     length = len(body)
 
     hard = any(v is not None for v in (args.max_len, args.min_len, args.exact))
-    if hard and args.draw is not None:
-        fail("--draw はソフト判定でのみ指定できます")
     print(f"LENGTH\t{length}")
 
     if hard:
@@ -148,7 +171,7 @@ def main():
         return EXIT_OK
 
     a = acceptance(length, args.target)
-    draw = args.draw if args.draw is not None else random.random()
+    draw = recorded_draw(args.record, body, args.target)
     print("MODE\tsoft")
     print(f"ACCEPTANCE\t{a:.4f}")
     print(f"DRAW\t{draw:.17g}")

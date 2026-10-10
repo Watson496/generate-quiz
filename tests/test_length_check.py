@@ -1,5 +1,6 @@
 """length_check.pyの計算とCLI動作を検査する。"""
 
+import json
 import math
 import unicodedata
 
@@ -115,35 +116,32 @@ class TestLengthCheck:
         assert "ACCEPTANCE\t1.0000" in r.stdout
         assert "MODE\tsoft" in r.stdout
 
-    def test_soft_verdict_can_be_replayed_with_same_draw(self, run_script):
-        """抽選値を再指定すると同じ問題文の採否を再現できることを確認する。"""
-        first = run_script("length_check.py", "あ" * 50)
-        draw = next(
-            ln for ln in first.stdout.splitlines() if ln.startswith("DRAW")
+    @staticmethod
+    def draw_of(result):
+        return next(
+            ln for ln in result.stdout.splitlines() if ln.startswith("DRAW")
         ).split("\t")[1]
-        replay = run_script("length_check.py", "--draw", draw, "あ" * 50)
-        first_verdict = next(
-            ln for ln in first.stdout.splitlines() if ln.startswith("VERDICT")
-        )
-        replay_verdict = next(
-            ln for ln in replay.stdout.splitlines() if ln.startswith("VERDICT")
-        )
-        assert replay.returncode == first.returncode
-        assert replay_verdict == first_verdict
-        assert f"DRAW\t{draw}" in replay.stdout
 
-    def test_draw_must_be_in_unit_interval_and_soft_mode(self, run_script):
-        """範囲外の抽選値とハード制約での抽選値指定を拒否することを確認する。"""
-        assert (
-            run_script("length_check.py", "--draw", "-0.1", "あ" * 50).returncode == 2
-        )
-        assert run_script("length_check.py", "--draw", "1", "あ" * 50).returncode == 2
-        assert (
-            run_script(
-                "length_check.py", "--draw", "0.5", "--max", "60", "あ" * 50
-            ).returncode
-            == 2
-        )
+    def test_record_replays_draw_for_same_text(self, run_script, tmp_path):
+        """記録がある問題文は、同じ抽選値で同じ採否を再現することを確認する。"""
+        record = tmp_path / "draws.json"
+        first = run_script("length_check.py", "--record", record, "あ" * 50)
+        replay = run_script("length_check.py", "--record", record, "あ" * 50)
+        assert replay.returncode == first.returncode
+        assert self.draw_of(replay) == self.draw_of(first)
+
+    def test_record_draws_anew_for_changed_text(self, run_script, tmp_path):
+        """問題文が変われば、記録の抽選値を使い回さずに新しく抽選することを確認する。"""
+        record = tmp_path / "draws.json"
+        run_script("length_check.py", "--record", record, "あ" * 50)
+        run_script("length_check.py", "--record", record, "い" * 50)
+        draws = json.loads(record.read_text(encoding="utf-8"))
+        assert len(draws) == 2
+        assert len(set(draws.values())) == 2
+
+    def test_draw_cannot_be_given_from_outside(self, run_script):
+        """抽選値を引数で指定できないことを確認する。"""
+        assert run_script("length_check.py", "--draw", "0.5", "あ" * 50).returncode == 2
 
     def test_hard_max_violation_exits_1(self, run_script):
         """上限超過をハード制約違反として報告することを確認する。"""

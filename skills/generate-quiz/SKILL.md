@@ -106,7 +106,11 @@ python3 "$SKILL_DIR/scripts/source_cache.py" _sources put https://example.org/pa
 python3 "$SKILL_DIR/scripts/ledger_merge.py" state.json fragment_D1.json fragment_D2.json -o state.json
 ```
 
-問題文の版ごとに文字数判定の`DRAW`を保持する。同じ版を検査するときは`--draw`へ同じ値を渡し、再抽選しない。
+文字数判定では、問題ごとの抽選値の記録ファイルを`--record`で渡す。スクリプトは問題文と目標値の組ごとに抽選値を記録し、同じ問題文の判定では記録した抽選値で判定を再現し、問題文が変われば新しく抽選する。
+
+```bash
+python3 "$SKILL_DIR/scripts/length_check.py" --record _work/q001/length_draws.json '……でしょう？'
+```
 
 作業状態のJSON manifestは、工程に応じて次のいずれかで検査する。
 
