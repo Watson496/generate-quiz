@@ -48,6 +48,7 @@ SIDES = {"make", "check"}
 EXIT_OK, EXIT_BLOCKED, EXIT_USAGE, EXIT_RETURN = 0, 1, 2, 3
 COORDINATOR_SECTIONS = ("検査で不合格になったとき", "修正と再実行")
 REVIEW_SECTION = "検査の進め方"
+READ_REST = "ファイルは一つずつ読み、読んだ出力が途中で切り詰められたら、残りの部分を分けて読む。"
 
 
 class TableError(ValueError):
@@ -264,6 +265,7 @@ def coordinator_request(table, number):
         f"あなたはステップ{number}（{step['name']}）の統括役である。",
         f"スキルの場所：`{SKILL_DIR}`（以下のファイルはこの場所からの相対パスで示す）",
         f"`references/workflow_spec.md`の「担当の構成」節、「{sections}」節、`references/work_state_spec.md`の「担当の起動の記録」節を読み、その規定に従って担当を起動し、入力と成果物のファイルを受け渡す。",
+        READ_REST,
         "担当：",
         *(f"- {role['name']}（{role['id']}）" for role in step["roles"]),
         "報告は、完了したことと成果物のファイルの場所だけとする。",
@@ -313,6 +315,7 @@ def request_text(table, role, items):
         f"あなたは{role['name']}である。",
         f"スキルの場所：`{SKILL_DIR}`（以下のファイルはこの場所からの相対パスで示す）",
         f"`SKILL.md`の「役割」「必須ツール」「スクリプトの呼出し」節、`references/workflow_spec.md`の「{sections}」節を読み、{specs}を全文読んで、その規定に従って判断する。",
+        READ_REST,
     ]
     phases = role["inputs"]
     if len(phases) > 1:

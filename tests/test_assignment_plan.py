@@ -256,6 +256,9 @@ class TestSteps:
             "「担当の構成」節、「候補」節、「検査で不合格になったとき」節、「修正と再実行」節"
             in result["request"]
         )
+        assert (
+            "出力が途中で切り詰められたら、残りの部分を分けて読む" in result["request"]
+        )
         with pytest.raises(module.TableError, match="統括役を置かない"):
             module.coordinator_request(table, 2)
 
@@ -291,13 +294,14 @@ class TestRequests:
         assert "担当する項目：K5" in result[2]["request"]
 
     def test_assignment_names_agent_and_skill_location(self, load_script):
-        """割り当ては担当のエージェント名を示し、依頼文はスキルの場所を一度だけ書く。"""
+        """割り当ては担当のエージェント名を示し、依頼文はスキルの場所を一度だけ書き、仕様を全文読ませる。"""
         module = load_script("generate-quiz", "assignment_plan.py")
         result = module.assignments(small_table(), "draft_checker")[0]
         assert result["agent"] == "generate-quiz:draft_checker"
         request = result["request"]
         assert request.count(str(module.SKILL_DIR)) == 1
         assert "`references/work_state_spec.md`を全文読んで" in request
+        assert "出力が途中で切り詰められたら、残りの部分を分けて読む" in request
 
     def test_split_role_requires_items(self, load_script):
         """分割する担当に項目を渡さなければ拒否する。"""
