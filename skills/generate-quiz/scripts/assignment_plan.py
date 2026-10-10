@@ -17,6 +17,9 @@
                        修正の後に再実行する担当を出力する
     inputs ROLE        --stateで渡した状態ファイルから担当の入力のデータだけを取り出し、
                        --outputのファイルに書く。状態ファイルにない入力を出力する
+    record ROLE        担当の起動の記録を--stateの状態ファイルのexecution.assignmentsに
+                       書く。--agent-idだけなら起動の記録を加え、--artifactを付けると
+                       成果物の場所を、--failedを付けると失敗をその記録に加える
     merge ROLE         担当の成果物のファイル（--artifact）を、担当表のmerge_rulesに
                        従って--stateの状態ファイルへ入れる。成果物の最上位のキーが担当の
                        成果物のデータIDでなければ、状態ファイルを変えずに終了コード1を返す
@@ -35,6 +38,8 @@
     python3 assignment_plan.py fix propositions proposition_support
     python3 assignment_plan.py inputs membership --state facet.json selection.json \
         --output 004-step04/membership-input.json
+    python3 assignment_plan.py record membership --state selection.json \
+        --agent-id /root/q001/membership-1 --items K1 K2
     python3 assignment_plan.py merge membership --state selection.json \
         --artifact 004-step04/membership-K1_K2.json
 """
@@ -583,6 +588,52 @@ def scope_values(state, scope):
     return values
 
 
+def record_assignment(table, role_id, state, agent_id, **fields):
+    """担当の起動の記録を加え、または既存の記録に成果物の場所や失敗を加えた状態を返す。"""
+    role = find_role(table, role_id)
+    require(is_text(agent_id), "--agent-idが必要である")
+    recorded = json.loads(json.dumps(state))
+    execution = recorded.setdefault(
+        "execution", {"delegation_available": True, "assignments": []}
+    )
+    require(isinstance(execution, dict), "executionはオブジェクトでなければならない")
+    records = execution.setdefault("assignments", [])
+    require(isinstance(records, list), "execution.assignmentsは配列でなければならない")
+    existing = [
+        item
+        for item in records
+        if item.get("agent_id") == agent_id and item.get("role") == role_id
+    ]
+    artifact = fields.get("artifact")
+    failed = fields.get("failed")
+    if artifact is None and failed is None:
+        require(not existing, f"{agent_id}の{role_id}の起動の記録はすでにある")
+        record = {
+            "role": role_id,
+            "agent": agent_name(role),
+            "agent_id": agent_id,
+            "artifact_refs": [],
+        }
+        if fields.get("items"):
+            record["items"] = fields["items"]
+        for key in ("draft_version", "output_sha256"):
+            if fields.get(key) is not None:
+                record[key] = fields[key]
+        records.append(record)
+        return recorded
+    require(existing, f"{agent_id}の{role_id}の起動の記録がない")
+    record = existing[-1]
+    if artifact is not None and artifact not in record["artifact_refs"]:
+        record["artifact_refs"].append(artifact)
+    if failed is not None:
+        record["status"] = "failed"
+        record["failure_reason"] = failed
+    for key in ("output_sha256",):
+        if fields.get(key) is not None:
+            record[key] = fields[key]
+    return recorded
+
+
 def require_records(value, key):
     if not (isinstance(value, list) and all(isinstance(item, dict) for item in value)):
         message = f"成果物の{key}は記録の配列でなければならない"
@@ -646,7 +697,7 @@ def fix_plan(table, data_ids):
     }
 
 
-def main():
+def build_parser():
     parser = argparse.ArgumentParser(description="担当表から割り当てと再実行を決める")
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("steps")
@@ -665,11 +716,76 @@ def main():
     inputs.add_argument("--state", type=Path, nargs="+", required=True)
     inputs.add_argument("--phase", type=int)
     inputs.add_argument("--output", type=Path, required=True)
+    record = commands.add_parser("record")
+    record.add_argument("role")
+    record.add_argument("--state", type=Path, required=True)
+    record.add_argument("--agent-id", required=True)
+    record.add_argument("--items", nargs="+")
+    record.add_argument("--draft-version", type=int)
+    record.add_argument("--output-sha256")
+    record.add_argument("--artifact")
+    record.add_argument("--failed")
     merge = commands.add_parser("merge")
     merge.add_argument("role")
     merge.add_argument("--state", type=Path, required=True)
     merge.add_argument("--artifact", type=Path, required=True)
-    args = parser.parse_args()
+    return parser
+
+
+def read_state(path):
+    state = json.loads(path.read_text(encoding="utf-8"))
+    require(
+        isinstance(state, dict), "状態ファイルはJSONのオブジェクトでなければならない"
+    )
+    return state
+
+
+def write_state(path, state):
+    path.write_text(
+        json.dumps(state, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
+
+
+def run_state_command(table, args):
+    """状態ファイルを読み書きするサブコマンドを実行し、出力する結果を返す。"""
+    if args.command == "inputs":
+        states = [read_state(path) for path in args.state]
+        extracted, missing = role_inputs(table, args.role, states, args.phase)
+        args.output.write_text(
+            json.dumps(extracted, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        return {
+            "output": str(args.output),
+            "keys": list(extracted),
+            "not_in_state": missing,
+        }
+    state = read_state(args.state)
+    if args.command == "record":
+        recorded = record_assignment(
+            table,
+            args.role,
+            state,
+            args.agent_id,
+            items=args.items,
+            draft_version=args.draft_version,
+            output_sha256=args.output_sha256,
+            artifact=args.artifact,
+            failed=args.failed,
+        )
+        write_state(args.state, recorded)
+        return next(
+            item
+            for item in reversed(recorded["execution"]["assignments"])
+            if item["agent_id"] == args.agent_id and item["role"] == args.role
+        )
+    artifact = json.loads(args.artifact.read_text(encoding="utf-8"))
+    write_state(args.state, merge_artifact(table, args.role, state, artifact))
+    return {"state": str(args.state), "keys": list(artifact)}
+
+
+def main():
+    args = build_parser().parse_args()
     try:
         table = load_table()
         if args.command == "steps":
@@ -684,43 +800,13 @@ def main():
             result = assignments(table, args.role, args.items)
         elif args.command == "rerun":
             result = rerun_plan(table, args.role)
-        elif args.command == "inputs":
-            states = [
-                json.loads(path.read_text(encoding="utf-8")) for path in args.state
-            ]
-            require(
-                all(isinstance(state, dict) for state in states),
-                "状態ファイルはJSONのオブジェクトでなければならない",
-            )
-            extracted, missing = role_inputs(table, args.role, states, args.phase)
-            args.output.write_text(
-                json.dumps(extracted, ensure_ascii=False, indent=2) + "\n",
-                encoding="utf-8",
-            )
-            result = {
-                "output": str(args.output),
-                "keys": list(extracted),
-                "not_in_state": missing,
-            }
-        elif args.command == "merge":
-            state = json.loads(args.state.read_text(encoding="utf-8"))
-            require(
-                isinstance(state, dict),
-                "状態ファイルはJSONのオブジェクトでなければならない",
-            )
-            artifact = json.loads(args.artifact.read_text(encoding="utf-8"))
-            try:
-                merged = merge_artifact(table, args.role, state, artifact)
-            except ArtifactError as error:
-                print(f"不合格: {error}", file=sys.stderr)
-                return EXIT_BLOCKED
-            args.state.write_text(
-                json.dumps(merged, ensure_ascii=False, indent=2) + "\n",
-                encoding="utf-8",
-            )
-            result = {"state": str(args.state), "keys": list(artifact)}
-        else:
+        elif args.command == "fix":
             result = fix_plan(table, args.data)
+        else:
+            result = run_state_command(table, args)
+    except ArtifactError as error:
+        print(f"不合格: {error}", file=sys.stderr)
+        return EXIT_BLOCKED
     except (OSError, json.JSONDecodeError, TableError) as error:
         print(f"入力エラー: {error}", file=sys.stderr)
         return EXIT_USAGE

@@ -75,6 +75,15 @@ python3 "$SKILL_DIR/scripts/assignment_plan.py" inputs membership --state facet.
   --output 004-step04/membership-input.json
 ```
 
+担当の起動の記録と、回収した成果物の場所は、状態ファイルへスクリプトで書く。
+
+```bash
+python3 "$SKILL_DIR/scripts/assignment_plan.py" record membership --state selection.json \
+  --agent-id /root/q001/membership-1 --items K1 K2
+python3 "$SKILL_DIR/scripts/assignment_plan.py" record membership --state selection.json \
+  --agent-id /root/q001/membership-1 --artifact 004-step04/membership-K1_K2.json
+```
+
 担当の成果物は、担当表のまとめ方に従って状態ファイルへ入れる。
 
 ```bash

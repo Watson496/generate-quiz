@@ -677,6 +677,83 @@ class TestMerge:
         assert "このスクリプトで入れるものではない" in result.stderr
 
 
+class TestRecord:
+    """担当の起動の記録を、状態ファイルの決まった場所へ書くことを確認する。"""
+
+    def record(self, run_script, path, *args):
+        return run_script("assignment_plan.py", "record", *args, "--state", path)
+
+    def test_records_launch_artifact_and_failure(self, run_script, tmp_path):
+        """起動の記録を加え、回収した成果物の場所と失敗を同じ記録へ加える。ほかのキーは変えない。"""
+        path = tmp_path / "selection.json"
+        path.write_text(json.dumps({"candidates": [{"id": "K1"}]}))
+        result = self.record(
+            run_script, path, "membership", "--agent-id", "a1", "--items", "K1"
+        )
+        assert result.returncode == 0
+        result = self.record(
+            run_script, path, "membership", "--agent-id", "a1", "--artifact", "m.json"
+        )
+        assert result.returncode == 0
+        result = self.record(
+            run_script,
+            path,
+            "exposure_precheck",
+            "--agent-id",
+            "a2",
+            "--items",
+            "K1",
+        )
+        result = self.record(
+            run_script,
+            path,
+            "exposure_precheck",
+            "--agent-id",
+            "a2",
+            "--failed",
+            "実行環境のエラーで止まった",
+        )
+        assert result.returncode == 0
+        assert json.loads(result.stdout)["status"] == "failed"
+        result = self.record(
+            run_script, path, "membership", "--agent-id", "a1", "--artifact", "m2.json"
+        )
+        assert json.loads(result.stdout)["role"] == "membership"
+        state = json.loads(path.read_text())
+        assert state["candidates"] == [{"id": "K1"}]
+        assert state["execution"] == {
+            "delegation_available": True,
+            "assignments": [
+                {
+                    "role": "membership",
+                    "agent": "generate-quiz:membership",
+                    "agent_id": "a1",
+                    "artifact_refs": ["m.json", "m2.json"],
+                    "items": ["K1"],
+                },
+                {
+                    "role": "exposure_precheck",
+                    "agent": "generate-quiz:exposure_precheck",
+                    "agent_id": "a2",
+                    "artifact_refs": [],
+                    "items": ["K1"],
+                    "status": "failed",
+                    "failure_reason": "実行環境のエラーで止まった",
+                },
+            ],
+        }
+
+    def test_rejects_artifact_for_unknown_launch(self, run_script, tmp_path):
+        """起動の記録がない担当に、成果物の場所を加えない。"""
+        path = tmp_path / "selection.json"
+        path.write_text("{}")
+        result = self.record(
+            run_script, path, "membership", "--agent-id", "a1", "--artifact", "m.json"
+        )
+        assert result.returncode == 2
+        assert "a1のmembershipの起動の記録がない" in result.stderr
+
+
 class TestEntryCheck:
     """統括役を起動する前に、前のステップの検査を行うことを確認する。"""
 
