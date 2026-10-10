@@ -211,6 +211,10 @@ def require_condition(ok, msg):
 
 def required_text(obj, key, name):
     value = obj.get(key)
+    require_condition(
+        value is None or value == "" or isinstance(value, str),
+        f"{name}.{key}は文字列でなければならない",
+    )
     require_condition(isinstance(value, str) and value.strip(), f"{name}.{key}がない")
     return value.strip()
 
