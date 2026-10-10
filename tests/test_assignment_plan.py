@@ -580,6 +580,25 @@ class TestMerge:
         assert "資料S9は、記録済みの資料S1と同じURLである" in result.stderr
         assert merged == state
 
+    def test_rejects_failed_review_with_unknown_fix_data(self, run_script, tmp_path):
+        """修正対象にデータIDでない値を置いた不合格の判定は、状態ファイルへ入れずに拒む。"""
+        review = {
+            "target": "G1",
+            "status": "failed",
+            "reason": "r",
+            "fix_data": ["S-N1"],
+        }
+        result, merged = self.merge(
+            run_script,
+            tmp_path,
+            "topic_weight_review",
+            {},
+            {"topic_weight_reviews": [review]},
+        )
+        assert result.returncode == 1
+        assert "fix_dataに、担当表のデータIDでない値がある: ['S-N1']" in result.stderr
+        assert merged == {}
+
     def test_split_records_replace_same_item(self, run_script, tmp_path):
         """件数ごとに分けた担当の記録は、同じ項目の記録を置き換え、ほかの項目の記録を残す。"""
         state = {

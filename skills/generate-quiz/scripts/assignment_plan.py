@@ -555,6 +555,7 @@ def merge_artifact(table, role_id, state, artifact):
     shared = {
         key for key in union if sum(key in writer["outputs"] for writer in writers) > 1
     }
+    require_fix_data_ids(table, artifact)
     if "sources" in artifact:
         require_one_id_per_url(state.get("sources") or [], artifact["sources"])
     for key, value in artifact.items():
@@ -678,6 +679,28 @@ def record_assignment(table, role_id, state, agent_id, **fields):
         if fields.get(key) is not None:
             record[key] = fields[key]
     return recorded
+
+
+def require_fix_data_ids(table, artifact):
+    """不合格の検査結果の修正対象が、担当表のデータIDであることを確かめる。"""
+    for key, value in artifact.items():
+        records = value if isinstance(value, list) else [value]
+        for record in records:
+            if not isinstance(record, dict) or record.get("status") != "failed":
+                continue
+            fix_data = record.get("fix_data")
+            if not isinstance(fix_data, list) or not fix_data:
+                message = f"成果物の{key}の不合格の判定に、修正が必要なデータ（fix_data）がない"
+                raise ArtifactError(message)
+            unknown = sorted(
+                str(item) for item in fix_data if item not in table["data"]
+            )
+            if unknown:
+                message = (
+                    f"成果物の{key}のfix_dataに、担当表のデータIDでない値がある: {unknown}。"
+                    "依頼文の入力の各行に添えたデータIDで書き直す"
+                )
+                raise ArtifactError(message)
 
 
 def require_one_id_per_url(current, added):
