@@ -1,5 +1,6 @@
 """台帳の断片をまとめるスクリプトの動作を確認する。"""
 
+import copy
 import json
 
 import pytest
@@ -90,7 +91,6 @@ class TestMergeFragments:
             "candidates": [
                 {
                     "id": "D1-K1",
-                    "expanded": True,
                     "expansion_searches": [
                         {
                             "source_or_query": "アンモニアソーダ法の関連項目",
@@ -105,7 +105,26 @@ class TestMergeFragments:
             intersection_state,
             [update, exploration_fragment("D1", "D1", "アンモニアソーダ法")],
         )
-        assert merged["candidates"][0]["expanded"] is True
+        assert merged["candidates"][0]["expansion_searches"][0]["relation_checked"] == (
+            "同じ製品の別の製法"
+        )
+
+    def test_corrected_fragment_is_merged_again_from_step_start(
+        self, module, intersection_state
+    ):
+        """書き直した断片は、まとめた後の状態には書き加えられず、ステップを始めたときの状態からまとめ直せる。"""
+        first = exploration_fragment("D1", "D1", "アンモニアソーダ法")
+        first["candidates"][0]["disposition"] = "eligible"
+        merged = module.merge_fragments(intersection_state, [first])
+        corrected = copy.deepcopy(first)
+        corrected["coverage_areas"][0]["source_searches"][0]["mode"] = "nearby"
+        corrected["candidates"][0]["disposition"] = "excluded"
+        with pytest.raises(module.MergeError, match="すでにある値と異なる"):
+            module.merge_fragments(merged, [corrected])
+        remerged = module.merge_fragments(intersection_state, [corrected])
+        area = next(item for item in remerged["coverage_areas"] if item["id"] == "D1")
+        assert [search["mode"] for search in area["source_searches"]] == ["nearby"]
+        assert remerged["candidates"][0]["disposition"] == "excluded"
 
     def test_rejects_new_id_without_prefix(self, module, intersection_state):
         """新しい記録のIDは、断片の接頭辞で始める。"""

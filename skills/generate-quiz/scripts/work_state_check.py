@@ -906,9 +906,6 @@ def validate_selection_candidates(state, entry_ids, areas, area_ids):
             )
             required_text(item, "quality_rejection_reason", name)
         if disposition == "eligible":
-            require_condition(
-                item.get("expanded") is True, f"{name}から探索を展開していない"
-            )
             searches = required_list(
                 item.get("expansion_searches"),
                 f"{name}.expansion_searches",
@@ -1130,20 +1127,23 @@ def pickable_candidate_ids(state):
 def validate_selection_review(state, areas, candidates, entry_ids):
     area_ids = {item["id"] for item in areas}
     candidate_ids = {item["id"] for item in candidates}
-    reviews, review_ids = records_with_ids(
+    reviews, _ = records_with_ids(
         state.get("independent_review"), "independent_review", nonempty=True
     )
-    require_condition(
-        review_ids == area_ids, "別経路の探索が全下位領域に対応していない"
-    )
+    reviewed_areas = []
     for review in reviews:
         name = f"independent_review.{review['id']}"
+        area_id = required_text(review, "coverage_area_id", name)
+        require_condition(
+            area_id in area_ids, f"{name}.coverage_area_idが下位領域にない"
+        )
+        reviewed_areas.append(area_id)
         required_text(review, "difference_from_exploration", name)
         required_text(review, "source_discovery_query", name)
         checked = set(
             referenced_ids(review, "checked_entry_point_ids", entry_ids, name)
         )
-        area = next(item for item in areas if item["id"] == review["id"])
+        area = next(item for item in areas if item["id"] == area_id)
         require_condition(
             checked - set(area["entry_point_ids"]), f"{name}で別の入口を開いていない"
         )
@@ -1158,30 +1158,36 @@ def validate_selection_review(state, areas, candidates, entry_ids):
             f"{name}の照合元が元の探索入口にない",
         )
         required_text(review, "spotcheck_result", name)
-    challenge = state.get("saturation_challenge")
-    require_condition(isinstance(challenge, dict), "saturation_challengeがない")
-    required_text(challenge, "search_perspective", "saturation_challenge")
-    required_text(challenge, "query", "saturation_challenge")
-    referenced_ids(
-        challenge, "opened_entry_point_ids", entry_ids, "saturation_challenge"
-    )
-    referenced_ids(
-        challenge,
-        "found_candidate_ids",
-        candidate_ids,
-        "saturation_challenge",
-        nonempty=False,
-    )
-    required_text(challenge, "resolution", "saturation_challenge")
-    breadth = challenge.get("breadth")
     require_condition(
-        breadth in {"convergent", "not_convergent"},
-        "saturation_challenge.breadthが不正である",
+        set(reviewed_areas) == area_ids, "別経路の探索が全下位領域に対応していない"
     )
-    require_condition(challenge.get("resolved") is True, "反証調査の結果が未処理である")
+    challenges, _ = records_with_ids(
+        state.get("saturation_challenge"), "saturation_challenge", nonempty=True
+    )
+    for challenge in challenges:
+        name = f"saturation_challenge.{challenge['id']}"
+        required_text(challenge, "search_perspective", name)
+        required_text(challenge, "query", name)
+        referenced_ids(challenge, "opened_entry_point_ids", entry_ids, name)
+        referenced_ids(
+            challenge, "found_candidate_ids", candidate_ids, name, nonempty=False
+        )
+        required_text(challenge, "resolution", name)
+        require_condition(
+            challenge.get("breadth") in {"convergent", "not_convergent"},
+            f"{name}.breadthが不正である",
+        )
+        require_condition(
+            isinstance(challenge.get("resolved"), bool), f"{name}.resolvedがない"
+        )
+    challenge = challenges[-1]
+    require_condition(
+        challenge["resolved"] is True,
+        "最後の反証調査が、探索を続ける候補や経路を残している",
+    )
     core = challenge.get("core_check")
-    require_condition(isinstance(core, dict), "saturation_challenge.core_checkがない")
-    name = "saturation_challenge.core_check"
+    name = f"saturation_challenge.{challenge['id']}.core_check"
+    require_condition(isinstance(core, dict), f"{name}がない")
     referenced_ids(core, "source_entry_point_ids", entry_ids, name)
     core_ids = referenced_ids(core, "core_candidate_ids", candidate_ids, name)
     require_condition(
@@ -1210,7 +1216,8 @@ def validate_discovery_progress(state):
 
 def validate_selection_state(state, stage):
     validate_intersection_state(state)
-    challenge = state.get("saturation_challenge")
+    challenges = state.get("saturation_challenge")
+    challenge = challenges[-1] if isinstance(challenges, list) and challenges else None
     if isinstance(challenge, dict) and challenge.get("breadth") == "not_convergent":
         msg = "探索完了の反証調査担当が、選択対象が飽和する見込みがないと判断している"
         raise GranularityReturnError(msg)
@@ -1219,12 +1226,6 @@ def validate_selection_state(state, stage):
         state, entry_ids, areas, area_ids
     )
     validate_selection_review(state, areas, candidates, entry_ids)
-    frontier = required_id_list(state.get("frontier_ids"), "frontier_ids")
-    require_condition(
-        not (set(frontier) - candidate_ids), "frontier_idsに存在しない候補がある"
-    )
-    require_condition(not frontier, "未展開の有力候補が残っている")
-    require_condition(state.get("saturated") is True, "探索が飽和していない")
     if stage == "discovery":
         return
     eligible = eligible_candidate_ids(state)
@@ -2823,8 +2824,6 @@ def require_no_selection_ledger(state):
         "candidates",
         "independent_review",
         "saturation_challenge",
-        "frontier_ids",
-        "saturated",
     }
     require_condition(
         not selection_fields.intersection(state),

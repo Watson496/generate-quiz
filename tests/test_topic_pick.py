@@ -128,7 +128,7 @@ class TestTopicPick:
         self, run_script, tmp_path, selection_state
     ):
         """探索が未完了なら抽選しない。"""
-        selection_state["saturated"] = False
+        selection_state["saturation_challenge"][-1]["resolved"] = False
         result = self.pick(run_script, tmp_path, selection_state)
         assert result.returncode == 1
-        assert "探索が飽和していない" in result.stderr
+        assert "最後の反証調査が、探索を続ける候補や経路を残している" in result.stderr

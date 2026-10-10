@@ -86,7 +86,7 @@
     "final_contamination_review": "完成稿への作業用記録の混入の検査結果"
   },
   "given_data": ["user_conditions", "history", "facet_picks", "granularity_return", "facet_scope", "picked_candidate", "answer_target", "research_requests", "source_cache"],
-  "state_keys": {"ledger": ["entry_points", "candidates", "frontier_ids", "saturated"]},
+  "state_keys": {"ledger": ["entry_points", "candidates"]},
   "steps": [
     {
       "name": "ファセット選択",
@@ -223,7 +223,7 @@
           "specs": ["selection_and_history_spec.md", "work_state_spec.md"],
           "rules": [{"spec": "selection_and_history_spec.md", "heading": "6. 具体的な解答候補の探索と抽選", "subsections": false}],
           "inputs": [["facet_nodes", "facet_subdivisions", "facet_scope", "intersection_review", "coverage_areas", "ledger", "independent_review", "source_cache"]],
-          "outputs": ["saturation_challenge"]
+          "outputs": ["ledger", "saturation_challenge"]
         }
       ]
     },

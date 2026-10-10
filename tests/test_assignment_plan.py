@@ -373,7 +373,6 @@ class TestInputs:
                     "facet_nodes": {"subject": "subject::2"},
                     "entry_points": [{"id": "E1"}],
                     "candidates": [{"id": "K1"}],
-                    "saturated": True,
                     "memberships": [{"candidate_id": "K1"}],
                     "execution": {"assignments": []},
                 }
@@ -395,7 +394,6 @@ class TestInputs:
             "facet_nodes": {"subject": "subject::2"},
             "entry_points": [{"id": "E1"}],
             "candidates": [{"id": "K1"}],
-            "saturated": True,
         }
         assert json.loads(result.stdout)["not_in_state"] == [
             "facet_subdivisions",
@@ -449,7 +447,7 @@ class TestEntryCheck:
         self, run_script, tmp_path, selection_state
     ):
         """探索が未収束なら、抽選前の予備検査の統括役の依頼文を出さない。"""
-        selection_state["saturation_challenge"]["breadth"] = "not_convergent"
+        selection_state["saturation_challenge"][-1]["breadth"] = "not_convergent"
         path = tmp_path / "selection.json"
         path.write_text(json.dumps(selection_state, ensure_ascii=False))
         result = run_script("assignment_plan.py", "coordinate", "4", "--state", path)

@@ -1493,7 +1493,7 @@ class TestSelectionState:
         self, run_script, selection_state, field, value, message
     ):
         """反証調査では中核級の対象が台帳にあるかを確かめた記録を要する。"""
-        selection_state["saturation_challenge"]["core_check"][field] = value
+        selection_state["saturation_challenge"][-1]["core_check"][field] = value
         result = check_state(run_script, "discovery", selection_state)
         assert result.returncode == 1
         assert message in result.stderr
@@ -1501,7 +1501,7 @@ class TestSelectionState:
     def test_core_objects_must_be_eligible(self, run_script, selection_state):
         """中核的に扱われる対象は、選択対象として台帳にあることを確かめる。"""
         add_excluded_candidate(selection_state)
-        selection_state["saturation_challenge"]["core_check"][
+        selection_state["saturation_challenge"][-1]["core_check"][
             "core_candidate_ids"
         ].append("K3")
         result = check_state(run_script, "discovery", selection_state)
@@ -1545,10 +1545,9 @@ class TestSelectionState:
 
     def test_not_convergent_breadth_reports_return(self, run_script, selection_state):
         """反証調査が粒度判断へ戻ると判断した探索状態は、探索が途中でも粒度判断へ戻す。"""
-        selection_state["saturation_challenge"].update(
+        selection_state["saturation_challenge"][-1].update(
             breadth="not_convergent", resolved=False
         )
-        selection_state["saturated"] = False
         result = check_state(run_script, "discovery", selection_state)
         assert result.returncode == 3
         assert "粒度判断へ戻る: 探索完了の反証調査担当" in result.stderr
@@ -1783,27 +1782,37 @@ class TestSelectionState:
         assert check_state(run_script, "selection", selection_state).returncode == 1
 
     def test_selection_requires_processed_challenge(self, run_script, selection_state):
-        """反証調査で得た候補を未処理のまま抽選させない。"""
-        selection_state["saturation_challenge"]["resolved"] = False
-        assert check_state(run_script, "selection", selection_state).returncode == 1
-
-    def test_selection_requires_empty_frontier(self, run_script, selection_state):
-        """未展開の有力候補を残した探索状態を拒否する。"""
-        selection_state["frontier_ids"] = ["K2"]
+        """最後の反証調査が探索を続ける候補や経路を残していれば、抽選させない。"""
+        selection_state["saturation_challenge"][-1]["resolved"] = False
         result = check_state(run_script, "selection", selection_state)
         assert result.returncode == 1
-        assert "未展開の有力候補" in result.stderr
+        assert "最後の反証調査が、探索を続ける候補や経路を残している" in result.stderr
 
-    @pytest.mark.parametrize("invalid_id", [{}, []])
-    def test_selection_rejects_nonstring_frontier_id(
-        self, run_script, selection_state, invalid_id
+    def test_earlier_challenge_may_remain_unresolved(self, run_script, selection_state):
+        """前の反証調査の記録を残したまま、最後の反証調査で飽和を判断できる。"""
+        earlier = copy.deepcopy(selection_state["saturation_challenge"][-1])
+        earlier.update(id="S0-C1", resolved=False, resolution="近接探索が残っている")
+        del earlier["core_check"]
+        selection_state["saturation_challenge"].insert(0, earlier)
+        assert check_state(run_script, "discovery", selection_state).returncode == 0
+
+    def test_alternate_review_ids_follow_fragment_prefix(
+        self, run_script, selection_state
     ):
-        """未展開候補のIDに文字列以外を指定しても追跡表示を出さない。"""
-        selection_state["frontier_ids"] = [invalid_id]
-        result = check_state(run_script, "selection", selection_state)
+        """別経路の探索の記録は、断片の接頭辞を付けたIDのまま下位領域に対応付ける。"""
+        selection_state["independent_review"][1]["coverage_area_id"] = "D9"
+        result = check_state(run_script, "discovery", selection_state)
         assert result.returncode == 1
-        assert "空でない文字列ID" in result.stderr
-        assert "Traceback" not in result.stderr
+        assert "independent_review.A1-R2.coverage_area_idが下位領域にない" in (
+            result.stderr
+        )
+
+    def test_eligible_candidate_needs_nearby_search(self, run_script, selection_state):
+        """選択対象には、近接探索の記録を要する。"""
+        selection_state["candidates"][1]["expansion_searches"] = []
+        result = check_state(run_script, "discovery", selection_state)
+        assert result.returncode == 1
+        assert "candidates.K2.expansion_searchesが空である" in result.stderr
 
     def test_selection_rejects_unclassified_candidate(
         self, run_script, selection_state
@@ -1842,9 +1851,9 @@ class TestSelectionState:
         for role in ("membership", "exposure_precheck"):
             record = assignment_of(selection_state, role)
             record["items"] = [item for item in record["items"] if item != "K1"]
-        selection_state["saturation_challenge"]["core_check"]["core_candidate_ids"] = [
-            "K2"
-        ]
+        selection_state["saturation_challenge"][-1]["core_check"][
+            "core_candidate_ids"
+        ] = ["K2"]
         assert check_state(run_script, "discovery", selection_state).returncode == 0
         assert check_state(run_script, "selection", selection_state).returncode == 0
 

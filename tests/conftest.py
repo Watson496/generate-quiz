@@ -462,7 +462,6 @@ def selection_state(intersection_state):
                 "core_description": "対象をそのものズバリ説明する説明",
                 "candidate_reason": "説明の語の組み合わせではできない名称で、初学者は答えられ一般層は通常答えられない",
                 "disposition": "eligible",
-                "expanded": True,
                 "expansion_searches": [
                     {
                         "source_or_query": "候補1の関連項目",
@@ -480,7 +479,6 @@ def selection_state(intersection_state):
                 "core_description": "対象をそのものズバリ説明する説明",
                 "candidate_reason": "説明の語の組み合わせではできない名称で、初学者は答えられ一般層は通常答えられない",
                 "disposition": "eligible",
-                "expanded": True,
                 "expansion_searches": [
                     {
                         "source_or_query": "候補2の関連項目",
@@ -561,8 +559,6 @@ def selection_state(intersection_state):
                 "reason": "二段階のweightの積の分布を候補間の重要度の差と照らした",
             }
         ],
-        "frontier_ids": [],
-        "saturated": True,
         "memberships": [
             {
                 "candidate_id": candidate_id,
@@ -578,7 +574,8 @@ def selection_state(intersection_state):
         ],
         "independent_review": [
             {
-                "id": "D1",
+                "id": "A1-R1",
+                "coverage_area_id": "D1",
                 "difference_from_exploration": "実務者の利用場面",
                 "source_discovery_query": "無機化学工業 実務者 利用",
                 "checked_entry_point_ids": ["E3"],
@@ -587,7 +584,8 @@ def selection_state(intersection_state):
                 "spotcheck_result": "分類項目と候補を照合した",
             },
             {
-                "id": "D2",
+                "id": "A1-R2",
+                "coverage_area_id": "D2",
                 "difference_from_exploration": "産業誌の利用場面",
                 "source_discovery_query": "有機化学工業 産業誌",
                 "checked_entry_point_ids": ["E4"],
@@ -596,21 +594,24 @@ def selection_state(intersection_state):
                 "spotcheck_result": "索引項目と候補を照合した",
             },
         ],
-        "saturation_challenge": {
-            "search_perspective": "別の書き手の産業資料",
-            "query": "化学工業 現場 使用",
-            "opened_entry_point_ids": ["E3", "E4"],
-            "found_candidate_ids": [],
-            "resolution": "新しい候補なし",
-            "breadth": "convergent",
-            "resolved": True,
-            "core_check": {
-                "source_entry_point_ids": ["E2"],
-                "core_candidate_ids": ["K1", "K2"],
-                "added_candidate_ids": [],
-                "reason": "事典の概説が主要な対象として挙げる候補が台帳にある",
+        "saturation_challenge": [
+            {
+                "id": "S1-C1",
+                "search_perspective": "別の書き手の産業資料",
+                "query": "化学工業 現場 使用",
+                "opened_entry_point_ids": ["E3", "E4"],
+                "found_candidate_ids": [],
+                "resolution": "新しい候補なし",
+                "breadth": "convergent",
+                "resolved": True,
+                "core_check": {
+                    "source_entry_point_ids": ["E2"],
+                    "core_candidate_ids": ["K1", "K2"],
+                    "added_candidate_ids": [],
+                    "reason": "事典の概説が主要な対象として挙げる候補が台帳にある",
+                },
             },
-        },
+        ],
     }
     roles = (
         ("exploration", ["D1"]),
