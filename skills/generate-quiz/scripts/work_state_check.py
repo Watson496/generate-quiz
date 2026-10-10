@@ -1406,6 +1406,7 @@ def validate_selection_execution(state, stage):
 def validate_source_quotes(state):
     sources, _ = records_with_ids(state.get("sources"), "sources", nonempty=True)
     quote_ids = set()
+    source_of_url = {}
     for source in sources:
         required_text(source, "citation", f"sources.{source['id']}")
         if "url" in source:
@@ -1413,6 +1414,11 @@ def validate_source_quotes(state):
             require_condition(
                 re.fullmatch(r"https?://\S+", url) is not None,
                 f"sources.{source['id']}.urlが資料URLではない",
+            )
+            other = source_of_url.setdefault(url, source["id"])
+            require_condition(
+                other == source["id"],
+                f"sources.{source['id']}が{other}と同じ資料に別の資料IDを付けている",
             )
         quotes, ids = records_with_ids(
             source.get("quotes"), f"sources.{source['id']}.quotes", nonempty=True

@@ -399,7 +399,7 @@
           "section": "手掛かり候補",
           "specs": ["quiz_generation_spec.md", "verification_and_judging_spec.md", "selection_and_history_spec.md", "work_state_spec.md"],
           "rules": [{"spec": "quiz_generation_spec.md", "heading": "2. 題材を文章化する前の必須ゲート"}, {"spec": "quiz_generation_spec.md", "heading": "13. 手掛かり単位の設計と二段階検査"}, {"spec": "selection_and_history_spec.md", "heading": "7.1 中核情報と比較対象"}],
-          "inputs": [["user_conditions", "answer_target", "names", "research_requests", "source_cache"]],
+          "inputs": [["user_conditions", "answer_target", "names", "sources", "research_requests", "source_cache"]],
           "outputs": ["sources", "clues", "propositions"]
         },
         {

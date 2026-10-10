@@ -2155,6 +2155,23 @@ class TestWorkState:
         complete_state["execution"]["assignments"] = []
         assert check_state(run_script, "target-start", complete_state).returncode == 0
 
+    def test_same_source_url_needs_one_source_id(self, run_script, complete_state):
+        """同じURLの資料に、担当ごとに別の資料IDを付けない。"""
+        complete_state["sources"][0]["url"] = "https://example.org/a"
+        complete_state["sources"].append(
+            {
+                "id": "S2",
+                "citation": "資料名",
+                "url": "https://example.org/a",
+                "quotes": [
+                    {"id": "Q2", "text": "別の担当の引用", "location": "第二節"}
+                ],
+            }
+        )
+        result = check_state(run_script, "difficulty-gate", complete_state)
+        assert result.returncode == 1
+        assert "sources.S2がS1と同じ資料に別の資料IDを付けている" in result.stderr
+
     def test_writing_start_rejects_selection_ledger(self, run_script, complete_state):
         """題材探索の台帳を解答対象ごとの状態に混ぜない。"""
         complete_state["candidates"] = []

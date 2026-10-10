@@ -75,7 +75,7 @@
 - 検査結果と未解決の指摘
 - 最終出力を組み立てるための限定入力
 
-資料には資料IDを付け、同じ資料の引用箇所を別に識別する。資料の信頼性の評価は`source_assessments`に、資料IDを`source_id`、信頼性の水準を`level`、明白な誤りを`clear_errors`（なければ空配列）、使ってよい用途を`uses`（事実の根拠は`fact`、名称が使われていることの用例は`usage_example`）、理由を`reason`として置く。`uses`に`fact`がない資料の引用は、命題の根拠にしない。評価の検査結果は`source_reliability_reviews`に、資料IDを`source_id`、判定を`status`（`passed`・`failed`）、理由を`reason`として置く。命題と手掛かりにはそれぞれIDを付け、根拠となる資料と引用箇所をIDで参照する。
+資料には資料IDを付け、同じ資料の引用箇所を別に識別する。作問状態にすでにある資料を使うときは、記録済みの資料IDに引用を加え、新しい資料IDを付けない。資料の信頼性の評価は`source_assessments`に、資料IDを`source_id`、信頼性の水準を`level`、明白な誤りを`clear_errors`（なければ空配列）、使ってよい用途を`uses`（事実の根拠は`fact`、名称が使われていることの用例は`usage_example`）、理由を`reason`として置く。`uses`に`fact`がない資料の引用は、命題の根拠にしない。評価の検査結果は`source_reliability_reviews`に、資料IDを`source_id`、判定を`status`（`passed`・`failed`）、理由を`reason`として置く。命題と手掛かりにはそれぞれIDを付け、根拠となる資料と引用箇所をIDで参照する。
 
 ## 問題文の版
 
