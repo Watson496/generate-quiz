@@ -1398,6 +1398,8 @@ class TestDiscoveryProgressState:
     ):
         """最初の下位領域だけの台帳でも発見元を途中検査できる。"""
         selection_state["coverage_areas"] = selection_state["coverage_areas"][:1]
+        review = selection_state["intersection_review"]
+        review["scope_mapping"] = review["scope_mapping"][:1]
         selection_state["candidates"] = selection_state["candidates"][:1]
         selection_state["candidates"][0]["expansion_searches"] = []
         assert (
@@ -1795,6 +1797,23 @@ class TestSelectionState:
         del earlier["core_check"]
         selection_state["saturation_challenge"].insert(0, earlier)
         assert check_state(run_script, "discovery", selection_state).returncode == 0
+
+    def test_intersection_maps_scope_items_to_areas(
+        self, run_script, intersection_state
+    ):
+        """選んだ4軸の範囲に挙がる項目ごとに、入る下位領域を記録する。"""
+        intersection_state["intersection_review"]["scope_mapping"] = [
+            {"item": "家族相談", "coverage_area_id": "D9"}
+        ]
+        result = check_state(run_script, "intersection-checkpoint", intersection_state)
+        assert result.returncode == 1
+        assert "scope_mapping[0].coverage_area_idが下位領域にない" in result.stderr
+        del intersection_state["intersection_review"]["scope_mapping"]
+        result = check_state(run_script, "intersection-checkpoint", intersection_state)
+        assert result.returncode == 1
+        assert (
+            "intersection_review.scope_mappingは配列でなければならない" in result.stderr
+        )
 
     def test_alternate_review_ids_follow_fragment_prefix(
         self, run_script, selection_state

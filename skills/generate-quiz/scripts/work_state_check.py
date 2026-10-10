@@ -704,12 +704,26 @@ def validate_intersection_state(state):
     validate_reviews(state, "coverage_area_reviews", ["all"], "target")
     review = state.get("intersection_review")
     require_condition(isinstance(review, dict), "intersection_reviewがない")
-    areas, _ = records_with_ids(
+    areas, area_ids = records_with_ids(
         state.get("coverage_areas"), "coverage_areas", nonempty=True
     )
     for item in areas:
         for key in ("label", "basis", "target_kinds", "estimated_candidates"):
             required_text(item, key, f"coverage_areas.{item['id']}")
+    for index, item in enumerate(
+        required_list(
+            review.get("scope_mapping"),
+            "intersection_review.scope_mapping",
+            nonempty=True,
+        )
+    ):
+        name = f"intersection_review.scope_mapping[{index}]"
+        require_condition(isinstance(item, dict), f"{name}がオブジェクトではない")
+        required_text(item, "item", name)
+        require_condition(
+            item.get("coverage_area_id") in area_ids,
+            f"{name}.coverage_area_idが下位領域にない",
+        )
     sources = required_id_list(
         review.get("source_refs"), "intersection_review.source_refs", nonempty=True
     )

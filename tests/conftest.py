@@ -359,6 +359,10 @@ def intersection_state():
                 {"name": "候補2", "source_ref": "https://example.org/outline"},
             ],
             "scope_reason": "対象の種類と下位領域を区分できる",
+            "scope_mapping": [
+                {"item": "無機化学工業", "coverage_area_id": "D1"},
+                {"item": "有機化学工業", "coverage_area_id": "D2"},
+            ],
             "result": "viable",
         },
         "coverage_area_reviews": [
