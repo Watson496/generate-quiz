@@ -1015,6 +1015,34 @@ class TestFacetSelectionState:
         """停止まで一続きに記録した状態を受け付ける。"""
         assert check_state(run_script, "facet-selection", facet_state).returncode == 0
 
+    @staticmethod
+    def add_returns(state, *refs):
+        state["granularity_returns"] = [
+            {"id": f"R{i}", "kind": "intersection", "ref": ref, "reason": "広すぎる"}
+            for i, ref in enumerate(refs, 1)
+        ]
+        state["facet_levels"][-1]["return_id"] = f"R{len(refs)}"
+
+    def test_rejudged_after_latest_return_passes(self, run_script, facet_state):
+        """戻りごとに別の記録を指し、最後の戻りに応じて判断し直した状態を受け付ける。"""
+        self.add_returns(facet_state, "a/intersection.json", "b/intersection.json")
+        assert check_state(run_script, "facet-selection", facet_state).returncode == 0
+
+    def test_return_must_not_reuse_previous_record(self, run_script, facet_state):
+        """前の戻りと同じ記録を、新しい戻りの理由にしない。"""
+        self.add_returns(facet_state, "a/topic_pick.txt", "a/topic_pick.txt")
+        result = check_state(run_script, "facet-selection", facet_state)
+        assert result.returncode == 1
+        assert "前の戻りと同じ記録を指している" in result.stderr
+
+    def test_latest_return_needs_rejudgment(self, run_script, facet_state):
+        """最後の戻りに応じて判断し直した階層を要求する。"""
+        self.add_returns(facet_state, "a/intersection.json", "b/intersection.json")
+        facet_state["facet_levels"][-1]["return_id"] = "R1"
+        result = check_state(run_script, "facet-selection", facet_state)
+        assert result.returncode == 1
+        assert "最後の戻りに応じて判断し直した階層がない" in result.stderr
+
     def test_weights_must_cover_all_children(self, run_script, facet_state):
         """兄弟ノードの一部だけにweightを付けた状態を拒否する。"""
         facet_state["facet_weights"][0]["candidates"].pop()

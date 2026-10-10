@@ -186,6 +186,7 @@ STAGE_ROLES = {
     "material": (*step_roles("素材の調査", "作文", "検査"), "material_writer"),
     "final": step_roles("素材の調査", "作文", "検査", "最終出力"),
 }
+GRANULARITY_RETURN_KINDS = {"intersection", "saturation", "exhausted"}
 MIN_ENTRY_POINTS = 2
 MIN_COVERAGE_AREAS = 2
 MIN_EXPRESSION_ALTERNATIVES = 2
@@ -557,6 +558,39 @@ def validate_facet_selection(state):
     )
     validate_reviews(state, "facet_weight_reviews", sorted(descended), "level_id")
     validate_reviews(state, "facet_distribution_reviews", sorted(descended), "level_id")
+    validate_granularity_returns(state, levels)
+
+
+def validate_granularity_returns(state, levels):
+    """粒度判断へ戻った記録が一件ずつ別の記録を指し、最後の戻りに応じて判断し直したことを検査する。"""
+    returns, return_ids = records_with_ids(
+        state.get("granularity_returns", []), "granularity_returns"
+    )
+    refs = set()
+    for item in returns:
+        name = f"granularity_returns.{item['id']}"
+        require_condition(
+            item.get("kind") in GRANULARITY_RETURN_KINDS, f"{name}.kindが不正である"
+        )
+        ref = required_text(item, "ref", name)
+        require_condition(
+            ref not in refs, f"{name}.refが前の戻りと同じ記録を指している"
+        )
+        refs.add(ref)
+        required_text(item, "reason", name)
+    referenced = []
+    for level in levels:
+        if "return_id" in level:
+            require_condition(
+                level["return_id"] in return_ids,
+                f"facet_levels.{level['id']}.return_idが戻りの記録にない",
+            )
+            referenced.append(level["return_id"])
+    if returns:
+        require_condition(
+            returns[-1]["id"] in referenced,
+            "最後の戻りに応じて判断し直した階層がない",
+        )
 
 
 def validate_intersection_state(state):
