@@ -87,19 +87,42 @@ def save(directory, url, title, text, method):
     return record
 
 
+# Shift_JISと宣言したページはWindowsの拡張文字を含むことが多いので、cp932で復号する
+CHARSET_ALIASES = {
+    "shift_jis": "cp932",
+    "shift-jis": "cp932",
+    "sjis": "cp932",
+    "x-sjis": "cp932",
+    "windows-31j": "cp932",
+    "x-euc-jp": "euc_jp",
+}
+FALLBACK_CHARSETS = ("utf-8", "cp932", "euc_jp", "iso2022_jp")
+
+
 def decode(body, content_type):
+    """宣言された文字コードで本文を復号する。
+
+    宣言がない、Pythonが知らない名前である（x-sjisなど）、または宣言で復号できない場合は、
+    日本語のページで使われる文字コードを順に試す。
+    """
     match = re.search(r"charset=([\w-]+)", content_type, re.IGNORECASE)
     if match is None:
         match = re.search(
             rb"<meta[^>]+charset=[\"']?([\w-]+)", body[:4096], re.IGNORECASE
         )
-        charset = match.group(1).decode("ascii") if match else "utf-8"
+        declared = match.group(1).decode("ascii") if match else None
     else:
-        charset = match.group(1)
-    try:
-        return body.decode(charset, errors="replace")
-    except LookupError:
-        return body.decode("utf-8", errors="replace")
+        declared = match.group(1)
+    candidates = []
+    if declared:
+        candidates.append(CHARSET_ALIASES.get(declared.lower(), declared))
+    candidates.extend(FALLBACK_CHARSETS)
+    for charset in candidates:
+        try:
+            return body.decode(charset)
+        except LookupError, UnicodeDecodeError:
+            continue
+    return body.decode("utf-8", errors="replace")
 
 
 def normalize(text):

@@ -11,6 +11,11 @@ PAGE = """<html><head><meta charset="utf-8"><title>ペロニスモ</title>
 
 <p>アルゼンチンの民衆を基盤とする政治運動。</p></body></html>"""
 
+SJIS_PAGE = """<html><head>
+<meta http-equiv="content-type" content="text/html;charset=x-sjis">
+<title>（詳細目次）社会学事典</title></head>
+<body><p>①家族と宗教</p></body></html>"""
+
 
 @pytest.fixture
 def server():
@@ -22,6 +27,9 @@ def server():
             requests.append(self.path)
             if self.path == "/page":
                 body, content_type = PAGE.encode("utf-8"), "text/html; charset=utf-8"
+            elif self.path == "/sjis":
+                body = SJIS_PAGE.encode("cp932")
+                content_type = "text/html"
             else:
                 body, content_type = b"%PDF-1.4", "application/pdf"
             self.send_response(200)
@@ -55,6 +63,14 @@ class TestSourceCache:
         assert second.stdout == first.stdout
         run_script("source_cache.py", tmp_path, "fetch", f"{base}/page")
         assert requests == ["/page"]
+
+    def test_fetch_decodes_nonstandard_charset_name(self, run_script, tmp_path, server):
+        """Pythonが知らない名前で宣言されたShift_JISのページも、文字化けさせずに保存する。"""
+        base, _ = server
+        result = run_script("source_cache.py", tmp_path, "fetch", f"{base}/sjis")
+        assert result.returncode == 0
+        assert "題名: （詳細目次）社会学事典" in result.stdout
+        assert "①家族と宗教" in result.stdout
 
     def test_fetch_rejects_other_format(self, run_script, tmp_path, server):
         """HTMLと文字以外の形式は取得せず、保存もしない。"""
