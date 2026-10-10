@@ -2155,6 +2155,23 @@ class TestWorkState:
         complete_state["execution"]["assignments"] = []
         assert check_state(run_script, "target-start", complete_state).returncode == 0
 
+    def test_difficulty_gate_requires_assessment_of_every_source(
+        self, run_script, complete_state
+    ):
+        """難易度の判断までに記録した資料は、すべて信頼性を評価してから先へ進める。"""
+        complete_state["sources"].append(
+            {
+                "id": "S9",
+                "citation": "難易度の資料",
+                "quotes": [
+                    {"id": "Q9", "text": "入門の授業で扱う", "location": "第2回"}
+                ],
+            }
+        )
+        result = check_state(run_script, "difficulty-gate", complete_state)
+        assert result.returncode == 1
+        assert "信頼性の評価のない資料がある: ['S9']" in result.stderr
+
     def test_same_source_url_needs_one_source_id(self, run_script, complete_state):
         """同じURLの資料に、担当ごとに別の資料IDを付けない。"""
         complete_state["sources"][0]["url"] = "https://example.org/a"

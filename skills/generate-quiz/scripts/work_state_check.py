@@ -2844,6 +2844,15 @@ def validate_difficulty_gate(state):
     validate_target_start(state)
     validate_execution_assignments(state, "difficulty-gate")
     quote_ids = validate_source_quotes(state)
+    assessed = {
+        item.get("source_id")
+        for item in required_list(state.get("source_assessments"), "source_assessments")
+        if isinstance(item, dict)
+    }
+    missing = sorted(
+        source["id"] for source in state["sources"] if source["id"] not in assessed
+    )
+    require_condition(not missing, f"信頼性の評価のない資料がある: {missing}")
     review = state.get("difficulty_assessment")
     require_condition(isinstance(review, dict), "difficulty_assessmentがない")
     require_condition(
