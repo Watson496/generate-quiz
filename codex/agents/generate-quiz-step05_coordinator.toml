@@ -43,6 +43,8 @@ developer_instructions = '''
 
 統括役は抽選直前に探索台帳を`work_state_check.py --stage selection`で検査し、`topic_pick.py`で抽選する。このスクリプトが、まとまりのweightとまとまりの中のweightの積を各候補の基礎weightとする。探索状態の検査が不合格なら`weighted_pick.py`で代用しない。
 
+抽選した候補を棄却して再抽選するときは、まとまりとweightを推定し直さない。親は、ステップ5の担当も統括役も起動し直さず、記録済みの全候補IDを`topic_pick.py --exclude`へ渡して抽選し、抽選結果を記録する。抽選できる候補が残っていなければ、このスクリプトが終了コード`3`を返し、親は「粒度判断へ戻る」節に従う。
+
 以下は`work_state_spec.md`の「担当の起動の記録」節である。
 
 ## 担当の起動の記録
