@@ -194,6 +194,7 @@ MIN_COVERAGE_AREAS = 2
 MIN_EXPRESSION_ALTERNATIVES = 2
 MIN_INTERSECTION_EXAMPLES = 2
 MIN_SUBDIVISION_CHILDREN = 2
+MIN_NAME_LENGTH = 2
 EXIT_OK, EXIT_STATE_INVALID, EXIT_USAGE, EXIT_RETURN = 0, 1, 2, 3
 
 
@@ -774,6 +775,31 @@ def validate_intersection_state(state):
         raise GranularityReturnError(msg)
 
 
+SEARCH_RESULT_PAGES = {
+    "www.google.com": "/search",
+    "www.google.co.jp": "/search",
+    "www.bing.com": "/search",
+    "search.yahoo.co.jp": "/search",
+    "duckduckgo.com": "/",
+}
+
+
+def is_search_result_page(parsed):
+    """URLが検索エンジンの検索結果のページなら真を返す。"""
+    path = SEARCH_RESULT_PAGES.get(parsed.hostname or "")
+    return path is not None and parsed.path.startswith(path) and bool(parsed.query)
+
+
+def candidate_names(candidates):
+    """候補の名称を、括弧の中の別表記も含めて返す。"""
+    names = set()
+    for item in candidates:
+        for name in re.split(r"[（）()、/]", item.get("label", "")):
+            if len(name.strip()) >= MIN_NAME_LENGTH:
+                names.add(name.strip())
+    return names
+
+
 def validate_selection_entries_areas(state, *, complete=True):
     entries, entry_ids = records_with_ids(
         state.get("entry_points"), "entry_points", nonempty=True
@@ -790,6 +816,10 @@ def validate_selection_entries_areas(state, *, complete=True):
         )
         required_text(item, "access_note", name)
         require_condition(item.get("opened") is True, f"{name}の本文を開いていない")
+        require_condition(
+            not is_search_result_page(parsed),
+            f"{name}.urlが検索エンジンの検索結果のページである",
+        )
     if complete:
         require_condition(
             len(entries) >= MIN_ENTRY_POINTS,
@@ -817,6 +847,13 @@ def validate_selection_entries_areas(state, *, complete=True):
         searches = required_list(
             item.get("source_searches"), f"{name}.source_searches", nonempty=True
         )
+        names = candidate_names(
+            [
+                candidate
+                for candidate in state.get("candidates") or []
+                if isinstance(candidate, dict)
+            ]
+        )
         opened_entries = set()
         open_searches = 0
         for index, search in enumerate(searches):
@@ -837,6 +874,11 @@ def validate_selection_entries_areas(state, *, complete=True):
             opened_entries.update(source_ids)
             if search["mode"] == "open":
                 require_condition(source_ids, f"{search_name}で入口を開いていない")
+                used = sorted(name for name in names if name in search["query"])
+                require_condition(
+                    not used,
+                    f"{search_name}は候補名{used}を含む検索を、候補名を含めない入口探し（open）として記録している。実際に行った検索が候補名を含むなら、検索語を書き換えずにnearbyとして記録し、候補名を含めない入口探しを新しく行って記録する",
+                )
                 open_searches += 1
             required_list(search.get("next_searches"), f"{search_name}.next_searches")
         if complete:
@@ -1203,6 +1245,14 @@ def validate_selection_review(state, areas, candidates, entry_ids):
     require_condition(
         challenge["resolved"] is True,
         "最後の反証調査が、探索を続ける候補や経路を残している",
+    )
+    own_prefix = f"{challenge['id'].split('-')[0]}-"
+    require_condition(
+        any(
+            entry_id.startswith(own_prefix)
+            for entry_id in challenge["opened_entry_point_ids"]
+        ),
+        f"saturation_challenge.{challenge['id']}が自分で開いた入口を記録していない",
     )
     core = challenge.get("core_check")
     name = f"saturation_challenge.{challenge['id']}.core_check"

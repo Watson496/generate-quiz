@@ -1817,6 +1817,32 @@ class TestSelectionState:
             "intersection_review.scope_mappingは配列でなければならない" in result.stderr
         )
 
+    def test_open_search_must_not_use_candidate_name(self, run_script, selection_state):
+        """候補名を含む検索を、候補名を含めない入口探しとして記録させない。"""
+        search = selection_state["coverage_areas"][0]["source_searches"][0]
+        search["query"] = "候補1 用途 一覧"
+        result = check_state(run_script, "discovery", selection_state)
+        assert result.returncode == 1
+        assert "候補名['候補1']を含む検索" in result.stderr
+
+    def test_entry_must_not_be_search_result_page(self, run_script, selection_state):
+        """検索エンジンの検索結果のページを入口にしない。"""
+        selection_state["entry_points"][0]["url"] = "https://www.bing.com/search?q=a"
+        result = check_state(run_script, "discovery", selection_state)
+        assert result.returncode == 1
+        assert "entry_points.E1.urlが検索エンジンの検索結果のページである" in (
+            result.stderr
+        )
+
+    def test_saturation_review_must_open_own_entry(self, run_script, selection_state):
+        """最後の反証調査は、自分で開いた入口を記録する。"""
+        selection_state["saturation_challenge"][-1]["opened_entry_point_ids"] = ["E3"]
+        result = check_state(run_script, "discovery", selection_state)
+        assert result.returncode == 1
+        assert "saturation_challenge.S1-C1が自分で開いた入口を記録していない" in (
+            result.stderr
+        )
+
     def test_alternate_review_ids_follow_fragment_prefix(
         self, run_script, selection_state
     ):

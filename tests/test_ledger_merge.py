@@ -30,7 +30,7 @@ def exploration_fragment(prefix, area_id, label):
                 "source_searches": [
                     {
                         "mode": "open",
-                        "query": f"{label} 一覧",
+                        "query": "化学工業の製法 一覧",
                         "angle": "分野の索引",
                         "result": f"{label}を発見",
                         "entry_point_ids": [entry_id],

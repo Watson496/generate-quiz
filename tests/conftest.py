@@ -413,6 +413,14 @@ def selection_state(intersection_state):
                 "access_note": "記事本文",
                 "opened": True,
             },
+            {
+                "id": "S1-E1",
+                "kind": "工場見学の案内",
+                "label": "工場見学記事",
+                "url": "https://example.org/tour",
+                "access_note": "記事本文",
+                "opened": True,
+            },
         ],
         "coverage_areas": [
             {
@@ -603,7 +611,7 @@ def selection_state(intersection_state):
                 "id": "S1-C1",
                 "search_perspective": "別の書き手の産業資料",
                 "query": "化学工業 現場 使用",
-                "opened_entry_point_ids": ["E3", "E4"],
+                "opened_entry_point_ids": ["E3", "E4", "S1-E1"],
                 "found_candidate_ids": [],
                 "resolution": "新しい候補なし",
                 "breadth": "convergent",
