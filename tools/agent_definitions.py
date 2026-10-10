@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """担当表から、担当ごとのエージェントの定義を作る。
 
-担当のエージェントの定義には、担当の名前、workflow_spec.md の担当の節、担当表の
-rules で指定した仕様の節の本文を置く。統括役を置くステップごとに、統括役のエージェントの
-定義も作り、workflow_spec.md の「担当の構成」節、そのステップの担当の節、
-「検査で不合格になったとき」節、「修正と再実行」節と、work_state_spec.md の
-「担当の起動の記録」節の本文を置く。依頼文とは別に、起動したときに必ず読み込まれる
-指示として規定を渡すためである。
+担当のエージェントの定義には、担当の名前、workflow_spec.md の担当の節（検査結果を
+記録する担当には「検査の進め方」節も）、担当表の rules で指定した仕様の節の本文を
+置く。統括役を置くステップごとに、統括役のエージェントの定義も作り、workflow_spec.md
+の「担当の構成」節、そのステップの担当の節、「検査で不合格になったとき」節、
+「修正と再実行」節と、work_state_spec.md の「担当の起動の記録」節の本文を置く。
+依頼文とは別に、起動したときに必ず読み込まれる指示として規定を渡すためである。
 
 形式:
     codex   Codex CLI のカスタムエージェント（TOML）。名前は generate-quiz:ID
@@ -69,12 +69,15 @@ def compose(lead, sections):
 
 
 def role_agent(role):
-    """担当の名前、workflow の担当の節、判断の規定から、担当のエージェントを作る。"""
+    """担当の名前、workflow の担当の節と検査の進め方、判断の規定から、担当のエージェントを作る。"""
     lead = [
         f"あなたはgenerate-quizの{role['name']}である。",
         "依頼文が指定するファイルを読んで手順と記録の書式に従い、判断は次の規定に従う。",
     ]
-    sections = [("workflow_spec.md", role["section"], True)]
+    sections = [
+        ("workflow_spec.md", section, True)
+        for section in assignment_plan.workflow_sections(role)[1:]
+    ]
     sections += [
         (rule["spec"], rule["heading"], rule.get("subsections", True))
         for rule in role["rules"]

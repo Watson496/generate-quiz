@@ -107,6 +107,17 @@ class TestBundledTable:
         }
         assert headings >= sections | {"担当の構成"}
 
+    def test_reviewers_read_review_procedure(self, load_script):
+        """検査結果を記録する担当の依頼文だけが、検査の進め方の節を読ませる。"""
+        module = load_script("generate-quiz", "assignment_plan.py")
+        table = module.load_table()
+        review = module.assignments(table, "facet_weight_review")[0]["request"]
+        maker = module.assignments(table, "facet_weighting")[0]["request"]
+        assert (
+            "「担当の構成」節、「ファセット選択」節、「検査の進め方」節を読み" in review
+        )
+        assert "検査の進め方" not in maker
+
     def test_blind_phases_hold_only_draft(self, load_script):
         """解答を伏せる段階の入力は問題文だけである。"""
         module = load_script("generate-quiz", "assignment_plan.py")

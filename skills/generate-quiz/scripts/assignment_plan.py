@@ -47,6 +47,7 @@ AGENT_PREFIX = "generate-quiz"
 SIDES = {"make", "check"}
 EXIT_OK, EXIT_BLOCKED, EXIT_USAGE, EXIT_RETURN = 0, 1, 2, 3
 COORDINATOR_SECTIONS = ("検査で不合格になったとき", "修正と再実行")
+REVIEW_SECTION = "検査の進め方"
 
 
 class TableError(ValueError):
@@ -289,12 +290,29 @@ def coordinator_agent_name(number):
     return f"{AGENT_PREFIX}:{coordinator_id(number)}"
 
 
+def is_reviewer(role):
+    """検査結果を記録する担当なら真を返す。"""
+    return any(
+        rule["spec"] == "work_state_spec.md" and rule["heading"] == "検査結果"
+        for rule in role["rules"]
+    )
+
+
+def workflow_sections(role):
+    """担当が読む workflow_spec.md の節を返す。検査結果を記録する担当には検査の進め方を加える。"""
+    sections = ["担当の構成", role["section"]]
+    if is_reviewer(role):
+        sections.append(REVIEW_SECTION)
+    return sections
+
+
 def request_text(table, role, items):
     specs = "、".join(f"`references/{spec}`" for spec in role["specs"])
+    sections = "」節、「".join(workflow_sections(role))
     lines = [
         f"あなたは{role['name']}である。",
         f"スキルの場所：`{SKILL_DIR}`（以下のファイルはこの場所からの相対パスで示す）",
-        f"`SKILL.md`の「役割」「必須ツール」「スクリプトの呼出し」節、`references/workflow_spec.md`の「担当の構成」節と「{role['section']}」節を読み、{specs}を全文読んで、その規定に従って判断する。",
+        f"`SKILL.md`の「役割」「必須ツール」「スクリプトの呼出し」節、`references/workflow_spec.md`の「{sections}」節を読み、{specs}を全文読んで、その規定に従って判断する。",
     ]
     phases = role["inputs"]
     if len(phases) > 1:

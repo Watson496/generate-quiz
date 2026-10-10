@@ -66,6 +66,15 @@ class TestDefinitions:
         assert "対象をそのものズバリ説明する説明" in instructions
         assert "### 6.1" not in instructions
 
+    def test_reviewer_carries_review_procedure(self, module):
+        """検査結果を記録する担当の定義には検査の進め方の本文が入り、作る側の担当には入らない。"""
+        table = module.assignment_plan.load_table()
+        bodies = module.definitions(table, "codex")
+        review = tomllib.loads(bodies["generate-quiz-facet_weight_review.toml"])
+        maker = tomllib.loads(bodies["generate-quiz-facet_weighting.toml"])
+        assert "## 検査の進め方" in review["developer_instructions"]
+        assert "## 検査の進め方" not in maker["developer_instructions"]
+
     def test_coordinator_carries_step_sections(self, module):
         """統括役の定義に、担当の構成、ステップの担当の節、不合格と再実行の扱い、起動の記録の本文が入る。"""
         table = module.assignment_plan.load_table()
