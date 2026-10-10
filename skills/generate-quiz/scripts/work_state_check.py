@@ -1796,8 +1796,7 @@ def validate_proposition_matching(state, prop_ids, verified_ids):
             f"{name}の問題文の版が一致しない",
         )
         required_text(item, "claim", name)
-        passage = required_text(item, "passage", name)
-        require_condition(passage in draft["text"], f"{name}.passageが問題文にない")
+        validate_passage(item.get("passage"), f"{name}.passage", draft["text"])
         if "kept_reason" in item:
             required_text(item, "kept_reason", name)
     validate_reviews(
@@ -1971,6 +1970,19 @@ def validate_difficulty_assessment(state, quote_ids):
                     nonempty=outcome == "confirmed",
                 )
     return review
+
+
+def validate_passage(passage, name, text):
+    """対応箇所が問題文の一続きの箇所か、非連続の断片の配列であることを検査する。"""
+    fragments = [passage] if isinstance(passage, str) else passage
+    require_condition(
+        isinstance(fragments, list)
+        and fragments
+        and all(isinstance(item, str) and item.strip() for item in fragments),
+        f"{name}がない",
+    )
+    missing = [item for item in fragments if item not in text]
+    require_condition(not missing, f"{name}が問題文にない: {missing}")
 
 
 def validate_wording(wording, name, quote_ids):

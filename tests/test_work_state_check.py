@@ -1973,6 +1973,21 @@ class TestWorkState:
         assert result.returncode == 1
         assert message in result.stderr
 
+    @pytest.mark.parametrize(
+        ("passage", "code"),
+        [
+            (["同じ長さの線分", "錯視"], 0),
+            (["同じ長さの線分", "存在しない断片"], 1),
+            ([], 1),
+        ],
+    )
+    def test_extracted_passage_may_be_fragments(
+        self, run_script, complete_state, passage, code
+    ):
+        """離れた箇所から生じる命題の対応箇所は、問題文にある断片の配列で示せる。"""
+        complete_state["extracted_propositions"][0]["passage"] = passage
+        assert check_state(run_script, "material", complete_state).returncode == code
+
     @pytest.mark.parametrize(("value", "code"), [("規定に従っている", 0), (" ", 1)])
     def test_kept_extraction_needs_reason(
         self, run_script, complete_state, value, code
