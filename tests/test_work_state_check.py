@@ -2150,6 +2150,11 @@ class TestWorkState:
         """作文担当の起動後に解答対象だけの状態を検査できる。"""
         assert check_state(run_script, "target-start", complete_state).returncode == 0
 
+    def test_target_start_accepts_state_before_roles(self, run_script, complete_state):
+        """担当を起動する前の、作ったばかりの作問状態を検査できる。"""
+        complete_state["execution"]["assignments"] = []
+        assert check_state(run_script, "target-start", complete_state).returncode == 0
+
     def test_writing_start_rejects_selection_ledger(self, run_script, complete_state):
         """題材探索の台帳を解答対象ごとの状態に混ぜない。"""
         complete_state["candidates"] = []

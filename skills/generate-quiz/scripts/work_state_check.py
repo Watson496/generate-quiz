@@ -1260,7 +1260,9 @@ def validate_execution_assignments(state, stage):
         for _, role in assignment_plan.ordered_roles(assignment_plan.load_table())
     }
     records = required_list(
-        data.get("assignments"), "execution.assignments", nonempty=True
+        data.get("assignments"),
+        "execution.assignments",
+        nonempty=bool(STAGE_ROLES[stage]),
     )
     roles_by_agent = {}
     completed_roles = set()
