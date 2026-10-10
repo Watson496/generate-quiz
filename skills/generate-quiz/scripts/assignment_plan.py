@@ -92,6 +92,11 @@ def validate_role(role, data, available, seen):
         ),
         f"担当{role_id}のrulesは、specsにある仕様の見出しの一覧でなければならない",
     )
+    headings = [(rule["spec"], rule["heading"]) for rule in rules]
+    require(
+        len(headings) == len(set(headings)),
+        f"担当{role_id}のrulesに同じ見出しが重複している",
+    )
     outputs = role.get("outputs")
     require(
         isinstance(outputs, list) and outputs,

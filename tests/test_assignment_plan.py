@@ -210,6 +210,12 @@ class TestTableValidation:
                 "rulesは、specsにある仕様の見出しの一覧",
             ),
             (
+                lambda table: table["steps"][0]["roles"][0]["rules"].append(
+                    {"spec": "work_state_spec.md", "heading": "目的"}
+                ),
+                "rulesに同じ見出しが重複している",
+            ),
+            (
                 lambda table: table.update(state_keys={"unknown": ["a"]}),
                 "state_keysは",
             ),
