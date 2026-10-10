@@ -168,8 +168,21 @@ def scope_lines(key, subdivisions):
         lines.append("- 範囲：")
         for member in derived[-1]["members"]:
             _, member_block = find_block(member)
-            label = block_field(member_block or [], "LABEL") or member
-            including = block_including(member_block) if member_block else None
+            if member_block is not None:
+                label = block_field(member_block, "LABEL") or member
+                including = block_including(member_block)
+            else:
+                child = next(
+                    (
+                        child
+                        for item in subdivisions
+                        for child in item["children"]
+                        if child["key"] == member and "scope" in child
+                    ),
+                    {},
+                )
+                label = child.get("label", member)
+                including = child.get("scope")
             lines.append(f"  - {label}" + (f"：{including}" if including else ""))
     elif derived:
         lines.append(f"- 範囲：{derived[-1]['scope']}")

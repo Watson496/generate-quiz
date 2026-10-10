@@ -1098,6 +1098,50 @@ class TestFacetGrouping:
         result = check_state(run_script, "facet-selection", grouped_facet_state)
         assert result.returncode == 1
 
+    def test_subdivided_parent_can_also_be_grouped(self, load_script):
+        """細分した親の区分も、狭すぎた子を含む中間の区分にまとめられる。"""
+        module = load_script("generate-quiz", "work_state_check.py")
+        children = [
+            {"key": f"subject::338*{index}", "label": label, "scope": f"{label}の範囲"}
+            for index, label in enumerate(["景気", "物価", "金融", "財政"], 1)
+        ]
+        state = {
+            "facet_subdivisions": [
+                {
+                    "parent": "subject::338",
+                    "characteristic": "扱う経済現象",
+                    "basis": "経済学の入門書が経済状態を四つの現象に分ける",
+                    "source_urls": ["https://example.org/economy"],
+                    "children": children,
+                },
+                {
+                    "parent": "subject::338",
+                    "kind": "grouping",
+                    "basis": "入門書が景気・物価と金融・財政を別の章にまとめる",
+                    "source_urls": ["https://example.org/economy"],
+                    "children": [
+                        {
+                            "key": "subject::338~1",
+                            "label": "景気と物価",
+                            "members": ["subject::338*1", "subject::338*2"],
+                        },
+                        {
+                            "key": "subject::338~2",
+                            "label": "金融と財政",
+                            "members": ["subject::338*3", "subject::338*4"],
+                        },
+                    ],
+                },
+            ]
+        }
+        records = module.validate_facet_subdivisions(state)
+        assert records["subject::338"]["children"] == children
+        assert records["subject::338~"]["kind"] == "grouping"
+        facet_node = load_script("generate-quiz", "facet_node.py")
+        lines = facet_node.scope_lines("subject::338~2", state["facet_subdivisions"])
+        assert "  - 金融：金融の範囲" in lines
+        assert "  - 財政：財政の範囲" in lines
+
     def test_scope_lists_group_members(self, run_script, tmp_path, grouped_facet_state):
         """選んだまとまりの範囲として、まとまりに入る子を示す。"""
         path = tmp_path / "facet.json"

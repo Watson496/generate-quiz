@@ -405,11 +405,15 @@ def validate_facet_subdivisions(state):
             isinstance(item, dict), f"{name}はオブジェクトでなければならない"
         )
         parent = required_text(item, "parent", name)
-        require_condition(parent not in subdivisions, f"{name}.parentが重複している")
         if item.get("kind") == "grouping":
+            require_condition(
+                grouping_key(parent) not in subdivisions,
+                f"{name}.parentの中間の区分が重複している",
+            )
             validate_facet_grouping(item, name, subdivisions)
-            subdivisions[parent] = item
+            subdivisions[grouping_key(parent)] = item
             continue
+        require_condition(parent not in subdivisions, f"{name}.parentが重複している")
         derived = {
             child["key"]
             for record in subdivisions.values()
@@ -448,6 +452,11 @@ def validate_facet_subdivisions(state):
             required_text(child, "scope", cname)
         subdivisions[parent] = item
     return subdivisions
+
+
+def grouping_key(parent):
+    """中間の区分の記録を、同じ親の細分の記録と分けて置くキーを返す。"""
+    return f"{parent}~"
 
 
 def validate_facet_grouping(item, name, subdivisions):
@@ -614,9 +623,9 @@ def validate_facet_selection(state):
         "子へ進まない階層にweightまたは抽選結果がある",
     )
     require_condition(set(nodes) == set(FACET_AXES), "facet_nodesに4軸がない")
-    grouping_parents = {key.rsplit("~", 1)[0] for key in grouped.values()}
+    grouping_records = {grouping_key(key.rsplit("~", 1)[0]) for key in grouped.values()}
     require_condition(
-        set(subdivisions) == set(subdivided) | grouping_parents,
+        set(subdivisions) == set(subdivided) | grouping_records,
         "子へ進んでいないノードの細分か、使っていない中間の区分がある",
     )
     divided_levels = sorted({*subdivided.values(), *grouped})
@@ -632,11 +641,8 @@ def validate_facet_selection(state):
 
 def validate_group_level(level, name, node, subdivisions):
     """中間の区分を選んだ階層が、狭すぎた子を含むまとまりを選んでいることを検査し、そのまとまりのキーを返す。"""
-    record = subdivisions.get(node)
-    require_condition(
-        record is not None and record.get("kind") == "grouping",
-        f"{name}の中間の区分の記録がない",
-    )
+    record = subdivisions.get(grouping_key(node))
+    require_condition(record is not None, f"{name}の中間の区分の記録がない")
     group_key = required_text(level, "group_key", name)
     group = next(
         (child for child in record["children"] if child["key"] == group_key), None
