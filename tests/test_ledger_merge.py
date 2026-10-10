@@ -140,11 +140,39 @@ class TestMergeFragments:
         with pytest.raises(module.MergeError, match=r"coverage_areas\.D1\.labelの値"):
             module.merge_fragments(intersection_state, [fragment])
 
-    def test_rejects_same_prefix(self, module, intersection_state):
-        """同じ接頭辞の断片はまとめない。"""
-        fragment = exploration_fragment("D1", "D1", "アンモニアソーダ法")
-        with pytest.raises(module.MergeError, match="同じprefix"):
-            module.merge_fragments(intersection_state, [fragment, fragment])
+    def test_later_fragment_of_same_prefix_replaces_earlier(
+        self, module, intersection_state
+    ):
+        """同じ接頭辞の断片が複数あれば、後に渡した断片だけをまとめる。"""
+        first = exploration_fragment("D1", "D1", "アンモニアソーダ法")
+        corrected = exploration_fragment("D1", "D1", "ソルベー法")
+        merged = module.merge_fragments(intersection_state, [first, corrected])
+        assert [item["label"] for item in merged["candidates"]] == ["ソルベー法"]
+
+    def test_applies_exclusions_of_saturation_review(self, module, intersection_state):
+        """反証調査が除くべきとした候補を、記録された理由で除外する。"""
+        review = {
+            "prefix": "S1",
+            "saturation_challenge": [
+                {
+                    "id": "S1-C1",
+                    "exclusions": [
+                        {
+                            "candidate_id": "D1-K1",
+                            "exclusion_code": "not_candidate",
+                            "exclusion_reason": "説明の語の組み合わせでできる呼び方である",
+                        }
+                    ],
+                }
+            ],
+        }
+        merged = module.merge_fragments(
+            intersection_state,
+            [exploration_fragment("D1", "D1", "アンモニアソーダ法"), review],
+        )
+        candidate = merged["candidates"][0]
+        assert candidate["disposition"] == "excluded"
+        assert candidate["exclusion_code"] == "not_candidate"
 
 
 class TestLedgerMerge:

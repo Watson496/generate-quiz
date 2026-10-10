@@ -107,6 +107,17 @@ class TestBundledTable:
         }
         assert headings >= sections | {"担当の構成"}
 
+    def test_fragment_roles_write_state_keys_with_prefix(self, load_script):
+        """題材探索の担当の依頼文は、接頭辞と探索状態のキーで断片を書かせる。"""
+        module = load_script("generate-quiz", "assignment_plan.py")
+        request = module.assignments(module.load_table(), "saturation_review")[0][
+            "request"
+        ]
+        assert (
+            '`{"prefix": …, "entry_points": …, "candidates": …, "saturation_challenge": …}`'
+            in request
+        )
+
     def test_reviewers_read_review_procedure(self, load_script):
         """検査結果を記録する担当の依頼文だけが、検査の進め方の節を読ませる。"""
         module = load_script("generate-quiz", "assignment_plan.py")
@@ -326,7 +337,7 @@ class TestRequests:
             in request
         )
         assert (
-            '成果物（担当の節が書き方を定めていなければ、指定されたファイルに、データIDをキーとするJSONのオブジェクト`{"draft_review": …}`として書く）：\n- 問題文の検査記録（`draft_review`）'
+            '成果物（指定されたファイルに、データIDをキーとするJSONのオブジェクト`{"draft_review": …}`として書く）：\n- 問題文の検査記録（`draft_review`）'
             in request
         )
         assert (

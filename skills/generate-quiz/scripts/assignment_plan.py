@@ -374,10 +374,21 @@ def request_text(table, role, items):
     lines.append(
         "入力として渡されたファイル、読むよう指定された仕様、資料の写しの置き場、担当の節が読んでよいと定めたファイルのほかに、作業場所のファイル（状態ファイル、ほかの担当の成果物、前の実行の記録）を探したり読んだりしない。"
     )
-    keys = ", ".join(f'"{item}": …' for item in role["outputs"])
-    lines.append(
-        f"成果物（担当の節が書き方を定めていなければ、指定されたファイルに、データIDをキーとするJSONのオブジェクト`{{{keys}}}`として書く）："
-    )
+    if "ledger" in role["outputs"]:
+        names = ["prefix"] + [
+            key
+            for item in role["outputs"]
+            for key in table.get("state_keys", {}).get(item, [item])
+        ]
+        keys = ", ".join(f'"{name}": …' for name in names)
+        lines.append(
+            f"成果物（指定された断片のファイルに、担当の接頭辞と探索状態のキーで`{{{keys}}}`の形で書く）："
+        )
+    else:
+        keys = ", ".join(f'"{item}": …' for item in role["outputs"])
+        lines.append(
+            f"成果物（指定されたファイルに、データIDをキーとするJSONのオブジェクト`{{{keys}}}`として書く）："
+        )
     lines.extend(f"- {table['data'][item]}（`{item}`）" for item in role["outputs"])
     lines.append("報告は、完了したことと成果物のファイルの場所だけとする。")
     return "\n".join(lines)

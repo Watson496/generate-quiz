@@ -2,7 +2,9 @@
 """同時に動いた担当がそれぞれ書いた台帳の断片を、一つの探索状態へまとめる。
 
 入力:
-    まとめる前の探索状態のJSONファイルと、担当ごとの断片のJSONファイルを受け取る。
+    ステップを始めたときの探索状態のJSONファイルと、担当ごとの断片のJSONファイルを、
+    作った順に受け取る。同じ接頭辞の断片が複数あれば、後に渡した断片だけをまとめる
+    （担当が直した断片は、前の断片の全体を書き直したものだから）。
     断片には、担当の受け持ちを表す接頭辞を`prefix`として置き、そのほかは探索状態と
     同じキーで、書き加える内容だけを置く。
     `id`を持つ記録の配列では、断片の記録のうち、まだない`id`の記録を新しい記録として
@@ -10,13 +12,16 @@
     `id`の記録には、断片に置いた項目を書き加える。配列の項目は後ろへ加え、そのほかの
     項目は、まだない場合だけ置く。すでにある値と異なる値は書き加えない。
     `id`を持つ記録の配列以外のキーも、まだない場合だけ置く。
+    最後に、反証調査の記録（`saturation_challenge`）の`exclusions`に挙げた候補を、
+    挙げた除外の理由の種類と理由で除外する。
 
 終了コード:
     0  まとめた探索状態を出力した
     2  JSONを読めない、または断片がまとめられない内容を含む
 
 使用例:
-    python3 ledger_merge.py state.json fragment_D1.json fragment_D2.json -o state.json
+    python3 ledger_merge.py selection-base.json D1.json D2.json D1-fix1.json \
+        -o selection.json
 """
 
 import argparse
@@ -57,9 +62,8 @@ def merge_fragments(state, fragments):
     if not all(isinstance(prefix, str) and prefix for prefix in prefixes):
         message = "断片にprefixがない"
         raise MergeError(message)
-    if len(set(prefixes)) != len(prefixes):
-        message = "同じprefixの断片がある"
-        raise MergeError(message)
+    latest = dict(zip(prefixes, fragments, strict=True))
+    prefixes, fragments = list(latest), list(latest.values())
     updates = []
     for prefix, fragment in zip(prefixes, fragments, strict=True):
         for key, value in fragment.items():
@@ -90,7 +94,23 @@ def merge_fragments(state, fragments):
             raise MergeError(message)
         for field, field_value in value.items():
             merge_value(target, field, field_value, f"{key}.{record_id}")
+    apply_exclusions(merged)
     return merged
+
+
+def apply_exclusions(state):
+    """反証調査が除くべきとした候補を、記録された理由で除外する。"""
+    candidates = {item["id"]: item for item in state.get("candidates", [])}
+    for challenge in state.get("saturation_challenge", []):
+        for exclusion in challenge.get("exclusions", []):
+            candidate = candidates.get(exclusion.get("candidate_id"))
+            if candidate is None:
+                message = f"{challenge['id']}.exclusionsが存在しない候補を挙げている"
+                raise MergeError(message)
+            candidate["disposition"] = "excluded"
+            for field in ("exclusion_code", "exclusion_reason", "merged_into"):
+                if field in exclusion:
+                    candidate[field] = exclusion[field]
 
 
 def main():
