@@ -17,10 +17,13 @@
                        修正の後に再実行する担当を出力する
     inputs ROLE        --stateで渡した状態ファイルから担当の入力のデータだけを取り出し、
                        --outputのファイルに書く。状態ファイルにない入力を出力する
+    merge ROLE         担当の成果物のファイル（--artifact）を、担当表のmerge_rulesに
+                       従って--stateの状態ファイルへ入れる。成果物の最上位のキーが担当の
+                       成果物のデータIDでなければ、状態ファイルを変えずに終了コード1を返す
 
 終了コード:
     0  結果を出力した
-    1  前のステップの検査が不合格
+    1  前のステップの検査が不合格、または担当の成果物が状態ファイルへ入れられる形ではない
     2  担当表の不備、存在しない担当、項目IDの不備など、入力や呼出しの不備
     3  前のステップの担当が粒度判断へ戻ると判断している、または抽選できる候補がない
 
@@ -32,6 +35,8 @@
     python3 assignment_plan.py fix propositions proposition_support
     python3 assignment_plan.py inputs membership --state facet.json selection.json \
         --output 004-step04/membership-input.json
+    python3 assignment_plan.py merge membership --state selection.json \
+        --artifact 004-step04/membership-K1_K2.json
 """
 
 import argparse
@@ -182,6 +187,40 @@ def validate_table(table):
             for keys in state_keys.values()
         ),
         "state_keysは、定義済みのデータごとの状態ファイルのキーの一覧でなければならない",
+    )
+    rules = table.get("merge_rules", {})
+    union = rules.get("union", {}) if isinstance(rules, dict) else None
+    append = rules.get("append", []) if isinstance(rules, dict) else None
+    lists = rules.get("lists", []) if isinstance(rules, dict) else None
+    require(
+        isinstance(union, dict)
+        and set(union) <= produced
+        and all(
+            isinstance(keys, list) and keys and all(is_text(key) for key in keys)
+            for keys in union.values()
+        )
+        and isinstance(append, list)
+        and set(append) <= produced
+        and isinstance(lists, list)
+        and set(lists) <= produced
+        and not set(append) & set(union)
+        and not set(lists) & (set(union) | set(append)),
+        "merge_rulesは、担当の成果物のデータごとの、まとめ方の一覧でなければならない",
+    )
+    scopes = rules.get("scopes", {})
+    require(
+        isinstance(scopes, dict)
+        and set(scopes) <= set(data)
+        and all(
+            isinstance(scope, dict)
+            and set(scope) <= {"field", "data", "values", "where"}
+            and is_text(scope.get("field"))
+            and scope.get("data") in set(lists)
+            and is_text(scope.get("values"))
+            and isinstance(scope.get("where", {}), dict)
+            for scope in scopes.values()
+        ),
+        "merge_rulesのscopesは、データごとの、記録を残す範囲（置き換えるデータの項目）の定めでなければならない",
     )
     return table
 
@@ -394,6 +433,151 @@ def role_inputs(table, role_id, states, phase=None):
     return extracted, missing
 
 
+class ArtifactError(ValueError):
+    """担当の成果物が、状態ファイルへ入れられる形ではない。"""
+
+
+def merge_record(old, new):
+    """複数の担当が書く記録に、新しい記録の項目を書き加える。
+
+    IDを持つ記録の配列の項目はIDごとにまとめ、新しい記録にない項目は前の記録のまま残す。
+    """
+    merged = dict(old)
+    for field, value in new.items():
+        current = merged.get(field)
+        if (
+            isinstance(current, list)
+            and isinstance(value, list)
+            and all(isinstance(item, dict) and "id" in item for item in current + value)
+        ):
+            ids = [item["id"] for item in value]
+            merged[field] = [item for item in current if item["id"] not in ids] + value
+        else:
+            merged[field] = value
+    return merged
+
+
+def merges_artifact(role):
+    """担当の成果物を、このスクリプトで状態ファイルへ入れるかを返す。
+
+    台帳か最終出力を成果物に持つ担当の成果物は、ほかの方法で入れる。
+    """
+    return not set(role["outputs"]) & {"ledger", "final_output"}
+
+
+def merge_artifact(table, role_id, state, artifact):
+    """担当の成果物を状態ファイルへ入れた結果を返す。
+
+    担当表のmerge_rulesで、unionのデータは定めたキーが同じ記録を置き換えて残りを加え
+    （複数の担当が書くデータでは、同じ記録に項目を書き加え）、
+    appendのデータは後ろへ加え、そのほかのデータは置き換える。union・append・listsの
+    データは、記録の配列でなければ拒む。scopesのデータは、範囲を定めるデータにない値を
+    持つ記録を状態ファイルから除き、成果物にそのような記録があれば拒む。
+    """
+    role = find_role(table, role_id)
+    outputs = role["outputs"]
+    require(
+        merges_artifact(role),
+        f"担当{role_id}の成果物は、状態ファイルへこのスクリプトで入れるものではない",
+    )
+    if not isinstance(artifact, dict) or not artifact or set(artifact) - set(outputs):
+        found = (
+            sorted(artifact) if isinstance(artifact, dict) else type(artifact).__name__
+        )
+        message = f"成果物の最上位のキーは担当の成果物のデータID {outputs} でなければならない: {found}"
+        raise ArtifactError(message)
+    rules = table.get("merge_rules", {})
+    union = rules.get("union", {})
+    append = set(rules.get("append", []))
+    lists = set(rules.get("lists", []))
+    merged = json.loads(json.dumps(state))
+    writers = [item for _, item in ordered_roles(table) if merges_artifact(item)]
+    shared = {
+        key for key in union if sum(key in writer["outputs"] for writer in writers) > 1
+    }
+    for key, value in artifact.items():
+        current = merged.get(key)
+        if key in union or key in append or key in lists:
+            require_records(value, key)
+        if (key in union or key in append) and current is not None:
+            require_records(current, f"状態ファイルの{key}")
+        if key in union and current is not None:
+            fields = union[key]
+            records = list(current)
+            for record in value:
+                identity = tuple(record.get(field) for field in fields)
+                index = next(
+                    (
+                        position
+                        for position, item in enumerate(records)
+                        if tuple(item.get(field) for field in fields) == identity
+                    ),
+                    None,
+                )
+                if index is None:
+                    records.append(record)
+                elif key in shared:
+                    records[index] = merge_record(records[index], record)
+                else:
+                    records[index] = record
+            merged[key] = records
+        elif key in append and current is not None:
+            merged[key] = current + value
+        else:
+            merged[key] = value
+    for key, scope in rules.get("scopes", {}).items():
+        allowed = scope_values(merged, scope)
+        if allowed is None or not isinstance(merged.get(key), list):
+            continue
+        field = scope["field"]
+        outside = sorted(
+            {
+                str(record.get(field))
+                for record in artifact.get(key, [])
+                if not is_text(record.get(field)) or record[field] not in allowed
+            }
+        )
+        if outside:
+            message = (
+                f"成果物の{key}の{field}に、{scope['data']}にない値がある: {outside}"
+            )
+            raise ArtifactError(message)
+        merged[key] = [
+            record
+            for record in merged[key]
+            if not isinstance(record, dict)
+            or (is_text(record.get(field)) and record[field] in allowed)
+        ]
+    return merged
+
+
+def scope_values(state, scope):
+    """記録を残す範囲の値を、範囲を定めるデータから集める。そのデータがなければNoneを返す。"""
+    records = state.get(scope["data"])
+    if not isinstance(records, list):
+        return None
+    values = set()
+    for record in records:
+        if not isinstance(record, dict) or any(
+            record.get(field) != value
+            for field, value in scope.get("where", {}).items()
+        ):
+            continue
+        value = record.get(scope["values"])
+        values.update(
+            item
+            for item in (value if isinstance(value, list) else [value])
+            if is_text(item)
+        )
+    return values
+
+
+def require_records(value, key):
+    if not (isinstance(value, list) and all(isinstance(item, dict) for item in value)):
+        message = f"成果物の{key}は記録の配列でなければならない"
+        raise ArtifactError(message)
+
+
 def rerun_plan(table, role_id):
     """ROLEの成果物が変わったときに再実行する担当を、表の順にステップごとに返す。"""
     role = find_role(table, role_id)
@@ -470,6 +654,10 @@ def main():
     inputs.add_argument("--state", type=Path, nargs="+", required=True)
     inputs.add_argument("--phase", type=int)
     inputs.add_argument("--output", type=Path, required=True)
+    merge = commands.add_parser("merge")
+    merge.add_argument("role")
+    merge.add_argument("--state", type=Path, required=True)
+    merge.add_argument("--artifact", type=Path, required=True)
     args = parser.parse_args()
     try:
         table = load_table()
@@ -503,6 +691,23 @@ def main():
                 "keys": list(extracted),
                 "not_in_state": missing,
             }
+        elif args.command == "merge":
+            state = json.loads(args.state.read_text(encoding="utf-8"))
+            require(
+                isinstance(state, dict),
+                "状態ファイルはJSONのオブジェクトでなければならない",
+            )
+            artifact = json.loads(args.artifact.read_text(encoding="utf-8"))
+            try:
+                merged = merge_artifact(table, args.role, state, artifact)
+            except ArtifactError as error:
+                print(f"不合格: {error}", file=sys.stderr)
+                return EXIT_BLOCKED
+            args.state.write_text(
+                json.dumps(merged, ensure_ascii=False, indent=2) + "\n",
+                encoding="utf-8",
+            )
+            result = {"state": str(args.state), "keys": list(artifact)}
         else:
             result = fix_plan(table, args.data)
     except (OSError, json.JSONDecodeError, TableError) as error:

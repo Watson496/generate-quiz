@@ -422,6 +422,249 @@ class TestInputs:
         assert json.loads(output.read_text()) == {"draft": {"text": "問題文"}}
 
 
+class TestMerge:
+    """担当の成果物を、担当表のまとめ方に従って状態ファイルへ入れることを確認する。"""
+
+    def merge(self, run_script, tmp_path, role, state, artifact):
+        state_path = tmp_path / "state.json"
+        state_path.write_text(json.dumps(state, ensure_ascii=False))
+        artifact_path = tmp_path / f"{role}.json"
+        artifact_path.write_text(json.dumps(artifact, ensure_ascii=False))
+        result = run_script(
+            "assignment_plan.py",
+            "merge",
+            role,
+            "--state",
+            state_path,
+            "--artifact",
+            artifact_path,
+        )
+        return result, json.loads(state_path.read_text())
+
+    def test_sources_keep_quotes_written_by_other_roles(self, run_script, tmp_path):
+        """記録済みの資料に引用を加えると、前の担当の引用を残し、新しい資料は後ろへ加える。"""
+        state = {
+            "sources": [
+                {"id": "S1", "citation": "資料1", "quotes": [{"id": "Q1", "text": "a"}]}
+            ]
+        }
+        artifact = {
+            "sources": [
+                {
+                    "id": "S1",
+                    "citation": "資料1",
+                    "quotes": [{"id": "Q2", "text": "b"}],
+                },
+                {
+                    "id": "S2",
+                    "citation": "資料2",
+                    "quotes": [{"id": "Q3", "text": "c"}],
+                },
+            ],
+            "clues": [{"id": "C1", "fact": "事実", "proposition_ids": ["P1"]}],
+            "propositions": [{"id": "P1", "claim": "命題"}],
+        }
+        result, merged = self.merge(
+            run_script, tmp_path, "clue_search", state, artifact
+        )
+        assert result.returncode == 0
+        assert [quote["id"] for quote in merged["sources"][0]["quotes"]] == ["Q1", "Q2"]
+        assert [source["id"] for source in merged["sources"]] == ["S1", "S2"]
+        assert merged["clues"] == artifact["clues"]
+
+    def test_split_records_replace_same_item(self, run_script, tmp_path):
+        """件数ごとに分けた担当の記録は、同じ項目の記録を置き換え、ほかの項目の記録を残す。"""
+        state = {
+            "memberships": [
+                {"candidate_id": "K1", "axes": "前の判定"},
+                {"candidate_id": "K2", "axes": "別の担当の判定"},
+            ]
+        }
+        artifact = {"memberships": [{"candidate_id": "K1", "axes": "直した判定"}]}
+        result, merged = self.merge(run_script, tmp_path, "membership", state, artifact)
+        assert result.returncode == 0
+        assert merged["memberships"] == [
+            {"candidate_id": "K1", "axes": "直した判定"},
+            {"candidate_id": "K2", "axes": "別の担当の判定"},
+        ]
+
+    def test_single_writer_record_drops_removed_fields(self, run_script, tmp_path):
+        """一つの担当だけが書く記録は、直した記録で丸ごと置き換え、なくした項目を残さない。"""
+        before = {
+            "clue_id": "C1",
+            "competitor_id": "CP1",
+            "disposition": "excluded",
+            "exclusion_passage": "前の判断の箇所",
+        }
+        after = {"clue_id": "C1", "competitor_id": "CP1", "disposition": "retained"}
+        result, merged = self.merge(
+            run_script,
+            tmp_path,
+            "competitor_comparison",
+            {"competitor_comparisons": [before]},
+            {"competitor_comparisons": [after]},
+        )
+        assert result.returncode == 0
+        assert merged["competitor_comparisons"] == [after]
+
+    def test_regrouping_drops_weights_outside_groups(self, run_script, tmp_path):
+        """まとまりを切り直すと、まとまりから外れた候補とまとまりのweightを除く。"""
+        state = {
+            "topic_groups": [
+                {"id": "G1", "candidate_ids": ["K1", "K2"]},
+                {"id": "G2", "candidate_ids": ["K3"]},
+            ],
+            "group_weights": [{"group_id": "G1"}, {"group_id": "G2"}],
+            "candidate_weights": [
+                {"candidate_id": "K1"},
+                {"candidate_id": "K2"},
+                {"candidate_id": "K3"},
+            ],
+        }
+        artifact = {"topic_groups": [{"id": "G1", "candidate_ids": ["K1", "K3"]}]}
+        result, merged = self.merge(
+            run_script, tmp_path, "topic_grouping", state, artifact
+        )
+        assert result.returncode == 0
+        assert merged["group_weights"] == [{"group_id": "G1"}]
+        assert merged["candidate_weights"] == [
+            {"candidate_id": "K1"},
+            {"candidate_id": "K3"},
+        ]
+
+    def test_rejects_weight_for_candidate_outside_groups(self, run_script, tmp_path):
+        """まとまりにない候補のweightを置いた成果物は、状態ファイルを変えずに拒む。"""
+        state = {"topic_groups": [{"id": "G1", "candidate_ids": ["K1"]}]}
+        artifact = {
+            "candidate_weights": [{"candidate_id": "K1"}, {"candidate_id": "K9"}]
+        }
+        result, merged = self.merge(
+            run_script, tmp_path, "topic_weighting", state, artifact
+        )
+        assert result.returncode == 1
+        assert (
+            "成果物のcandidate_weightsのcandidate_idに、topic_groupsにない値がある: ['K9']"
+            in result.stderr
+        )
+        assert merged == state
+
+    def test_rejudged_levels_drop_weights_and_picks(self, run_script, tmp_path):
+        """粒度判断をし直すと、子へ進まなくなった階層と除いた階層のweightと抽選結果を除く。"""
+        state = {
+            "facet_levels": [
+                {"id": "L1", "decision": "descend"},
+                {"id": "L2", "decision": "descend"},
+                {"id": "L3", "decision": "stop"},
+            ],
+            "facet_subdivisions": [{"parent": "subject::646.2", "children": []}],
+            "facet_weights": [{"level_id": "L1"}, {"level_id": "L2"}],
+            "facet_picks": [{"level_id": "L1"}, {"level_id": "L2"}],
+        }
+        artifact = {
+            "facet_levels": [
+                {"id": "L1", "decision": "descend"},
+                {"id": "L4", "decision": "stop", "return_id": "R1"},
+            ],
+            "facet_subdivisions": [],
+            "facet_nodes": {},
+        }
+        result, merged = self.merge(
+            run_script, tmp_path, "facet_granularity", state, artifact
+        )
+        assert result.returncode == 0
+        assert [level["id"] for level in merged["facet_levels"]] == ["L1", "L4"]
+        assert merged["facet_subdivisions"] == []
+        assert merged["facet_weights"] == [{"level_id": "L1"}]
+        assert merged["facet_picks"] == [{"level_id": "L1"}]
+
+    def test_reviews_keep_failed_record(self, run_script, tmp_path):
+        """再検査の結果は、不合格の記録を残したまま後ろへ加える。"""
+        failed = {"target": "G1", "status": "failed", "reason": "r", "fix_data": ["x"]}
+        passed = {"target": "G1", "status": "passed", "reason": "r"}
+        result, merged = self.merge(
+            run_script,
+            tmp_path,
+            "topic_weight_review",
+            {"topic_weight_reviews": [failed]},
+            {"topic_weight_reviews": [passed]},
+        )
+        assert result.returncode == 0
+        assert merged["topic_weight_reviews"] == [failed, passed]
+
+    def test_other_data_is_replaced(self, run_script, tmp_path):
+        """まとめ方を定めていないデータは、新しい成果物で置き換える。"""
+        result, merged = self.merge(
+            run_script,
+            tmp_path,
+            "asked_knowledge",
+            {"asked_knowledge": "前", "answer_granularity": "前"},
+            {"asked_knowledge": "後", "answer_granularity": "後"},
+        )
+        assert result.returncode == 0
+        assert merged == {"asked_knowledge": "後", "answer_granularity": "後"}
+
+    @pytest.mark.parametrize(
+        "artifact",
+        [{"G1": {"status": "passed"}}, [{"target": "G1"}], {}],
+    )
+    def test_rejects_artifact_not_keyed_by_data_id(
+        self, run_script, tmp_path, artifact
+    ):
+        """最上位のキーが成果物のデータIDでない成果物は、状態ファイルを変えずに拒む。"""
+        state = {"topic_weight_reviews": []}
+        result, merged = self.merge(
+            run_script, tmp_path, "topic_weight_review", state, artifact
+        )
+        assert result.returncode == 1
+        assert "データID ['topic_weight_reviews'] でなければならない" in result.stderr
+        assert merged == state
+
+    def test_rejects_single_record_for_record_list(self, run_script, tmp_path):
+        """記録を加えていくデータは、状態ファイルにまだなくても記録の配列でなければ拒む。"""
+        record = {"candidate_id": "K1", "result": "pass", "reason": "r"}
+        result, merged = self.merge(
+            run_script, tmp_path, "prejudgment_scope", {}, {"prejudgment_scope": record}
+        )
+        assert result.returncode == 1
+        assert (
+            "成果物のprejudgment_scopeは記録の配列でなければならない" in result.stderr
+        )
+        assert merged == {}
+
+    def test_replaced_data_can_correct_wrong_type(self, run_script, tmp_path):
+        """置き換えるデータは、前に入れた記録の形が誤っていても、直した成果物で置き換えられる。"""
+        result, merged = self.merge(
+            run_script,
+            tmp_path,
+            "asked_knowledge",
+            {"asked_knowledge": {"text": "誤った形"}, "answer_granularity": "粒度"},
+            {"asked_knowledge": "問う知識", "answer_granularity": "粒度"},
+        )
+        assert result.returncode == 0
+        assert merged["asked_knowledge"] == "問う知識"
+
+    def test_rejects_record_list_data_in_other_shape(self, run_script, tmp_path):
+        """記録の配列と定めたデータは、置き換える場合も記録の配列でなければ拒む。"""
+        result, merged = self.merge(
+            run_script,
+            tmp_path,
+            "answer_range",
+            {},
+            {"answers": {"A1": "セデル"}, "answer_judgments": []},
+        )
+        assert result.returncode == 1
+        assert "成果物のanswersは記録の配列でなければならない" in result.stderr
+        assert merged == {}
+
+    def test_rejects_fragment_roles(self, run_script, tmp_path):
+        """題材探索の断片は、このスクリプトでは入れない。"""
+        result, _ = self.merge(
+            run_script, tmp_path, "exploration", {}, {"coverage_areas": []}
+        )
+        assert result.returncode == 2
+        assert "このスクリプトで入れるものではない" in result.stderr
+
+
 class TestEntryCheck:
     """統括役を起動する前に、前のステップの検査を行うことを確認する。"""
 

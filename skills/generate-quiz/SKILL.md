@@ -75,6 +75,13 @@ python3 "$SKILL_DIR/scripts/assignment_plan.py" inputs membership --state facet.
   --output 004-step04/membership-input.json
 ```
 
+担当の成果物は、担当表のまとめ方に従って状態ファイルへ入れる。
+
+```bash
+python3 "$SKILL_DIR/scripts/assignment_plan.py" merge membership --state selection.json \
+  --artifact 004-step04/membership-K1_K2.json
+```
+
 ファセットカタログは全文を読まず、必要なブロックだけを取得する。
 
 ```bash
