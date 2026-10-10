@@ -99,7 +99,7 @@
           "section": "ファセット選択",
           "specs": ["selection_and_history_spec.md", "facet_index.md", "work_state_spec.md"],
           "rules": [{"spec": "selection_and_history_spec.md", "heading": "1. 目的と基本モデル"}, {"spec": "selection_and_history_spec.md", "heading": "2. 細分化するか停止するか"}],
-          "inputs": [["user_conditions", "facet_picks", "granularity_return", "source_cache"]],
+          "inputs": [["user_conditions", "facet_levels", "facet_subdivisions", "facet_picks", "granularity_return", "source_cache"]],
           "outputs": ["facet_levels", "facet_subdivisions", "facet_nodes"]
         },
         {
@@ -109,7 +109,7 @@
           "section": "ファセット選択",
           "specs": ["selection_and_history_spec.md", "facet_index.md", "work_state_spec.md"],
           "rules": [{"spec": "selection_and_history_spec.md", "heading": "3. sibling groupの候補集合"}, {"spec": "selection_and_history_spec.md", "heading": "4. 基礎local weight"}, {"spec": "selection_and_history_spec.md", "heading": "5. 履歴補正"}],
-          "inputs": [["user_conditions", "history", "facet_levels", "facet_subdivisions", "facet_picks", "source_cache"]],
+          "inputs": [["user_conditions", "history", "facet_levels", "facet_subdivisions", "facet_weights", "facet_picks", "source_cache"]],
           "outputs": ["facet_weights"]
         },
         {
