@@ -3,9 +3,10 @@
 
 担当のエージェントの定義には、担当の名前、workflow_spec.md の担当の節、担当表の
 rules で指定した仕様の節の本文を置く。統括役を置くステップごとに、統括役のエージェントの
-定義も作り、workflow_spec.md の「担当の構成」節とそのステップの担当の節、
-work_state_spec.md の「担当の起動の記録」節の本文を置く。依頼文とは別に、起動したときに
-必ず読み込まれる指示として規定を渡すためである。
+定義も作り、workflow_spec.md の「担当の構成」節、そのステップの担当の節、
+「検査で不合格になったとき」節、「修正と再実行」節と、work_state_spec.md の
+「担当の起動の記録」節の本文を置く。依頼文とは別に、起動したときに必ず読み込まれる
+指示として規定を渡すためである。
 
 形式:
     codex   Codex CLI のカスタムエージェント（TOML）。名前は generate-quiz:ID
@@ -82,7 +83,7 @@ def role_agent(role):
 
 
 def coordinator_agent(number, step):
-    """担当の構成、ステップの担当の節、起動の記録の規定から、統括役のエージェントを作る。"""
+    """担当の構成、ステップの担当の節、不合格と再実行の扱い、起動の記録の規定から、統括役のエージェントを作る。"""
     name = f"ステップ{number}（{step['name']}）の統括役"
     lead = [
         f"あなたはgenerate-quizの{name}である。",
@@ -92,6 +93,10 @@ def coordinator_agent(number, step):
     sections += [
         ("workflow_spec.md", section, True)
         for section in dict.fromkeys(role["section"] for role in step["roles"])
+    ]
+    sections += [
+        ("workflow_spec.md", section, True)
+        for section in assignment_plan.COORDINATOR_SECTIONS
     ]
     sections.append(("work_state_spec.md", "担当の起動の記録", True))
     return (

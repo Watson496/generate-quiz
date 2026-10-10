@@ -67,7 +67,7 @@ class TestDefinitions:
         assert "### 6.1" not in instructions
 
     def test_coordinator_carries_step_sections(self, module):
-        """統括役の定義に、担当の構成とステップの担当の節と起動の記録の本文が入る。"""
+        """統括役の定義に、担当の構成、ステップの担当の節、不合格と再実行の扱い、起動の記録の本文が入る。"""
         table = module.assignment_plan.load_table()
         body = module.definitions(table, "codex")[
             "generate-quiz-step03_coordinator.toml"
@@ -77,6 +77,8 @@ class TestDefinitions:
         assert "## 担当の構成" in instructions
         assert "## 題材探索" in instructions
         assert "## 担当の起動の記録" in instructions
+        assert "## 検査で不合格になったとき" in instructions
+        assert "## 修正と再実行" in instructions
         assert "## 所属判定" not in instructions
 
     def test_codex_names_are_prefixed(self, module):

@@ -241,6 +241,10 @@ class TestSteps:
         result = module.coordinator_request(table, 1)
         assert result["agent"] == "generate-quiz:step01_coordinator"
         assert "候補の検査担当（item_checker）" in result["request"]
+        assert (
+            "「担当の構成」節、「候補」節、「検査で不合格になったとき」節、「修正と再実行」節"
+            in result["request"]
+        )
         with pytest.raises(module.TableError, match="統括役を置かない"):
             module.coordinator_request(table, 2)
 

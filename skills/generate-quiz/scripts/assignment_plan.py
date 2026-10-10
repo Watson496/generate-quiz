@@ -46,6 +46,7 @@ TABLE_PATH = REF_DIR / "roles.json"
 AGENT_PREFIX = "generate-quiz"
 SIDES = {"make", "check"}
 EXIT_OK, EXIT_BLOCKED, EXIT_USAGE, EXIT_RETURN = 0, 1, 2, 3
+COORDINATOR_SECTIONS = ("検査で不合格になったとき", "修正と再実行")
 
 
 class TableError(ValueError):
@@ -252,11 +253,16 @@ def coordinator_request(table, number):
     )
     step = table["steps"][number - 1]
     require(has_coordinator(step), f"ステップ{number}には統括役を置かない")
-    sections = "」節、「".join(dict.fromkeys(role["section"] for role in step["roles"]))
+    sections = "」節、「".join(
+        [
+            *dict.fromkeys(role["section"] for role in step["roles"]),
+            *COORDINATOR_SECTIONS,
+        ]
+    )
     lines = [
         f"あなたはステップ{number}（{step['name']}）の統括役である。",
         f"スキルの場所：`{SKILL_DIR}`（以下のファイルはこの場所からの相対パスで示す）",
-        f"`references/workflow_spec.md`の「担当の構成」節と「{sections}」節、`references/work_state_spec.md`の「担当の起動の記録」節を読み、その規定に従って担当を起動し、入力と成果物のファイルを受け渡す。",
+        f"`references/workflow_spec.md`の「担当の構成」節、「{sections}」節、`references/work_state_spec.md`の「担当の起動の記録」節を読み、その規定に従って担当を起動し、入力と成果物のファイルを受け渡す。",
         "担当：",
         *(f"- {role['name']}（{role['id']}）" for role in step["roles"]),
         "報告は、完了したことと成果物のファイルの場所だけとする。",
