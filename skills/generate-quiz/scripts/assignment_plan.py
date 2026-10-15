@@ -765,14 +765,27 @@ def require_one_id_per_value(key, field, current, added):
 
 
 def require_fixed_fields(key, fields, current, new):
-    """記録済みの記録と同じIDで、内容を表す項目を変えた記録を拒む。"""
+    """記録済みの記録と同じIDで、内容を表す項目を変えた記録を拒む。配列の項目は順序を問わない。"""
     for field in fields:
-        if field in new and field in current and new[field] != current[field]:
+        if (
+            field in new
+            and field in current
+            and same_content(new[field]) != same_content(current[field])
+        ):
             message = (
                 f"成果物の{key}の{new.get('id')}は、記録済みの記録と{field}が異なる。"
                 "内容を変えるなら新しいIDを付けて書き直す"
             )
             raise ArtifactError(message)
+
+
+def same_content(value):
+    """配列の順序だけの違いを無視して比べるための値を返す。"""
+    if isinstance(value, list):
+        return sorted(
+            json.dumps(item, ensure_ascii=False, sort_keys=True) for item in value
+        )
+    return value
 
 
 def require_records(value, key):

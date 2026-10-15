@@ -594,23 +594,47 @@ class TestMerge:
         assert "namesのN9は、記録済みのN1とnameが同じである" in result.stderr
         assert merged == state
 
-    def test_rejects_recorded_clue_id_with_other_fact(self, run_script, tmp_path):
-        """記録済みの手掛かり候補のIDを、別の事実に使った成果物は拒む。"""
+    def test_rejects_recorded_clue_id_with_other_propositions(
+        self, run_script, tmp_path
+    ):
+        """記録済みの手掛かり候補のIDを、別の命題からなる情報に使った成果物は拒む。"""
         state = {
             "clues": [{"id": "C1", "fact": "和裁の操作", "proposition_ids": ["P1"]}],
             "propositions": [{"id": "P1", "claim": "命題"}],
         }
         artifact = {
             "sources": [],
-            "clues": [{"id": "C1", "fact": "補強の用途", "proposition_ids": ["P1"]}],
-            "propositions": [{"id": "P1", "claim": "命題"}],
+            "clues": [{"id": "C1", "fact": "補強の用途", "proposition_ids": ["P2"]}],
+            "propositions": [{"id": "P2", "claim": "別の命題"}],
         }
         result, merged = self.merge(
             run_script, tmp_path, "clue_search", state, artifact
         )
         assert result.returncode == 1
-        assert "cluesのC1は、記録済みの記録とfactが異なる" in result.stderr
+        assert "cluesのC1は、記録済みの記録とproposition_idsが異なる" in result.stderr
         assert merged == state
+
+    def test_recorded_clue_may_be_reworded(self, run_script, tmp_path):
+        """同じ命題からなる手掛かり候補は、表現を変えても同じIDのまま直せる。"""
+        state = {
+            "clues": [
+                {"id": "C1", "fact": "和裁の操作", "proposition_ids": ["P1", "P2"]}
+            ],
+        }
+        reworded = {
+            "id": "C1",
+            "fact": "和裁での基本の操作",
+            "proposition_ids": ["P2", "P1"],
+        }
+        result, merged = self.merge(
+            run_script,
+            tmp_path,
+            "clue_search",
+            state,
+            {"sources": [], "clues": [reworded], "propositions": []},
+        )
+        assert result.returncode == 0, result.stderr
+        assert merged["clues"] == [reworded]
 
     def test_rejects_failed_review_with_unknown_fix_data(self, run_script, tmp_path):
         """修正対象にデータIDでない値を置いた不合格の判定は、状態ファイルへ入れずに拒む。"""
