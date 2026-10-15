@@ -171,6 +171,7 @@ def complete_state():
         },
         "execution": {"delegation_available": True, "assignments": assignments},
         "answer_target": "ミュラー・リヤー錯視",
+        "answer_description": "矢羽の向きによって同じ長さの線分が異なる長さに見える錯視",
         "answer_context": {
             "facet_paths": {
                 "subject": "心理学 > 知覚心理学",
@@ -2266,6 +2267,7 @@ class TestWorkState:
     @pytest.mark.parametrize(
         ("field", "message"),
         [
+            ("answer_description", "answer_descriptionがない"),
             ("answer_context", "answer_contextがない"),
             ("facet_nodes", "facet_nodesに4軸の正規ノードキーがない"),
             ("user_conditions", "user_conditionsがない"),
@@ -2274,7 +2276,7 @@ class TestWorkState:
     def test_target_start_requires_target_context(
         self, run_script, complete_state, field, message
     ):
-        """抽選した解答対象の作問状態には、作問条件、4軸のノード、分類経路と履歴補正の結果を置く。"""
+        """抽選した解答対象の作問状態には、解答対象を特定する説明、作問条件、4軸のノード、分類経路と履歴補正の結果を置く。"""
         del complete_state[field]
         result = check_state(run_script, "target-start", complete_state)
         assert result.returncode == 1

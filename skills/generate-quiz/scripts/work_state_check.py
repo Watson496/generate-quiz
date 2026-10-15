@@ -2949,6 +2949,7 @@ def validate_target_start(state):
     mode = validate_selection_mode(state)
     validate_execution_assignments(state, "target-start")
     required_text(state, "answer_target", "state")
+    required_text(state, "answer_description", "state")
     require_condition(state.get("user_conditions") is not None, "user_conditionsがない")
     if mode == "random":
         nodes = state.get("facet_nodes")
