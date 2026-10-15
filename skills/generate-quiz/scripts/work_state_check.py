@@ -188,7 +188,7 @@ STAGE_ROLES = {
     "final": step_roles("素材の調査", "作文", "検査", "最終出力"),
 }
 GRANULARITY_RETURN_KINDS = {"intersection", "saturation", "exhausted"}
-COMPETITOR_DISPOSITIONS = {"excluded", "same_target", "retained", "not_central"}
+COMPETITOR_DISPOSITIONS = {"excluded", "same_target", "retained", "not_rival"}
 BEGINNER_AUDIENCES = {"beginner_learning", "general", "specialist"}
 MIN_ENTRY_POINTS = 2
 MIN_COVERAGE_AREAS = 2
@@ -1716,7 +1716,7 @@ def validate_competitor_reviews(state, clue_text, compared, quote_ids):
             require_condition(
                 "不一致" in matches, f"{name}は相違する条件なしに候補を除外している"
             )
-        elif disposition in {"retained", "not_central"}:
+        elif disposition in {"retained", "not_rival"}:
             require_condition(
                 "不一致" not in matches,
                 f"{name}は相違する条件のある候補を退けずに残している",

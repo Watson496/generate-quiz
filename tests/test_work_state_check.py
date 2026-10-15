@@ -2507,9 +2507,9 @@ class TestWorkState:
 
     @pytest.mark.parametrize(
         ("disposition", "match", "returncode"),
-        [("not_central", "一致", 0), ("retained", "一致", 1)],
+        [("not_rival", "一致", 0), ("retained", "一致", 1)],
     )
-    def test_review_judges_additional_competitor_by_centrality(
+    def test_review_judges_whether_additional_competitor_is_rival(
         self, run_script, complete_state, disposition, match, returncode
     ):
         """逆引きで新しく見つけた候補は、手掛かりが候補自身の説明として中核的でなければ残さずにすみ、中核的なら退けられない限り合格させない。"""
@@ -3042,26 +3042,26 @@ class TestWorkState:
             result.stderr
         )
 
-    def test_adopted_clue_may_keep_competitor_it_does_not_centrally_describe(
+    def test_adopted_clue_may_keep_competitor_it_does_not_rivally_describe(
         self, run_script, complete_state
     ):
-        """手掛かりが候補自身の説明として中核的でない候補は、違いを確かめられなくても手掛かりの採用を妨げない。"""
+        """手掛かりが候補を解答とする問題の手掛かりとして中核的でないか種差を示さない候補は、違いを確かめられなくても手掛かりの採用を妨げない。"""
         comparison = complete_state["competitor_comparisons"][0]
-        comparison["disposition"] = "not_central"
+        comparison["disposition"] = "not_rival"
         comparison["conditions"][0]["matches"] = None
         del comparison["exclusion_passage"]
         review = complete_state["competitor_comparison_reviews"][0]
-        review["disposition"] = "not_central"
+        review["disposition"] = "not_rival"
         for condition in review["conditions"]:
             condition["match"] = "一致"
         assert check_state(run_script, "material", complete_state).returncode == 0
 
-    def test_not_central_competitor_cannot_have_different_condition(
+    def test_not_rival_competitor_cannot_have_different_condition(
         self, run_script, complete_state
     ):
         """違いを確かめた候補は、中核性を理由に残さないのではなく、別対象として退ける。"""
         comparison = complete_state["competitor_comparisons"][0]
-        comparison["disposition"] = "not_central"
+        comparison["disposition"] = "not_rival"
         del comparison["exclusion_passage"]
         result = check_state(run_script, "material", complete_state)
         assert result.returncode == 1
