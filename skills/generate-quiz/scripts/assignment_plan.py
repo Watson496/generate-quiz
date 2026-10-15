@@ -539,6 +539,16 @@ def merges_artifact(role):
     return not set(role["outputs"]) & {"ledger", "final_output"}
 
 
+def shared_data(table):
+    """このスクリプトで状態ファイルへ入れる担当のうち、複数の担当が書く記録のデータを返す。"""
+    writers = [role for _, role in ordered_roles(table) if merges_artifact(role)]
+    return {
+        key
+        for key in table.get("merge_rules", {}).get("union", {})
+        if sum(key in writer["outputs"] for writer in writers) > 1
+    }
+
+
 def merge_artifact(table, role_id, state, artifact):
     """担当の成果物を状態ファイルへ入れた結果を返す。
 
@@ -567,10 +577,7 @@ def merge_artifact(table, role_id, state, artifact):
     append = set(rules.get("append", []))
     lists = set(rules.get("lists", []))
     merged = json.loads(json.dumps(state))
-    writers = [item for _, item in ordered_roles(table) if merges_artifact(item)]
-    shared = {
-        key for key in union if sum(key in writer["outputs"] for writer in writers) > 1
-    }
+    shared = shared_data(table)
     require_fix_data_ids(table, artifact)
     for key, field in rules.get("unique_fields", {}).items():
         if key in artifact:
@@ -725,6 +732,16 @@ def require_fix_data_ids(table, artifact):
                     "依頼文の入力の各行に添えたデータIDで書き直す"
                 )
                 raise ArtifactError(message)
+            shared = sorted(set(fix_data) & shared_data(table))
+            fix_ids = record.get("fix_ids")
+            if shared and not (
+                isinstance(fix_ids, list) and fix_ids and all(map(is_text, fix_ids))
+            ):
+                message = (
+                    f"成果物の{key}のfix_dataに複数の担当が書くデータ{shared}がある。"
+                    "直す記録のIDをfix_idsに置いて書き直す"
+                )
+                raise ArtifactError(message)
 
 
 def require_one_id_per_value(key, field, current, added):
@@ -782,17 +799,21 @@ def rerun_plan(table, role_id):
     return plan
 
 
-def fix_plan(table, data_ids):
+def fix_plan(table, data_ids, role_ids=None):
     """検査が修正を求めたデータを成果物とする担当と、その後に再実行する担当を返す。
 
     修正を求められたデータを成果物とする検査側の担当が、作る側の担当の修正の後で再実行される場合は、
-    その検査側の担当には修正させず、再実行だけを行う。
+    その検査側の担当には修正させず、再実行だけを行う。修正させる担当（role_ids）を渡すと、
+    データを成果物とする担当のうち、その担当だけに修正させる。
     """
     require(bool(data_ids), "データIDが必要である")
     unknown = sorted(set(data_ids) - set(table["data"]))
     require(not unknown, f"担当表にないデータである: {unknown}")
     producers = [
-        role for _, role in ordered_roles(table) if set(role["outputs"]) & set(data_ids)
+        role
+        for _, role in ordered_roles(table)
+        if set(role["outputs"]) & set(data_ids)
+        and (role_ids is None or role["id"] in role_ids)
     ]
     require(bool(producers), f"担当の成果物ではないデータである: {data_ids}")
     reruns = {}
@@ -822,29 +843,83 @@ def fix_plan(table, data_ids):
 
 
 def fix_from_state(table, data_ids, state_path):
-    """修正の計画を返す。状態ファイルを渡すと、最後の判定が不合格の検査の`fix_data`をすべて集める。"""
-    failures = []
-    data = list(data_ids)
-    if state_path is not None:
-        failures = failed_reviews(table, read_state(state_path))
-        for failure in failures:
-            fix_data = failure["record"].get("fix_data") or []
-            data.extend(item for item in fix_data if item not in data)
-    require(bool(data), "修正を求められたデータがない")
-    plan = fix_plan(table, data)
+    """修正の計画を返す。状態ファイルを渡すと、最後の判定が不合格の検査の`fix_data`をすべて集める。
+
+    複数の担当が書くデータの修正は、検査が`fix_ids`に挙げた記録を成果物に書いた担当にだけ求める。
+    """
     if state_path is None:
-        return plan
+        return fix_plan(table, list(data_ids))
+    state = read_state(state_path)
+    failures = failed_reviews(table, state)
+    data = list(data_ids)
+    role_ids = {
+        role["id"]
+        for _, role in ordered_roles(table)
+        if set(role["outputs"]) & set(data_ids)
+    }
+    for failure in failures:
+        fix_data = failure["record"].get("fix_data") or []
+        data.extend(item for item in fix_data if item not in data)
+        failure["roles"] = fixing_roles(table, state, failure["record"])
+        role_ids |= failure["roles"]
+    require(bool(data), "修正を求められたデータがない")
+    plan = fix_plan(table, data, role_ids)
     for entry in plan["fix"]:
-        outputs = set(find_role(table, entry["role"])["outputs"])
         reviews = {}
         for failure in failures:
-            if outputs & set(failure["record"].get("fix_data") or []):
+            if entry["role"] in failure["roles"]:
                 reviews[failure["data"]] = failure["artifacts"]
         entry["reviews"] = [
             {"data": key, "artifacts": artifacts} for key, artifacts in reviews.items()
         ]
-    plan["failed_reviews"] = failures
+    plan["failed_reviews"] = [
+        {key: value for key, value in failure.items() if key != "roles"}
+        for failure in failures
+    ]
     return plan
+
+
+def fixing_roles(table, state, record):
+    """不合格の検査結果の修正対象を成果物とする担当のIDを返す。
+
+    複数の担当が書くデータでは、`fix_ids`の記録を成果物に書いた担当に絞る。
+    そうした担当の成果物を読めなければ、そのデータを書く担当すべてとする。
+    """
+    shared = shared_data(table)
+    fix_ids = set(record.get("fix_ids") or [])
+    assignments = (state.get("execution") or {}).get("assignments") or []
+    roles = set()
+    for key in record.get("fix_data") or []:
+        producers = {
+            role["id"] for _, role in ordered_roles(table) if key in role["outputs"]
+        }
+        if key in shared and fix_ids:
+            writers = {
+                item.get("role")
+                for item in assignments
+                if item.get("role") in producers
+                and any(
+                    fix_ids & artifact_record_ids(ref, key)
+                    for ref in item.get("artifact_refs") or []
+                )
+            }
+            producers = writers or producers
+        roles |= producers
+    return roles
+
+
+def artifact_record_ids(ref, key):
+    """担当の成果物のファイルにある、データの記録のIDを返す。読めなければ空の集合を返す。"""
+    try:
+        artifact = json.loads(Path(ref).read_text(encoding="utf-8"))
+    except OSError, ValueError:
+        return set()
+    records = artifact.get(key) if isinstance(artifact, dict) else None
+    return {
+        item["id"]
+        for item in records or []
+        if isinstance(item, dict) and is_text(item.get("id"))
+    }
 
 
 def review_identity(record):

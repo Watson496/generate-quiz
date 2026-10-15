@@ -736,6 +736,27 @@ class TestMerge:
         assert merged["facet_weights"] == [{"level_id": "L1"}]
         assert merged["facet_picks"] == [{"level_id": "L1"}]
 
+    def test_rejects_failed_review_on_shared_data_without_fix_ids(
+        self, run_script, tmp_path
+    ):
+        """複数の担当が書くデータを修正対象にした不合格の判定は、直す記録のIDがなければ拒む。"""
+        review = {
+            "source_id": "S1",
+            "status": "failed",
+            "reason": "r",
+            "fix_data": ["sources"],
+        }
+        result, merged = self.merge(
+            run_script,
+            tmp_path,
+            "source_reliability_review",
+            {},
+            {"source_reliability_reviews": [review]},
+        )
+        assert result.returncode == 1
+        assert "直す記録のIDをfix_idsに置いて書き直す" in result.stderr
+        assert merged == {}
+
     def test_reviews_keep_failed_record(self, run_script, tmp_path):
         """再検査の結果は、不合格の記録を残したまま後ろへ加える。"""
         failed = {"target": "G1", "status": "failed", "reason": "r", "fix_data": ["x"]}
@@ -963,6 +984,64 @@ class TestFixFromState:
         ]
         assert reviews["writer"] == [
             {"data": "naturalness_review", "artifacts": ["009/naturalness_review.json"]}
+        ]
+
+    def test_shared_data_fix_goes_to_writer_of_listed_record(
+        self, run_script, tmp_path
+    ):
+        """資料の修正は、検査が挙げた資料を成果物に書いた担当だけに求める。"""
+        name_artifact = tmp_path / "name_research.json"
+        name_artifact.write_text(json.dumps({"sources": [{"id": "S1"}], "names": []}))
+        clue_artifact = tmp_path / "clue_search.json"
+        clue_artifact.write_text(json.dumps({"sources": [{"id": "S2"}], "clues": []}))
+        state = tmp_path / "target.json"
+        state.write_text(
+            json.dumps(
+                {
+                    "corroboration_reviews": [
+                        {
+                            "proposition_id": "P1",
+                            "status": "failed",
+                            "reason": "r",
+                            "fix_data": ["sources"],
+                            "fix_ids": ["S2"],
+                        }
+                    ],
+                    "execution": {
+                        "delegation_available": True,
+                        "assignments": [
+                            {
+                                "role": "name_research",
+                                "agent": "a",
+                                "agent_id": "n1",
+                                "artifact_refs": [str(name_artifact)],
+                            },
+                            {
+                                "role": "clue_search",
+                                "agent": "a",
+                                "agent_id": "c1",
+                                "artifact_refs": [str(clue_artifact)],
+                            },
+                            {
+                                "role": "corroboration_review",
+                                "agent": "a",
+                                "agent_id": "r1",
+                                "artifact_refs": ["009/corroboration_review.json"],
+                            },
+                        ],
+                    },
+                }
+            )
+        )
+        result = run_script("assignment_plan.py", "fix", "--state", state)
+        assert result.returncode == 0, result.stderr
+        plan = json.loads(result.stdout)
+        assert [entry["role"] for entry in plan["fix"]] == ["clue_search"]
+        assert plan["fix"][0]["reviews"] == [
+            {
+                "data": "corroboration_reviews",
+                "artifacts": ["009/corroboration_review.json"],
+            }
         ]
 
 

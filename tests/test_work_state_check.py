@@ -1279,7 +1279,7 @@ class TestFacetSelectionState:
         assert check_state(run_script, "facet-selection", facet_state).returncode == 0
 
     def test_failed_review_requires_fix_target(self, run_script, facet_state):
-        """不合格の判定には、修正が必要な入力を担当表のデータで示す。"""
+        """不合格の判定には、修正が必要な入力を担当表のデータで示し、複数の担当が書くデータでは直す記録のIDも示す。"""
         facet_state["facet_level_reviews"][0]["status"] = "failed"
         result = check_state(run_script, "facet-selection", facet_state)
         assert result.returncode == 1
@@ -1290,6 +1290,10 @@ class TestFacetSelectionState:
         result = check_state(run_script, "facet-selection", facet_state)
         assert result.returncode == 1
         assert "fix_dataが担当表にないデータを参照している" in result.stderr
+        facet_state["facet_level_reviews"][0]["fix_data"] = ["sources"]
+        result = check_state(run_script, "facet-selection", facet_state)
+        assert result.returncode == 1
+        assert "facet_level_reviews[0].fix_idsは配列でなければならない" in result.stderr
 
     def test_requires_review_of_every_level(self, run_script, facet_state):
         """検査のない階層を残さない。"""

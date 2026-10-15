@@ -319,11 +319,14 @@ def validate_reviews(state, key, expected_ids, id_field):
             fix_data = required_id_list(
                 item.get("fix_data"), f"{name}.fix_data", nonempty=True
             )
-            unknown = sorted(set(fix_data) - set(assignment_plan.load_table()["data"]))
+            table = assignment_plan.load_table()
+            unknown = sorted(set(fix_data) - set(table["data"]))
             require_condition(
                 not unknown,
                 f"{name}.fix_dataが担当表にないデータを参照している: {unknown}",
             )
+            if set(fix_data) & assignment_plan.shared_data(table):
+                required_id_list(item.get("fix_ids"), f"{name}.fix_ids", nonempty=True)
         latest[target] = item["status"]
     missing = sorted(set(expected_ids) - set(latest))
     require_condition(not missing, f"{key}に検査のない項目がある: {missing}")
