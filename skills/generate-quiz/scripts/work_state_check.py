@@ -2851,11 +2851,34 @@ def validate_answer_review(state, answers, quote_ids, version):
     )
 
 
+def validate_writer_returns(state):
+    """作文担当が、ステップ7への調査の依頼も解答対象の棄却も残していないことを検査する。"""
+    rejection = state.get("target_rejection")
+    if rejection is not None:
+        require_condition(
+            isinstance(rejection, dict),
+            "target_rejectionはオブジェクトでなければならない",
+        )
+        candidate = required_text(rejection, "candidate_id", "target_rejection")
+        required_text(rejection, "reason", "target_rejection")
+        message = f"作文担当が解答対象{candidate}を棄却している"
+        raise StateError(message)
+    requests, ids = records_with_ids(
+        state.get("research_requests", []), "research_requests"
+    )
+    for item in requests:
+        name = f"research_requests.{item['id']}"
+        required_text(item, "request", name)
+        required_text(item, "reason", name)
+    require_condition(not ids, f"作文担当の調査の依頼が残っている: {sorted(ids)}")
+
+
 def validate_work_state(state, stage):
     require_no_selection_ledger(state)
     validate_selection_mode(state)
     validate_execution_assignments(state, stage)
     required_text(state, "answer_target", "state")
+    validate_writer_returns(state)
     draft = state.get("draft")
     require_condition(isinstance(draft, dict), "draftがない")
     extra = sorted(set(draft) - {"version", "text"})

@@ -3,6 +3,7 @@
 
 担当表は references/roles.json に置く。各担当の入力は段階ごとのデータの一覧で、
 表の順で前にある担当や自分の成果物か、親や統括役が渡すデータだけを参照できる。
+後の担当が前のステップの担当へ返すデータ（feedback_data）は、表の順によらず参照できる。
 
 サブコマンド:
     steps              ステップごとの担当と、統括役を置くかを出力する
@@ -148,7 +149,7 @@ def validate_role(role, data, available, seen):
 
 
 def validate_table(table):
-    """担当表の形と、入力が前の担当や自分の成果物か親や統括役が渡すデータであることを検査する。"""
+    """担当表の形と、入力が前の担当や自分の成果物、親や統括役が渡すデータ、後の担当が返すデータであることを検査する。"""
     require(isinstance(table, dict), "担当表はオブジェクトでなければならない")
     data = table.get("data")
     require(
@@ -162,9 +163,16 @@ def validate_table(table):
         isinstance(given_data, list) and set(given_data) <= set(data),
         "given_dataは定義済みのデータの一覧でなければならない",
     )
+    feedback_data = table.get("feedback_data", [])
+    require(
+        isinstance(feedback_data, list)
+        and set(feedback_data) <= set(data)
+        and not set(feedback_data) & set(given_data),
+        "feedback_dataは、親や統括役が渡すデータでない定義済みのデータの一覧でなければならない",
+    )
     steps = table.get("steps")
     require(isinstance(steps, list) and steps, "stepsがない")
-    available = set(given_data)
+    available = set(given_data) | set(feedback_data)
     produced = set()
     seen = set()
     for step in steps:
@@ -191,6 +199,10 @@ def validate_table(table):
     )
     unused = set(data) - produced - set(given_data)
     require(not unused, f"どこからも渡されないデータがある: {sorted(unused)}")
+    require(
+        set(feedback_data) <= produced,
+        "feedback_dataは、後の担当の成果物でなければならない",
+    )
     state_keys = table.get("state_keys", {})
     require(
         isinstance(state_keys, dict)

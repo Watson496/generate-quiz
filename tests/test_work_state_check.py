@@ -2206,6 +2206,27 @@ class TestWorkState:
         assert result.returncode == 1
         assert "centrality_reviewsに不合格の項目がある: ['C1']" in result.stderr
 
+    def test_writing_accepts_emptied_research_requests(self, run_script, writing_state):
+        """問題文を書いた作文担当は、調査の依頼を空の配列にして合格できる。"""
+        writing_state["research_requests"] = []
+        assert check_state(run_script, "writing", writing_state).returncode == 0
+
+    def test_writing_rejects_open_research_request(self, run_script, writing_state):
+        """作文担当の調査の依頼が残っていれば、ステップ7で調べ直すまで合格させない。"""
+        writing_state["research_requests"] = [
+            {"id": "RQ1", "request": "近接技法と区別できる特徴", "reason": "r"}
+        ]
+        result = check_state(run_script, "writing", writing_state)
+        assert result.returncode == 1
+        assert "作文担当の調査の依頼が残っている: ['RQ1']" in result.stderr
+
+    def test_writing_rejects_target_rejection(self, run_script, writing_state):
+        """作文担当が解答対象を棄却していれば、問題を確定させない。"""
+        writing_state["target_rejection"] = {"candidate_id": "K1", "reason": "r"}
+        result = check_state(run_script, "writing", writing_state)
+        assert result.returncode == 1
+        assert "作文担当が解答対象K1を棄却している" in result.stderr
+
     def test_every_source_needs_assessment(self, run_script, writing_state):
         """資料ごとに信頼性の評価を要する。"""
         writing_state["source_assessments"] = []

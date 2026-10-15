@@ -134,6 +134,14 @@ class TestBundledTable:
         module = load_script("generate-quiz", "assignment_plan.py")
         assert find_role(module.load_table(), "exposure")["inputs"][0] == ["draft"]
 
+    def test_research_roles_receive_writer_requests(self, load_script):
+        """作文担当の調査の依頼は、表の順で前にある素材の調査の担当が入力にできる。"""
+        module = load_script("generate-quiz", "assignment_plan.py")
+        table = module.load_table()
+        assert "research_requests" in find_role(table, "writer")["outputs"]
+        assert "research_requests" in find_role(table, "clue_search")["inputs"][0]
+        assert "research_requests" not in table["given_data"]
+
     def test_extraction_sees_answer_but_not_propositions(self, load_script):
         """実現命題の抽出担当は、問題文と解答対象だけを受け取り、裏取り済みの命題を見ない。"""
         module = load_script("generate-quiz", "assignment_plan.py")
@@ -780,6 +788,19 @@ class TestMerge:
         assert result.returncode == 1
         assert "直す記録のIDをfix_idsに置いて書き直す" in result.stderr
         assert merged == {}
+
+    def test_writer_may_return_only_research_requests(self, run_script, tmp_path):
+        """作文担当は、問題文を書かずに調査の依頼だけを成果物にでき、前の依頼を置き換える。"""
+        request = {"id": "RQ2", "request": "近接技法と区別できる特徴", "reason": "r"}
+        result, merged = self.merge(
+            run_script,
+            tmp_path,
+            "writer",
+            {"research_requests": [{"id": "RQ1", "request": "前", "reason": "r"}]},
+            {"research_requests": [request]},
+        )
+        assert result.returncode == 0, result.stderr
+        assert merged["research_requests"] == [request]
 
     def test_reviews_keep_failed_record(self, run_script, tmp_path):
         """再検査の結果は、不合格の記録を残したまま後ろへ加える。"""
