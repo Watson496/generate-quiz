@@ -188,6 +188,7 @@ STAGE_ROLES = {
     "final": step_roles("素材の調査", "作文", "検査", "最終出力"),
 }
 GRANULARITY_RETURN_KINDS = {"intersection", "saturation", "exhausted"}
+COMPETITOR_DISPOSITIONS = {"excluded", "same_target", "retained", "not_central"}
 BEGINNER_AUDIENCES = {"beginner_learning", "general", "specialist"}
 MIN_ENTRY_POINTS = 2
 MIN_COVERAGE_AREAS = 2
@@ -1588,7 +1589,7 @@ def validate_competitors(state, active_clues, quote_ids, stage):
         )
         disposition = item.get("disposition")
         require_condition(
-            disposition in {"excluded", "same_target", "retained"},
+            disposition in COMPETITOR_DISPOSITIONS,
             f"{name}.dispositionが不正である",
         )
         if disposition == "excluded":
@@ -1691,7 +1692,7 @@ def validate_competitor_reviews(state, clue_text, compared, quote_ids):
             required_text(condition, "reason", condition_name)
         disposition = item.get("disposition")
         require_condition(
-            disposition in {"excluded", "same_target", "retained"},
+            disposition in COMPETITOR_DISPOSITIONS,
             f"{name}.dispositionが不正である",
         )
         if pair in compared:
@@ -1701,14 +1702,18 @@ def validate_competitor_reviews(state, clue_text, compared, quote_ids):
             )
         else:
             require_condition(
-                disposition == "excluded",
+                disposition != "same_target",
                 f"{name}で新たな同一対象の候補が見つかっている",
+            )
+            require_condition(
+                disposition != "retained",
+                f"{name}で新たに見つけた候補を退けられていない",
             )
         if disposition == "excluded":
             require_condition(
                 "不一致" in matches, f"{name}は相違する条件なしに候補を除外している"
             )
-        elif disposition == "retained":
+        elif disposition in {"retained", "not_central"}:
             require_condition(
                 "不一致" not in matches,
                 f"{name}は相違する条件のある候補を退けずに残している",

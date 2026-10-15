@@ -2471,6 +2471,29 @@ class TestWorkState:
         complete_state["competitor_comparison_reviews"].append(review)
         assert check_state(run_script, "material", complete_state).returncode == 0
 
+    @pytest.mark.parametrize(
+        ("disposition", "match", "returncode"),
+        [("not_central", "一致", 0), ("retained", "一致", 1)],
+    )
+    def test_review_judges_additional_competitor_by_centrality(
+        self, run_script, complete_state, disposition, match, returncode
+    ):
+        """逆引きで新しく見つけた候補は、手掛かりが候補自身の説明として中核的でなければ残さずにすみ、中核的なら退けられない限り合格させない。"""
+        found = copy.deepcopy(
+            complete_state["competitor_search_reviews"][0]["found"][0]
+        )
+        found.update(id="R2", name="追加の対抗候補")
+        complete_state["competitor_search_reviews"][0]["found"].append(found)
+        review = copy.deepcopy(complete_state["competitor_comparison_reviews"][0])
+        review.update(competitor_id="R2", disposition=disposition)
+        for condition in review["conditions"]:
+            condition["match"] = match
+        complete_state["competitor_comparison_reviews"].append(review)
+        result = check_state(run_script, "material", complete_state)
+        assert result.returncode == returncode
+        if returncode:
+            assert "新たに見つけた候補を退けられていない" in result.stderr
+
     def test_review_rejects_omitted_generated_competitor(
         self, run_script, complete_state
     ):
@@ -2984,6 +3007,31 @@ class TestWorkState:
         assert "採用した手掛かりで退けられていない対抗候補がある: [('C1', 'R1')]" in (
             result.stderr
         )
+
+    def test_adopted_clue_may_keep_competitor_it_does_not_centrally_describe(
+        self, run_script, complete_state
+    ):
+        """手掛かりが候補自身の説明として中核的でない候補は、違いを確かめられなくても手掛かりの採用を妨げない。"""
+        comparison = complete_state["competitor_comparisons"][0]
+        comparison["disposition"] = "not_central"
+        comparison["conditions"][0]["matches"] = None
+        del comparison["exclusion_passage"]
+        review = complete_state["competitor_comparison_reviews"][0]
+        review["disposition"] = "not_central"
+        for condition in review["conditions"]:
+            condition["match"] = "一致"
+        assert check_state(run_script, "material", complete_state).returncode == 0
+
+    def test_not_central_competitor_cannot_have_different_condition(
+        self, run_script, complete_state
+    ):
+        """違いを確かめた候補は、中核性を理由に残さないのではなく、別対象として退ける。"""
+        comparison = complete_state["competitor_comparisons"][0]
+        comparison["disposition"] = "not_central"
+        del comparison["exclusion_passage"]
+        result = check_state(run_script, "material", complete_state)
+        assert result.returncode == 1
+        assert "相違する条件のない候補として扱う条件と矛盾している" in result.stderr
 
     def test_otoshi_requires_directly_descriptive_clue(
         self, run_script, complete_state
