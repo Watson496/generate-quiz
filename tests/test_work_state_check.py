@@ -2353,6 +2353,15 @@ class TestWorkState:
         assert result.returncode == 1
         assert "sources.S2がS1と同じ資料に別の資料IDを付けている" in result.stderr
 
+    def test_same_name_needs_one_name_id(self, run_script, complete_state):
+        """同じ名称に、別の名称IDを付けない。"""
+        name = copy.deepcopy(complete_state["names"][0])
+        name["id"] = "N9"
+        complete_state["names"].append(name)
+        result = check_state(run_script, "research", complete_state)
+        assert result.returncode == 1
+        assert "同じ名称に別の名称IDを付けている" in result.stderr
+
     def test_writing_start_rejects_selection_ledger(self, run_script, complete_state):
         """題材探索の台帳を解答対象ごとの状態に混ぜない。"""
         complete_state["candidates"] = []

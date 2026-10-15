@@ -2728,9 +2728,14 @@ def validate_answers(state, quote_ids):
     missing = sorted(answer_ids - set(judgments))
     require_condition(not missing, f"正誤判定の案のない解答候補がある: {missing}")
     names, _ = records_with_ids(state.get("names"), "names", nonempty=True)
+    id_of_name = {}
     for item in names:
         name = f"names.{item['id']}"
-        required_text(item, "name", name)
+        other = id_of_name.setdefault(required_text(item, "name", name), item["id"])
+        require_condition(
+            other == item["id"],
+            f"{name}が{other}と同じ名称に別の名称IDを付けている",
+        )
         required_text(item, "usage", name)
         referenced_ids(item, "evidence_ids", quote_ids, name)
     return [{**item, "judgment": judgments[item["id"]]["judgment"]} for item in answers]

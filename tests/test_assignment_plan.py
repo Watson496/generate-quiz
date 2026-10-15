@@ -577,7 +577,39 @@ class TestMerge:
             run_script, tmp_path, "clue_search", state, artifact
         )
         assert result.returncode == 1
-        assert "資料S9は、記録済みの資料S1と同じURLである" in result.stderr
+        assert "sourcesのS9は、記録済みのS1とurlが同じである" in result.stderr
+        assert merged == state
+
+    def test_rejects_new_id_for_recorded_name(self, run_script, tmp_path):
+        """記録済みの名称と同じ名称に別の名称IDを付けた成果物は、状態ファイルを変えずに拒む。"""
+        state = {"names": [{"id": "N1", "name": "玉縁ボタンホール", "usage": "u"}]}
+        artifact = {
+            "sources": [],
+            "names": [{"id": "N9", "name": "玉縁ボタンホール", "usage": "u"}],
+        }
+        result, merged = self.merge(
+            run_script, tmp_path, "name_research", state, artifact
+        )
+        assert result.returncode == 1
+        assert "namesのN9は、記録済みのN1とnameが同じである" in result.stderr
+        assert merged == state
+
+    def test_rejects_recorded_clue_id_with_other_fact(self, run_script, tmp_path):
+        """記録済みの手掛かり候補のIDを、別の事実に使った成果物は拒む。"""
+        state = {
+            "clues": [{"id": "C1", "fact": "和裁の操作", "proposition_ids": ["P1"]}],
+            "propositions": [{"id": "P1", "claim": "命題"}],
+        }
+        artifact = {
+            "sources": [],
+            "clues": [{"id": "C1", "fact": "補強の用途", "proposition_ids": ["P1"]}],
+            "propositions": [{"id": "P1", "claim": "命題"}],
+        }
+        result, merged = self.merge(
+            run_script, tmp_path, "clue_search", state, artifact
+        )
+        assert result.returncode == 1
+        assert "cluesのC1は、記録済みの記録とfactが異なる" in result.stderr
         assert merged == state
 
     def test_rejects_failed_review_with_unknown_fix_data(self, run_script, tmp_path):

@@ -220,6 +220,20 @@ def validate_table(table):
         and not set(lists) & (set(union) | set(append)),
         "merge_rulesは、担当の成果物のデータごとの、まとめ方の一覧でなければならない",
     )
+    unique_fields = rules.get("unique_fields", {})
+    fixed_fields = rules.get("fixed_fields", {})
+    require(
+        isinstance(unique_fields, dict)
+        and set(unique_fields) <= set(union)
+        and all(is_text(field) for field in unique_fields.values())
+        and isinstance(fixed_fields, dict)
+        and set(fixed_fields) <= set(union)
+        and all(
+            isinstance(fields, list) and fields and all(is_text(f) for f in fields)
+            for fields in fixed_fields.values()
+        ),
+        "merge_rulesのunique_fieldsとfixed_fieldsは、unionのデータごとの項目でなければならない",
+    )
     scopes = rules.get("scopes", {})
     require(
         isinstance(scopes, dict)
@@ -531,8 +545,10 @@ def merge_artifact(table, role_id, state, artifact):
     担当表のmerge_rulesで、unionのデータは定めたキーが同じ記録を置き換えて残りを加え
     （複数の担当が書くデータでは、同じ記録に項目を書き加え）、
     appendのデータは後ろへ加え、そのほかのデータは置き換える。union・append・listsの
-    データは、記録の配列でなければ拒む。scopesのデータは、範囲を定めるデータにない値を
-    持つ記録を状態ファイルから除き、成果物にそのような記録があれば拒む。
+    データは、記録の配列でなければ拒む。unique_fieldsの項目が記録済みの記録と同じなのに
+    別のIDを付けた記録と、fixed_fieldsの項目を記録済みの記録と同じIDのまま変えた記録は拒む。
+    scopesのデータは、範囲を定めるデータにない値を持つ記録を状態ファイルから除き、
+    成果物にそのような記録があれば拒む。
     """
     role = find_role(table, role_id)
     outputs = role["outputs"]
@@ -556,8 +572,9 @@ def merge_artifact(table, role_id, state, artifact):
         key for key in union if sum(key in writer["outputs"] for writer in writers) > 1
     }
     require_fix_data_ids(table, artifact)
-    if "sources" in artifact:
-        require_one_id_per_url(state.get("sources") or [], artifact["sources"])
+    for key, field in rules.get("unique_fields", {}).items():
+        if key in artifact:
+            require_one_id_per_value(key, field, state.get(key) or [], artifact[key])
     for key, value in artifact.items():
         current = merged.get(key)
         if key in union or key in append or key in lists:
@@ -579,7 +596,14 @@ def merge_artifact(table, role_id, state, artifact):
                 )
                 if index is None:
                     records.append(record)
-                elif key in shared:
+                    continue
+                require_fixed_fields(
+                    key,
+                    rules.get("fixed_fields", {}).get(key, []),
+                    records[index],
+                    record,
+                )
+                if key in shared:
                     records[index] = merge_record(records[index], record)
                 else:
                     records[index] = record
@@ -703,22 +727,33 @@ def require_fix_data_ids(table, artifact):
                 raise ArtifactError(message)
 
 
-def require_one_id_per_url(current, added):
-    """記録済みの資料と同じURLの資料に、別の資料IDを付けた成果物を拒む。"""
-    require_records(added, "sources")
-    ids_by_url = {}
+def require_one_id_per_value(key, field, current, added):
+    """記録済みの記録と同じ値の項目を持つ記録に、別のIDを付けた成果物を拒む。"""
+    require_records(added, key)
+    ids_by_value = {}
     for record in current:
-        if isinstance(record, dict) and record.get("url"):
-            ids_by_url.setdefault(record["url"], record.get("id"))
+        if isinstance(record, dict) and record.get(field):
+            ids_by_value.setdefault(record[field], record.get("id"))
     for record in added:
-        url = record.get("url")
-        if not url:
+        value = record.get(field)
+        if not value:
             continue
-        known = ids_by_url.setdefault(url, record.get("id"))
+        known = ids_by_value.setdefault(value, record.get("id"))
         if known != record.get("id"):
             message = (
-                f"成果物の資料{record.get('id')}は、記録済みの資料{known}と同じURLである。"
-                f"資料{known}に新しい引用だけを加える形で書き直す"
+                f"成果物の{key}の{record.get('id')}は、記録済みの{known}と{field}が同じである。"
+                f"記録済みの{known}を使って書き直す"
+            )
+            raise ArtifactError(message)
+
+
+def require_fixed_fields(key, fields, current, new):
+    """記録済みの記録と同じIDで、内容を表す項目を変えた記録を拒む。"""
+    for field in fields:
+        if field in new and field in current and new[field] != current[field]:
+            message = (
+                f"成果物の{key}の{new.get('id')}は、記録済みの記録と{field}が異なる。"
+                "内容を変えるなら新しいIDを付けて書き直す"
             )
             raise ArtifactError(message)
 
