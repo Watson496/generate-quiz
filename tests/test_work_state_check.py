@@ -1604,14 +1604,24 @@ class TestSelectionState:
             == 0
         )
 
-    def test_not_convergent_breadth_reports_return(self, run_script, selection_state):
-        """反証調査が粒度判断へ戻ると判断した探索状態は、探索が途中でも粒度判断へ戻す。"""
+    @pytest.mark.parametrize(
+        ("breadth", "message"),
+        [
+            ("not_convergent", "飽和する見込みがない"),
+            ("too_narrow", "選択対象が少なすぎる"),
+        ],
+    )
+    def test_returning_breadth_reports_return(
+        self, run_script, selection_state, breadth, message
+    ):
+        """反証調査が広すぎる、または狭すぎるとして粒度判断へ戻ると判断した探索状態は、粒度判断へ戻す。"""
         selection_state["saturation_challenge"][-1].update(
-            breadth="not_convergent", resolved=False
+            breadth=breadth, resolved=False
         )
         result = check_state(run_script, "discovery", selection_state)
         assert result.returncode == 3
         assert "粒度判断へ戻る: 探索完了の反証調査担当" in result.stderr
+        assert message in result.stderr
 
     def test_every_area_needs_exploration_assignment(self, run_script, selection_state):
         """下位領域ごとに題材探索担当を割り当てる。"""

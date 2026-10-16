@@ -188,6 +188,10 @@ STAGE_ROLES = {
     "final": step_roles("素材の調査", "作文", "検査", "最終出力"),
 }
 GRANULARITY_RETURN_KINDS = {"intersection", "saturation", "exhausted"}
+RETURNING_BREADTHS = {
+    "not_convergent": "探索完了の反証調査担当が、選択対象が飽和する見込みがないと判断している",
+    "too_narrow": "探索完了の反証調査担当が、選択対象が少なすぎると判断している",
+}
 COMPETITOR_STANCES = {
     "retained": "retained",
     "excluded": "rejected",
@@ -1251,7 +1255,7 @@ def validate_selection_review(state, areas, candidates, entry_ids):
         )
         required_text(challenge, "resolution", name)
         require_condition(
-            challenge.get("breadth") in {"convergent", "not_convergent"},
+            challenge.get("breadth") in {"convergent", *RETURNING_BREADTHS},
             f"{name}.breadthが不正である",
         )
         require_condition(
@@ -1303,9 +1307,8 @@ def validate_selection_state(state, stage):
     validate_intersection_state(state)
     challenges = state.get("saturation_challenge")
     challenge = challenges[-1] if isinstance(challenges, list) and challenges else None
-    if isinstance(challenge, dict) and challenge.get("breadth") == "not_convergent":
-        msg = "探索完了の反証調査担当が、選択対象が飽和する見込みがないと判断している"
-        raise GranularityReturnError(msg)
+    if isinstance(challenge, dict) and challenge.get("breadth") in RETURNING_BREADTHS:
+        raise GranularityReturnError(RETURNING_BREADTHS[challenge["breadth"]])
     _, entry_ids, areas, area_ids = validate_selection_entries_areas(state)
     candidates, candidate_ids = validate_selection_candidates(
         state, entry_ids, areas, area_ids
