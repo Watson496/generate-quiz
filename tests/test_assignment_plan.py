@@ -142,6 +142,12 @@ class TestBundledTable:
         assert "research_requests" in find_role(table, "clue_search")["inputs"][0]
         assert "research_requests" not in table["given_data"]
 
+    def test_competitor_search_sees_recorded_competitors(self, load_script):
+        """対抗候補の逆引き探索担当は、記録済みの対抗候補を受け取り、同じ対象に同じIDを使える。"""
+        module = load_script("generate-quiz", "assignment_plan.py")
+        role = find_role(module.load_table(), "competitor_search")
+        assert "competitors" in role["inputs"][0]
+
     def test_extraction_sees_answer_but_not_propositions(self, load_script):
         """実現命題の抽出担当は、問題文と解答対象だけを受け取り、裏取り済みの命題を見ない。"""
         module = load_script("generate-quiz", "assignment_plan.py")
@@ -802,12 +808,6 @@ class TestMerge:
         assert result.returncode == 0, result.stderr
         assert merged["research_requests"] == [request]
 
-    def test_reviews_keep_failed_record(self, run_script, tmp_path):
-        """再検査の結果は、不合格の記録を残したまま後ろへ加える。"""
-        failed = {"target": "G1", "status": "failed", "reason": "r", "fix_data": ["x"]}
-        passed = {"target": "G1", "status": "passed", "reason": "r"}
-        result, merged = self.merge(
-            run_script,
     def test_rejects_review_without_reviewed_target(self, run_script, tmp_path):
         """検査した対象のIDがない検査結果は、後ろへ加えると除けないので、状態ファイルへ入れずに拒む。"""
         overall = {"target": "all", "status": "passed", "reason": "r"}
@@ -824,6 +824,12 @@ class TestMerge:
         )
         assert merged == {}
 
+    def test_reviews_keep_failed_record(self, run_script, tmp_path):
+        """再検査の結果は、不合格の記録を残したまま後ろへ加える。"""
+        failed = {"target": "G1", "status": "failed", "reason": "r", "fix_data": ["x"]}
+        passed = {"target": "G1", "status": "passed", "reason": "r"}
+        result, merged = self.merge(
+            run_script,
             tmp_path,
             "topic_weight_review",
             {"topic_weight_reviews": [failed]},

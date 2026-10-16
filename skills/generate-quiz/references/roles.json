@@ -455,7 +455,7 @@
           "section": "対抗候補",
           "specs": ["quiz_generation_spec.md", "verification_and_judging_spec.md", "work_state_spec.md"],
           "rules": [{"spec": "quiz_generation_spec.md", "heading": "13.2 比較対象集合"}, {"spec": "quiz_generation_spec.md", "heading": "19. 一意性"}, {"spec": "verification_and_judging_spec.md", "heading": "5.3 比較対象と探索"}, {"spec": "verification_and_judging_spec.md", "heading": "6. 反証探索と一意性"}],
-          "inputs": [["answer_target", "answer_description", "clues", "sources", "source_cache"]],
+          "inputs": [["answer_target", "answer_description", "clues", "sources", "competitors", "source_cache"]],
           "outputs": ["sources", "competitors"]
         },
         {
