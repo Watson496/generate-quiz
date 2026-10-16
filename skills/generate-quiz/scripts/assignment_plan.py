@@ -232,6 +232,16 @@ def validate_table(table):
         and not set(lists) & (set(union) | set(append)),
         "merge_rulesは、担当の成果物のデータごとの、まとめ方の一覧でなければならない",
     )
+    append_keys = rules.get("append_keys", {})
+    require(
+        isinstance(append_keys, dict)
+        and set(append_keys) == set(append)
+        and all(
+            isinstance(fields, list) and fields and all(is_text(f) for f in fields)
+            for fields in append_keys.values()
+        ),
+        "merge_rulesのappend_keysは、appendのデータごとの、検査した対象を表す項目でなければならない",
+    )
     unique_fields = rules.get("unique_fields", {})
     fixed_fields = rules.get("fixed_fields", {})
     require(
@@ -567,7 +577,8 @@ def merge_artifact(table, role_id, state, artifact):
     担当表のmerge_rulesで、unionのデータは定めたキーが同じ記録を置き換えて残りを加え
     （複数の担当が書くデータでは、同じ記録に項目を書き加え）、
     appendのデータは後ろへ加え、そのほかのデータは置き換える。union・append・listsの
-    データは、記録の配列でなければ拒む。unique_fieldsの項目が記録済みの記録と同じなのに
+    データは、記録の配列でなければ拒む。unionとappendのデータは、記録を識別する項目
+    （unionで定めたキーとappend_keys）のない記録を拒む。unique_fieldsの項目が記録済みの記録と同じなのに
     別のIDを付けた記録と、fixed_fieldsの項目を記録済みの記録と同じIDのまま変えた記録は拒む。
     scopesのデータは、範囲を定めるデータにない値を持つ記録を状態ファイルから除き、
     成果物にそのような記録があれば拒む。
@@ -598,6 +609,10 @@ def merge_artifact(table, role_id, state, artifact):
         current = merged.get(key)
         if key in union or key in append or key in lists:
             require_records(value, key)
+        if key in union or key in append:
+            require_record_keys(
+                key, union.get(key) or rules.get("append_keys", {}).get(key, []), value
+            )
         if (key in union or key in append) and current is not None:
             require_records(current, f"状態ファイルの{key}")
         if key in union and current is not None:
@@ -787,6 +802,18 @@ def require_fixed_fields(key, fields, current, new):
             message = (
                 f"成果物の{key}の{new.get('id')}は、記録済みの記録と{field}が異なる。"
                 "内容を変えるなら新しいIDを付けて書き直す"
+            )
+            raise ArtifactError(message)
+
+
+def require_record_keys(key, fields, records):
+    """記録を識別する項目がない記録を含む成果物を拒む。"""
+    for record in records:
+        missing = [field for field in fields if not is_text(record.get(field))]
+        if missing:
+            message = (
+                f"成果物の{key}に、{missing}のない記録がある。"
+                f"記録ごとに{fields}を置いて書き直す"
             )
             raise ArtifactError(message)
 

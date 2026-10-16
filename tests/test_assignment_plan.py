@@ -808,6 +808,22 @@ class TestMerge:
         passed = {"target": "G1", "status": "passed", "reason": "r"}
         result, merged = self.merge(
             run_script,
+    def test_rejects_review_without_reviewed_target(self, run_script, tmp_path):
+        """検査した対象のIDがない検査結果は、後ろへ加えると除けないので、状態ファイルへ入れずに拒む。"""
+        overall = {"target": "all", "status": "passed", "reason": "r"}
+        result, merged = self.merge(
+            run_script,
+            tmp_path,
+            "certainty_review",
+            {},
+            {"certainty_reviews": [overall]},
+        )
+        assert result.returncode == 1
+        assert "成果物のcertainty_reviewsに、['proposition_id']のない記録がある" in (
+            result.stderr
+        )
+        assert merged == {}
+
             tmp_path,
             "topic_weight_review",
             {"topic_weight_reviews": [failed]},
