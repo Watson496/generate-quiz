@@ -55,8 +55,6 @@ python3 "$SKILL_DIR/scripts/facet_node.py" --grep '音楽'      # ラベル部�
 
 ### DIRECT_CHILDREN
 
-- `time::"0/2"` | CODE `"0/2"` | キリスト教暦（グレゴリウス暦）による日付および期間
-- `time::"3/7"` | CODE `"3/7"` | キリスト教暦（グレゴリウス暦）以外の時代区分
 - `time::"..."` | CODE `"..."` | 時の共通補助番号．表1g
 
 <!-- END_FACET_ROOT -->
