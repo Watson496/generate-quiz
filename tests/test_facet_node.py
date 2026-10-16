@@ -189,7 +189,29 @@ class TestFacetNode:
         assert "- 範囲：景気の局面と状態" in subject
         assert "- 範囲：限定なし" in place
         assert "- 範囲：限定なし" in time
+        assert "- 子孫のノードの`INCLUDING`（区分に当たる対象の例）：" in type_
         assert "  - 数量：数，定数，単位，測定量，指標値" in type_
+
+    def test_scope_shows_catalog_including_as_examples(self, run_script, tmp_path):
+        """カタログのINCLUDINGは、範囲ではなく、区分に当たる対象の例として示す。"""
+        state = {
+            "facet_nodes": {
+                "subject": "subject::77",
+                "place": "place::(1/9)",
+                "time": 'time::"..."',
+                "type": "type::perdurant.event",
+            }
+        }
+        path = tmp_path / "state.json"
+        path.write_text(json.dumps(state, ensure_ascii=False), encoding="utf-8")
+        r = run_script("facet_node.py", "--scope", path)
+        assert r.returncode == 0
+        type_ = r.stdout.split("## ")[-1]
+        assert (
+            "- `INCLUDING`（区分に当たる対象の例）：戦争，会議，災害，大会，事件，発見の回"
+            in type_
+        )
+        assert "- 範囲：" not in type_
 
     def test_children_only_lists_children(self, run_script):
         """子ノード一覧では親ノードの本文を出さないことを確認する。"""

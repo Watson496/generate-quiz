@@ -31,6 +31,7 @@ REF_DIR = Path(__file__).resolve().parent.parent / "references"
 BLOCK_RE_TMPL = r"^## FACET_(?:NODE|ROOT) `{key}`$"
 END_RE = re.compile(r"^<!-- END_FACET_(?:NODE|ROOT) -->$")
 CHILD_RE = re.compile(r"^- `(.+?)` \| CODE `(.*?)` \| (.+)$")
+INCLUDING_NOTE = "`INCLUDING`（区分に当たる対象の例）"
 
 EXIT_OK, EXIT_NOT_FOUND, EXIT_USAGE = 0, 1, 2
 
@@ -183,13 +184,19 @@ def scope_lines(key, subdivisions):
                 )
                 label = child.get("label", member)
                 including = child.get("scope")
-            lines.append(f"  - {label}" + (f"：{including}" if including else ""))
+                if including:
+                    lines.append(f"  - {label}：{including}")
+                    continue
+            lines.append(
+                f"  - {label}"
+                + (f"（{INCLUDING_NOTE}：{including}）" if including else "")
+            )
     elif derived:
         lines.append(f"- 範囲：{derived[-1]['scope']}")
     elif (including := block_including(block)) is not None:
-        lines.append(f"- 範囲：{including}")
+        lines.append(f"- {INCLUDING_NOTE}：{including}")
     elif found := descendant_includings(key):
-        lines.append("- 範囲：")
+        lines.append(f"- 子孫のノードの{INCLUDING_NOTE}：")
         lines.extend(f"  - {label}：{text}" for _, label, text in found)
     return lines
 
@@ -292,7 +299,7 @@ def main():
     if block_including(block) is None and (found := descendant_includings(args.key)):
         print()
         print(
-            "### 子孫のINCLUDING（このノードにINCLUDINGがないため、子孫の範囲を合わせて示す）"
+            "### 子孫のINCLUDING（このノードにINCLUDINGがないため、子孫の区分に当たる対象の例を合わせて示す）"
         )
         print()
         for child, label, including in found:
