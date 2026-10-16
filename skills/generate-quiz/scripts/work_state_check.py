@@ -188,7 +188,13 @@ STAGE_ROLES = {
     "final": step_roles("素材の調査", "作文", "検査", "最終出力"),
 }
 GRANULARITY_RETURN_KINDS = {"intersection", "saturation", "exhausted"}
-COMPETITOR_DISPOSITIONS = {"excluded", "same_target", "retained", "not_rival"}
+COMPETITOR_STANCES = {
+    "retained": "retained",
+    "excluded": "rejected",
+    "not_rival": "rejected",
+    "same_target": "same_target",
+}
+COMPETITOR_DISPOSITIONS = set(COMPETITOR_STANCES)
 BEGINNER_AUDIENCES = {"beginner_learning", "general", "specialist"}
 MIN_ENTRY_POINTS = 2
 MIN_COVERAGE_AREAS = 2
@@ -1708,8 +1714,9 @@ def validate_competitor_reviews(state, clue_text, compared, recorded, quote_ids)
         )
         if pair in recorded:
             require_condition(
-                disposition == recorded[pair],
-                f"{name}.dispositionが作る側の判断と一致しない",
+                COMPETITOR_STANCES[disposition]
+                == COMPETITOR_STANCES.get(recorded[pair]),
+                f"{name}.dispositionが作る側の採否と一致しない",
             )
         else:
             require_condition(

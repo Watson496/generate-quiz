@@ -2551,7 +2551,7 @@ class TestWorkState:
         result = check_state(run_script, "material", complete_state)
         assert result.returncode == returncode, result.stderr
         if returncode:
-            assert "dispositionが作る側の判断と一致しない" in result.stderr
+            assert "dispositionが作る側の採否と一致しない" in result.stderr
 
     def test_review_rejects_omitted_generated_competitor(
         self, run_script, complete_state
@@ -2569,6 +2569,16 @@ class TestWorkState:
             "条件の照合を検査していない対抗候補がある: [('C1', 'R2')]" in result.stderr
         )
 
+    def test_review_compares_whether_competitor_is_kept(
+        self, run_script, complete_state
+    ):
+        """作る側が中核的でないとして残さず、検査側が相違する条件で退けた候補は、採否が一致する。"""
+        comparison = complete_state["competitor_comparisons"][0]
+        comparison["disposition"] = "not_rival"
+        comparison["conditions"][0]["matches"] = None
+        del comparison["exclusion_passage"]
+        assert check_state(run_script, "material", complete_state).returncode == 0
+
     def test_review_rejects_conflicting_competitor_judgment(
         self, run_script, complete_state
     ):
@@ -2577,7 +2587,7 @@ class TestWorkState:
         review["disposition"] = "same_target"
         result = check_state(run_script, "material", complete_state)
         assert result.returncode == 1
-        assert "作る側の判断と一致しない" in result.stderr
+        assert "作る側の採否と一致しない" in result.stderr
 
     def test_review_requires_current_exposure_assignment(
         self, run_script, complete_state
