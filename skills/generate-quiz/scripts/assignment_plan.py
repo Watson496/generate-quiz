@@ -49,9 +49,12 @@
 """
 
 import argparse
+import fcntl
 import json
 import subprocess
 import sys
+import tempfile
+from contextlib import contextmanager
 from pathlib import Path
 
 SKILL_DIR = Path(__file__).resolve().parent.parent
@@ -1066,9 +1069,21 @@ def read_state(path):
 
 
 def write_state(path, state):
-    path.write_text(
-        json.dumps(state, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
-    )
+    """状態ファイルを、書きかけの内容が読まれないよう、別のファイルに書いてから置き換える。"""
+    with tempfile.NamedTemporaryFile(
+        "w", encoding="utf-8", dir=path.parent, prefix=f".{path.name}.", delete=False
+    ) as handle:
+        handle.write(json.dumps(state, ensure_ascii=False, indent=2) + "\n")
+    Path(handle.name).replace(path)
+
+
+@contextmanager
+def locked_state(path):
+    """状態ファイルを読んでから書き終えるまで、同じ状態ファイルへのほかの読み書きを待たせる。"""
+    lock_path = path.with_name(f".{path.name}.lock")
+    with lock_path.open("w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        yield
 
 
 def run_state_command(table, args):
@@ -1087,6 +1102,12 @@ def run_state_command(table, args):
             "keys": list(extracted),
             "not_in_state": missing,
         }
+    with locked_state(args.state):
+        return update_state(table, args)
+
+
+def update_state(table, args):
+    """recordとmergeで、状態ファイルを読み、変更して書き戻し、出力する結果を返す。"""
     state = read_state(args.state)
     if args.command == "record":
         recorded = record_assignment(

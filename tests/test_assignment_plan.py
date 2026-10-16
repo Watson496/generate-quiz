@@ -3,6 +3,8 @@
 import copy
 import json
 import re
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -917,6 +919,38 @@ class TestRecord:
 
     def record(self, run_script, path, *args):
         return run_script("assignment_plan.py", "record", *args, "--state", path)
+
+    def test_concurrent_records_keep_every_launch(self, tmp_path):
+        """同時に動かした起動の記録は、状態ファイルを壊さず、すべて残る。"""
+        path = tmp_path / "selection.json"
+        path.write_text(json.dumps({"candidates": [{"id": "K1"}]}))
+        script = Path(__file__).resolve().parents[1] / (
+            "skills/generate-quiz/scripts/assignment_plan.py"
+        )
+        processes = [
+            subprocess.Popen(
+                [
+                    sys.executable,
+                    str(script),
+                    "record",
+                    "membership",
+                    "--agent-id",
+                    f"a{index}",
+                    "--state",
+                    str(path),
+                ],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            for index in range(12)
+        ]
+        errors = [process.communicate()[1] for process in processes]
+        assert all(process.returncode == 0 for process in processes), errors
+        state = json.loads(path.read_text())
+        assert sorted(
+            item["agent_id"] for item in state["execution"]["assignments"]
+        ) == sorted(f"a{index}" for index in range(12))
 
     def test_records_launch_artifact_and_failure(self, run_script, tmp_path):
         """起動の記録を加え、回収した成果物の場所と失敗を同じ記録へ加える。ほかのキーは変えない。"""
