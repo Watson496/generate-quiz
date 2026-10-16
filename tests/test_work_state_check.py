@@ -2528,6 +2528,31 @@ class TestWorkState:
         if returncode:
             assert "新たに見つけた候補を退けられていない" in result.stderr
 
+    @pytest.mark.parametrize(
+        ("disposition", "returncode"), [("excluded", 0), ("retained", 1)]
+    )
+    def test_review_of_comparison_outside_competitor_clues(
+        self, run_script, complete_state, disposition, returncode
+    ):
+        """候補のclue_idsにない組の照合も、作る側の照合として検査でき、採否の一致を確かめる。"""
+        complete_state["clues"].append(
+            {"id": "C2", "fact": "使わない手掛かり候補", "proposition_ids": ["P1"]}
+        )
+        complete_state["clue_uses"].append({"clue_id": "C2", "status": "rejected"})
+        competitor = copy.deepcopy(complete_state["competitors"][0])
+        competitor.update(id="R2", name="別の対抗候補", clue_ids=["C2"])
+        complete_state["competitors"].append(competitor)
+        comparison = copy.deepcopy(complete_state["competitor_comparisons"][0])
+        comparison["competitor_id"] = "R2"
+        complete_state["competitor_comparisons"].append(comparison)
+        review = copy.deepcopy(complete_state["competitor_comparison_reviews"][0])
+        review.update(competitor_id="R2", disposition=disposition)
+        complete_state["competitor_comparison_reviews"].append(review)
+        result = check_state(run_script, "material", complete_state)
+        assert result.returncode == returncode, result.stderr
+        if returncode:
+            assert "dispositionが作る側の判断と一致しない" in result.stderr
+
     def test_review_rejects_omitted_generated_competitor(
         self, run_script, complete_state
     ):

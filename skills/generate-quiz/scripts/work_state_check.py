@@ -1570,6 +1570,7 @@ def validate_competitors(state, active_clues, quote_ids, stage):
     lacking = sorted(set(clue_text) - {clue_id for clue_id, _ in pairs})
     require_condition(not lacking, f"対抗候補を探していない手掛かりがある: {lacking}")
     compared = {}
+    recorded = {}
     for index, item in enumerate(
         required_list(state.get("competitor_comparisons"), "competitor_comparisons")
     ):
@@ -1578,6 +1579,7 @@ def validate_competitors(state, active_clues, quote_ids, stage):
             isinstance(item, dict), f"{name}はオブジェクトでなければならない"
         )
         pair = (item.get("clue_id"), item.get("competitor_id"))
+        recorded[pair] = item.get("disposition")
         if pair not in pairs:
             require_condition(
                 pair[1] in competitor_ids and pair[0] in all_clue_ids,
@@ -1622,11 +1624,17 @@ def validate_competitors(state, active_clues, quote_ids, stage):
             f"採用した手掛かりで退けられていない対抗候補がある: {retained}",
         )
     if stage in REVIEWED_STAGES:
-        validate_competitor_reviews(state, clue_text, compared, quote_ids)
+        validate_competitor_reviews(state, clue_text, compared, recorded, quote_ids)
 
 
-def validate_competitor_reviews(state, clue_text, compared, quote_ids):
-    """逆引きの探索と条件の照合の検査が、作る側の照合と食い違わないことを検査する。"""
+def validate_competitor_reviews(state, clue_text, compared, recorded, quote_ids):
+    """逆引きの探索と条件の照合の検査が、作る側の照合と食い違わないことを検査する。
+
+    作る側が記録したすべての照合（compared は採用中の手掛かりと候補の`clue_ids`の組、
+    recorded はそれ以外の組も含む）について、検査があれば採否が一致することを確かめる。
+    条件の箇所は、採用中の手掛かりなら問題文中の文字列、そのほかは手掛かり候補の事実から探す。
+    """
+    passage_text = {clue["id"]: clue["fact"] for clue in state["clues"]} | clue_text
     validate_reviews(state, "competitor_search_reviews", sorted(clue_text), "clue_id")
     found = set()
     for item in state["competitor_search_reviews"]:
@@ -1673,7 +1681,7 @@ def validate_competitor_reviews(state, clue_text, compared, quote_ids):
         )
         pair = (item.get("clue_id"), item.get("competitor_id"))
         require_condition(
-            pair in compared or pair in found,
+            pair in recorded or pair in found,
             f"{name}が作る側の照合にも逆引きで見つけた候補にもない",
         )
         matches = []
@@ -1684,7 +1692,7 @@ def validate_competitor_reviews(state, clue_text, compared, quote_ids):
             require_condition(isinstance(condition, dict), f"{condition_name}がない")
             passage = required_text(condition, "passage", condition_name)
             require_condition(
-                passage in clue_text[pair[0]],
+                passage in passage_text.get(pair[0], ""),
                 f"{condition_name}.passageが手掛かりにない",
             )
             require_condition(
@@ -1698,9 +1706,9 @@ def validate_competitor_reviews(state, clue_text, compared, quote_ids):
             disposition in COMPETITOR_DISPOSITIONS,
             f"{name}.dispositionが不正である",
         )
-        if pair in compared:
+        if pair in recorded:
             require_condition(
-                disposition == compared[pair],
+                disposition == recorded[pair],
                 f"{name}.dispositionが作る側の判断と一致しない",
             )
         else:
