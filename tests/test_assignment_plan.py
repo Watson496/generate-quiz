@@ -532,7 +532,23 @@ class TestInputs:
 class TestMerge:
     """担当の成果物を、担当表のまとめ方に従って状態ファイルへ入れることを確認する。"""
 
+    TARGET_ROLES = frozenset(
+        {
+            "name_research",
+            "clue_search",
+            "competitor_comparison",
+            "source_reliability_review",
+            "writer",
+            "certainty_review",
+            "asked_knowledge",
+            "answer_range",
+        }
+    )
+
     def merge(self, run_script, tmp_path, role, state, artifact):
+        """担当の成果物を状態ファイルへ入れる。作問状態の担当なら、状態に解答対象を置いておく。"""
+        if role in self.TARGET_ROLES:
+            state.setdefault("answer_target", "解答対象")
         state_path = tmp_path / "state.json"
         state_path.write_text(json.dumps(state, ensure_ascii=False))
         artifact_path = tmp_path / f"{role}.json"
@@ -795,7 +811,7 @@ class TestMerge:
         )
         assert result.returncode == 1
         assert "直す記録のIDをfix_idsに置いて書き直す" in result.stderr
-        assert merged == {}
+        assert merged == {"answer_target": "解答対象"}
 
     def test_writer_may_return_only_research_requests(self, run_script, tmp_path):
         """作文担当は、問題文を書かずに調査の依頼だけを成果物にでき、前の依頼を置き換える。"""
@@ -824,7 +840,43 @@ class TestMerge:
         assert "成果物のcertainty_reviewsに、['proposition_id']のない記録がある" in (
             result.stderr
         )
-        assert merged == {}
+        assert merged == {"answer_target": "解答対象"}
+
+    @pytest.mark.parametrize(
+        ("role", "state", "artifact"),
+        [
+            (
+                "intersection",
+                {"answer_target": "解答対象"},
+                {"intersection_review": {}, "coverage_areas": []},
+            ),
+            (
+                "asked_knowledge",
+                {},
+                {"asked_knowledge": "a", "answer_granularity": "g"},
+            ),
+        ],
+    )
+    def test_rejects_artifact_for_other_kind_of_state(
+        self, run_script, tmp_path, role, state, artifact
+    ):
+        """作問状態にはステップ7以降の担当の成果物だけを、探索状態などにはそれ以外の担当の成果物だけを入れる。"""
+        state_path = tmp_path / "state.json"
+        state_path.write_text(json.dumps(state, ensure_ascii=False))
+        artifact_path = tmp_path / "artifact.json"
+        artifact_path.write_text(json.dumps(artifact, ensure_ascii=False))
+        result = run_script(
+            "assignment_plan.py",
+            "merge",
+            role,
+            "--state",
+            state_path,
+            "--artifact",
+            artifact_path,
+        )
+        assert result.returncode == 1
+        assert "担当のステップの状態ファイルを渡す" in result.stderr
+        assert json.loads(state_path.read_text()) == state
 
     def test_reviews_keep_failed_record(self, run_script, tmp_path):
         """再検査の結果は、不合格の記録を残したまま後ろへ加える。"""
@@ -850,7 +902,11 @@ class TestMerge:
             {"asked_knowledge": "後", "answer_granularity": "後"},
         )
         assert result.returncode == 0
-        assert merged == {"asked_knowledge": "後", "answer_granularity": "後"}
+        assert merged == {
+            "answer_target": "解答対象",
+            "asked_knowledge": "後",
+            "answer_granularity": "後",
+        }
 
     @pytest.mark.parametrize(
         "artifact",
@@ -903,7 +959,7 @@ class TestMerge:
         )
         assert result.returncode == 1
         assert "成果物のanswersは記録の配列でなければならない" in result.stderr
-        assert merged == {}
+        assert merged == {"answer_target": "解答対象"}
 
     def test_rejects_fragment_roles(self, run_script, tmp_path):
         """題材探索の断片は、このスクリプトでは入れない。"""

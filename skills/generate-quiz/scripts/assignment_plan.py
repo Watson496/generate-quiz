@@ -556,6 +556,21 @@ def merge_record(old, new):
     return merged
 
 
+def target_step_roles(table):
+    """解答対象ごとの作問状態を扱うステップ（解答対象を入力に持つ担当がいるステップ）の担当IDを返す。"""
+    return {
+        role["id"]
+        for step in table["steps"]
+        if any(
+            "answer_target" in data
+            for item in step["roles"]
+            for phase in item["inputs"]
+            for data in phase
+        )
+        for role in step["roles"]
+    }
+
+
 def merges_artifact(role):
     """担当の成果物を、このスクリプトで状態ファイルへ入れるかを返す。
 
@@ -592,6 +607,13 @@ def merge_artifact(table, role_id, state, artifact):
         merges_artifact(role),
         f"担当{role_id}の成果物は、状態ファイルへこのスクリプトで入れるものではない",
     )
+    target_step = role_id in target_step_roles(table)
+    if target_step != ("answer_target" in state):
+        kind = (
+            "作問状態" if "answer_target" in state else "ファセット選択の記録や探索状態"
+        )
+        message = f"担当{role_id}の成果物は、{kind}へは入れない。担当のステップの状態ファイルを渡す"
+        raise ArtifactError(message)
     if not isinstance(artifact, dict) or not artifact or set(artifact) - set(outputs):
         found = (
             sorted(artifact) if isinstance(artifact, dict) else type(artifact).__name__
