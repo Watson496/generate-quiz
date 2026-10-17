@@ -168,7 +168,7 @@
           "side": "check",
           "section": "交差領域の確認",
           "specs": ["selection_and_history_spec.md", "work_state_spec.md"],
-          "rules": [{"spec": "selection_and_history_spec.md", "heading": "6. 具体的な解答候補の探索と抽選", "subsections": false}],
+          "rules": [{"spec": "selection_and_history_spec.md", "heading": "1.1 候補の所属"}, {"spec": "selection_and_history_spec.md", "heading": "6. 具体的な解答候補の探索と抽選", "subsections": false}],
           "inputs": [["facet_nodes", "facet_subdivisions", "facet_scope", "source_cache"]],
           "outputs": ["intersection_review", "coverage_areas"]
         },
@@ -178,7 +178,7 @@
           "side": "check",
           "section": "交差領域の確認",
           "specs": ["selection_and_history_spec.md", "work_state_spec.md"],
-          "rules": [{"spec": "selection_and_history_spec.md", "heading": "6. 具体的な解答候補の探索と抽選", "subsections": false}, {"spec": "work_state_spec.md", "heading": "検査結果"}],
+          "rules": [{"spec": "selection_and_history_spec.md", "heading": "1.1 候補の所属"}, {"spec": "selection_and_history_spec.md", "heading": "6. 具体的な解答候補の探索と抽選", "subsections": false}, {"spec": "work_state_spec.md", "heading": "検査結果"}],
           "inputs": [["facet_nodes", "facet_subdivisions", "facet_scope", "intersection_review", "coverage_areas", "source_cache"]],
           "outputs": ["coverage_area_reviews"]
         }
@@ -194,7 +194,7 @@
           "side": "make",
           "section": "題材探索",
           "specs": ["selection_and_history_spec.md", "work_state_spec.md"],
-          "rules": [{"spec": "selection_and_history_spec.md", "heading": "6. 具体的な解答候補の探索と抽選", "subsections": false}],
+          "rules": [{"spec": "selection_and_history_spec.md", "heading": "1.1 候補の所属"}, {"spec": "selection_and_history_spec.md", "heading": "6. 具体的な解答候補の探索と抽選", "subsections": false}],
           "inputs": [["user_conditions", "history", "facet_nodes", "facet_subdivisions", "facet_scope", "coverage_areas", "ledger", "source_cache"]],
           "outputs": ["coverage_areas", "ledger"],
           "split_size": 1
@@ -205,7 +205,7 @@
           "side": "make",
           "section": "題材探索",
           "specs": ["selection_and_history_spec.md", "work_state_spec.md"],
-          "rules": [{"spec": "selection_and_history_spec.md", "heading": "6. 具体的な解答候補の探索と抽選", "subsections": false}],
+          "rules": [{"spec": "selection_and_history_spec.md", "heading": "1.1 候補の所属"}, {"spec": "selection_and_history_spec.md", "heading": "6. 具体的な解答候補の探索と抽選", "subsections": false}],
           "inputs": [["user_conditions", "facet_nodes", "facet_subdivisions", "facet_scope", "coverage_areas", "ledger", "source_cache"]],
           "outputs": ["ledger"],
           "split_size": 10
@@ -216,7 +216,7 @@
           "side": "make",
           "section": "題材探索",
           "specs": ["selection_and_history_spec.md", "work_state_spec.md"],
-          "rules": [{"spec": "selection_and_history_spec.md", "heading": "6. 具体的な解答候補の探索と抽選", "subsections": false}],
+          "rules": [{"spec": "selection_and_history_spec.md", "heading": "1.1 候補の所属"}, {"spec": "selection_and_history_spec.md", "heading": "6. 具体的な解答候補の探索と抽選", "subsections": false}],
           "inputs": [["facet_nodes", "facet_subdivisions", "facet_scope", "coverage_areas", "ledger", "source_cache"]],
           "outputs": ["coverage_areas", "ledger", "independent_review"]
         },
@@ -226,7 +226,7 @@
           "side": "check",
           "section": "題材探索",
           "specs": ["selection_and_history_spec.md", "work_state_spec.md"],
-          "rules": [{"spec": "selection_and_history_spec.md", "heading": "6. 具体的な解答候補の探索と抽選", "subsections": false}],
+          "rules": [{"spec": "selection_and_history_spec.md", "heading": "1.1 候補の所属"}, {"spec": "selection_and_history_spec.md", "heading": "6. 具体的な解答候補の探索と抽選", "subsections": false}],
           "inputs": [["facet_nodes", "facet_subdivisions", "facet_scope", "intersection_review", "coverage_areas", "ledger", "independent_review", "source_cache"]],
           "outputs": ["ledger", "saturation_challenge"]
         }
