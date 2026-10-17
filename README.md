@@ -4,7 +4,7 @@
 
 ## 利用方法
 
-Agent Skillsに対応したAI agentに、`skills/generate-quiz/` をインストールして利用します。インストールと利用の手順は[skills/README.md](skills/README.md)を参照してください。
+Agent Skillsに対応したAI agentに、`skills/generate-quiz/` と、作問の担当と統括役のエージェントの定義をインストールして利用します。インストールと利用の手順は[skills/README.md](skills/README.md)を参照してください。
 
 generate-quizのほかに、生成した問題群をLaTeX問題集へ組版する付属スキル [`quiz-book-latex`](skills/quiz-book-latex/) も収録しています。導入方法と依存関係は[skills/README.md](skills/README.md#quiz-book-latex)を参照してください。
 
@@ -99,6 +99,13 @@ skills/
     assets/
     references/
     scripts/
+codex/agents/              Codex用の担当と統括役のエージェントの定義（生成物）
+claude/                    Claude Code用のプラグイン
+  .claude-plugin/
+  agents/                  担当と統括役のエージェントの定義（生成物）
+  skills/generate-quiz     skills/generate-quiz へのリンク
+.claude-plugin/            Claude Code用のマーケットプレイスの定義
+tools/                     開発用の生成スクリプト
 tests/                     開発用の回帰テスト
 ```
 
@@ -117,11 +124,18 @@ uv run pytest tests/
 Pythonコードのlintと整形は開発用依存のRuffで確認します。lintは`ALL`を基準とし、適用しないルールは[`pyproject.toml`](pyproject.toml)に理由とともに記載します。整形する場合は、先にimportを整理します。
 
 ```bash
-uv run ruff check --fix skills/generate-quiz/scripts skills/quiz-book-latex/scripts tests
-uv run ruff format skills/generate-quiz/scripts skills/quiz-book-latex/scripts tests
+uv run ruff check --fix skills/generate-quiz/scripts skills/quiz-book-latex/scripts tools tests
+uv run ruff format skills/generate-quiz/scripts skills/quiz-book-latex/scripts tools tests
 ```
 
-変更後は`check`と`format --check`を実行し、上記のテストも通します。
+担当と統括役のエージェントの定義（`codex/agents/`と`claude/agents/`）は、担当表`roles.json`と、担当表の`rules`で指定した仕様の節から生成します。担当表か仕様を変更したら、定義を生成し直します。
+
+```bash
+python3 tools/agent_definitions.py codex codex/agents
+python3 tools/agent_definitions.py claude claude/agents
+```
+
+変更後は`check`と`format --check`を実行し、上記のテストも通します。テストは、置かれた定義が担当表と仕様に一致することも確かめます。
 
 `tests/` は開発用で、インストールするファイルには含めません。
 

@@ -29,32 +29,75 @@ argument-hint: <作問条件（主題・問題数・文字数・履歴など。�
 1. [`references/workflow_spec.md`](references/workflow_spec.md)
 2. [`references/work_state_spec.md`](references/work_state_spec.md)
 
-複数問でも一問でも、`workflow_spec.md`の工程を一問ずつ完了させる。作業状態は`work_state_spec.md`の単位で保持し、解答対象を変更したときは旧対象の状態を引き継がない。
+ファイルは一つずつ読み、読んだ出力が途中で切り詰められたら、残りの部分を分けて読む。
 
-# 工程ごとに読む仕様
+複数問でも一問でも、`workflow_spec.md`のステップを一問ずつ完了させる。作業状態は`work_state_spec.md`の単位で保持し、解答対象を変更したときは旧対象の状態を引き継がない。
 
-- ファセットと題材候補を選ぶ前に、[`references/selection_and_history_spec.md`](references/selection_and_history_spec.md)と[`references/facet_index.md`](references/facet_index.md)を全文読む。ファセットカタログは必要な親ブロックだけを`facet_node.py`で取得する。
-- 解答対象の品質を判定し、手掛かりを選び、問題文を作る前に、[`references/quiz_generation_spec.md`](references/quiz_generation_spec.md)を全文読む。
-- 外部資料による論証、別解、正誤判定、出典作成を始める前に、[`references/verification_and_judging_spec.md`](references/verification_and_judging_spec.md)を全文読む。
-- 最終出力用の限定入力を作った後に、[`references/output_structure_spec.md`](references/output_structure_spec.md)を全文読む。
+# 担当ごとに読む仕様
 
-出力直前に全仕様を読み直して済ませず、各仕様を必要とする工程へ入る前に読む。作業状態の検査単位を使い、適用済みかを記録する。
+判断は、工程のステップごとに起動する担当が行う。各担当が読む仕様は担当表[`references/roles.json`](references/roles.json)で定め、依頼文で指定する。担当は、判断を始める前に指定された仕様を全文読む。
+
+出力直前に全仕様を読み直して済ませず、各仕様を必要とする判断へ入る前に読む。作業状態の検査単位を使い、適用済みかを記録する。
 
 # 必須ツール
 
 - 同梱スクリプトにはPython 3.14以上を使用する。
 - 毎問Web検索を使う。検索手段が一切使えない場合は、内部知識で代替せず作問を中止する。
-- 重み付き乱択、履歴補正、文字数判定、作業状態の構造検査は、必ず同梱スクリプトを実行する。
+- 担当の割り当て、重み付き乱択、履歴補正、台帳の断片の統合、資料の写しの取得と保存、文字数判定、作業状態の構造検査は、必ず同梱スクリプトを実行する。
+  - 担当の割り当てと再実行の範囲：`scripts/assignment_plan.py`
   - ファセットの抽選：`scripts/weighted_pick.py`
   - 題材候補の抽選：`scripts/topic_pick.py`
+  - 台帳の断片の統合：`scripts/ledger_merge.py`
+  - 資料の写しの取得と保存：`scripts/source_cache.py`
   - 文字数と採否：`scripts/length_check.py`
   - ファセットノードの取得：`scripts/facet_node.py`
   - 作業状態の構造検査：`scripts/work_state_check.py`
 - `python3`の実行に失敗したら再試行する。再試行でも失敗した場合は作問を中止する。ユーザーが明示的に許可した場合だけ、重み付き選択を代替できる。乱数シードは設定・表示しない。
 
-各スクリプトの終了コードは、`0`が正常、`1`が候補なし・改稿・状態修正が必要、`2`が入力や呼出しの不備である。`2`では呼出し方を修正して再実行する。
+各スクリプトの終了コードは、`0`が正常、`1`が改稿・状態修正が必要、`2`が入力や呼出しの不備、`3`が粒度判断へ戻る（交差領域の不成立、探索の未収束、抽選できる候補がない）である。`2`では呼出し方を修正して再実行する。`3`では作問を止めず、`references/workflow_spec.md`の「粒度判断へ戻る」節に従う。
 
 # スクリプトの呼出し
+
+ステップの構成、統括役と担当を起動するエージェントの名前と依頼文、検査の不合格で修正させる担当と再実行する担当は、担当表から決める。
+
+```bash
+python3 "$SKILL_DIR/scripts/assignment_plan.py" steps
+python3 "$SKILL_DIR/scripts/assignment_plan.py" coordinate 3 --state facet.json selection.json
+python3 "$SKILL_DIR/scripts/assignment_plan.py" assign exploration
+python3 "$SKILL_DIR/scripts/assignment_plan.py" rerun writer
+python3 "$SKILL_DIR/scripts/assignment_plan.py" fix propositions proposition_support
+```
+
+担当への入力は、状態ファイルから担当の入力のデータだけを取り出したファイルにして渡す。
+
+```bash
+python3 "$SKILL_DIR/scripts/assignment_plan.py" inputs membership --state facet.json selection.json \
+  --output 004-step04/membership-input.json
+```
+
+担当の起動の記録と、回収した成果物の場所は、状態ファイルへスクリプトで書く。
+
+```bash
+python3 "$SKILL_DIR/scripts/assignment_plan.py" record membership --state selection.json \
+  --agent-id /root/q001/membership-1 --items K1 K2
+python3 "$SKILL_DIR/scripts/assignment_plan.py" record membership --state selection.json \
+  --agent-id /root/q001/membership-1 --artifact 004-step04/membership-K1_K2.json
+```
+
+担当の成果物は、担当表のまとめ方に従って状態ファイルへ入れる。
+
+```bash
+python3 "$SKILL_DIR/scripts/assignment_plan.py" merge membership --state selection.json \
+  --artifact 004-step04/membership-K1_K2.json
+```
+
+題材候補の探索状態は、ファセット選択の記録から作る。粒度判断へ戻った記録は、写しを作ってファセット選択の記録へ加える。
+
+```bash
+python3 "$SKILL_DIR/scripts/assignment_plan.py" selection --state facet.json --output selection.json
+python3 "$SKILL_DIR/scripts/assignment_plan.py" return --state facet.json --kind intersection \
+  --record selection.json --reason "交差領域が成立しない" --output 009-step01/return-R1.json
+```
 
 ファセットカタログは全文を読まず、必要なブロックだけを取得する。
 
@@ -64,49 +107,72 @@ python3 "$SKILL_DIR/scripts/facet_node.py" --children 'place::(1/9)'
 python3 "$SKILL_DIR/scripts/facet_node.py" --grep '音楽'
 ```
 
-抽選は、候補ごとの基礎weightと履歴距離をJSONで渡す。
+ファセットの抽選は、ファセット選択の記録（`facet.json`）と、抽選する階層のIDを渡し、`--record`で抽選結果を記録に書かせる。スクリプトは、その階層の粒度判断、区分の分け方、weight、weightの分布の各検査の最後の結果が合格で、weightの候補がノードの子と一致しなければ抽選しない。
 
 ```bash
-python3 "$SKILL_DIR/scripts/weighted_pick.py" <<'JSON'
-{"candidates":[
-  {"key":"subject::78","label":"音楽","base_weight":3.2,"history_distances":[2]},
-  {"key":"subject::79","label":"レクリエーション．娯楽．スポーツ","base_weight":2.4}
-]}
-JSON
+python3 "$SKILL_DIR/scripts/weighted_pick.py" facet.json --level L2 --record
 ```
 
-題材候補の抽選には、探索状態のJSONを`topic_pick.py`へ渡す。このスクリプトは探索状態にある選択対象のIDと抽選用JSONの候補IDが一致することを検査する。題材品質ゲートで候補を棄却した場合は、その候補の`quality_rejection_reason`に理由を記録し、記録済みの全候補IDを`--exclude <key>`で渡して再抽選する。探索段階の`disposition`は書き換えない。ファセットの抽選には`weighted_pick.py`を使う。
+題材候補の抽選には、探索状態のJSONを`topic_pick.py`へ渡す。このスクリプトは探索状態を検査し、まとまりのweightとまとまりの中のweightの積を各候補の基礎weightとして抽選する。題材品質ゲートで候補を棄却した場合は、その候補の`quality_rejection_reason`に理由を記録し、記録済みの全候補IDを`--exclude <key>`で渡して再抽選する。再抽選では、まとまりとweightを推定し直さない。探索段階の`disposition`は書き換えない。ファセットの抽選には`weighted_pick.py`を使う。
 
 ```bash
-python3 "$SKILL_DIR/scripts/topic_pick.py" state.json --json candidates.json
+python3 "$SKILL_DIR/scripts/topic_pick.py" selection.json --output picked.json
 ```
 
-問題文の版ごとに文字数判定の`DRAW`を保持する。同じ版を監査するときは`--draw`へ同じ値を渡し、再抽選しない。
+選んだ4軸の分類経路と範囲は、ファセット選択の記録から`facet_node.py --scope`で作る。
+
+```bash
+python3 "$SKILL_DIR/scripts/facet_node.py" --scope facet.json > facet_scope.md
+```
+
+資料のページは、資料の写しの置き場を通して開く。取得できない形式のページは、開いた本文を標準入力で渡して保存する。
+
+```bash
+python3 "$SKILL_DIR/scripts/source_cache.py" _sources fetch https://example.org/page
+python3 "$SKILL_DIR/scripts/source_cache.py" _sources put https://example.org/paper.pdf < 本文.txt
+```
+
+同時に動いた担当が書いた台帳の断片は、`ledger_merge.py`で探索状態へまとめる。まとめた後は`work_state_check.py`で探索状態を検査する。
+
+```bash
+python3 "$SKILL_DIR/scripts/ledger_merge.py" selection.json fragment_D1.json fragment_D2.json -o selection.json
+```
+
+文字数判定では、問題ごとの抽選値の記録ファイルを`--record`で渡す。スクリプトは問題文と目標値の組ごとに抽選値を記録し、同じ問題文の判定では記録した抽選値で判定を再現し、問題文が変われば新しく抽選する。
+
+```bash
+python3 "$SKILL_DIR/scripts/length_check.py" --record _work/q001/length_draws.json '……でしょう？'
+```
 
 作業状態のJSON manifestは、工程に応じて次のいずれかで検査する。
 
 ```bash
-python3 "$SKILL_DIR/scripts/work_state_check.py" --stage intersection-checkpoint state.json
-python3 "$SKILL_DIR/scripts/work_state_check.py" --stage discovery-progress state.json
-python3 "$SKILL_DIR/scripts/work_state_check.py" --stage discovery state.json
-python3 "$SKILL_DIR/scripts/work_state_check.py" --stage selection state.json
-python3 "$SKILL_DIR/scripts/work_state_check.py" --stage generation-start state.json
-python3 "$SKILL_DIR/scripts/work_state_check.py" --stage difficulty state.json
-python3 "$SKILL_DIR/scripts/work_state_check.py" --stage generation state.json
-python3 "$SKILL_DIR/scripts/work_state_check.py" --stage audit state.json
-python3 "$SKILL_DIR/scripts/work_state_check.py" --stage final --output completed.md state.json
+python3 "$SKILL_DIR/scripts/work_state_check.py" --stage facet-selection facet.json
+python3 "$SKILL_DIR/scripts/work_state_check.py" --stage intersection-checkpoint selection.json
+python3 "$SKILL_DIR/scripts/work_state_check.py" --stage discovery-progress selection.json
+python3 "$SKILL_DIR/scripts/work_state_check.py" --stage discovery selection.json
+python3 "$SKILL_DIR/scripts/work_state_check.py" --stage screening selection.json
+python3 "$SKILL_DIR/scripts/work_state_check.py" --stage selection selection.json
+python3 "$SKILL_DIR/scripts/work_state_check.py" --stage prejudgment selection.json
+python3 "$SKILL_DIR/scripts/work_state_check.py" --stage target-start target-X1-K1.json
+python3 "$SKILL_DIR/scripts/work_state_check.py" --stage difficulty-gate target-X1-K1.json
+python3 "$SKILL_DIR/scripts/work_state_check.py" --stage research target-X1-K1.json
+python3 "$SKILL_DIR/scripts/work_state_check.py" --stage writing target-X1-K1.json
+python3 "$SKILL_DIR/scripts/work_state_check.py" --stage review target-X1-K1.json
+python3 "$SKILL_DIR/scripts/work_state_check.py" --stage material target-X1-K1.json
+python3 "$SKILL_DIR/scripts/work_state_check.py" --stage final --output completed.md target-X1-K1.json
 ```
 
 # 最終出力
 
-最終出力には、`work_state_spec.md`で定めた限定入力だけを使い、`output_structure_spec.md`に従う。内部のweight、コード、抽選過程、不採用候補、予定命題、検索過程、監査の往復、スクリプトの生出力を表示しない。
+最終出力には、`work_state_spec.md`で定めた限定入力だけを使い、`output_structure_spec.md`に従う。内部のweight、コード、抽選過程、不採用候補、予定命題、検索過程、検査の往復、スクリプトの生出力を表示しない。
 
 # 完了条件
 
 次をすべて満たしたときだけ、一問を確定する。
 
-- 生成側の全検査単位が完了している。
-- 独立監査の全検査単位が合格している。
+- 作る側の全検査単位が完了している。
+- 観点別の検査担当の検査がすべて合格している。
 - 現行問題文の版について、文字数判定と作業状態の検査に合格している。
 - 最終出力が限定入力と一致し、検討過程を含まない。
 

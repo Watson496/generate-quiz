@@ -1,0 +1,1294 @@
+#!/usr/bin/env python3
+"""担当表から、ステップの構成、担当の割り当てと依頼文、再実行する担当を決める。
+
+担当表は references/roles.json に置く。各担当の入力は段階ごとのデータの一覧で、
+表の順で前にある担当や自分の成果物か、親や統括役が渡すデータだけを参照できる。
+後の担当が前のステップの担当へ返すデータ（feedback_data）は、表の順によらず参照できる。
+
+サブコマンド:
+    steps              ステップごとの担当と、統括役を置くかを出力する
+    coordinate STEP    統括役のエージェントの名前と依頼文を出力する。担当表で前のステップの
+                       検査（entry_check）を定めたステップでは、--stateで渡した最後の状態
+                       ファイルをその段階で検査し、合格した場合だけ出力する。状態ファイルを
+                       複数渡した場合は、共通するキーの値が一致することも確かめる。ユーザーが
+                       解答対象を指定して素材の調査から始める場合は、--specifiedを付けて
+                       前のステップの検査をしない
+    assign ROLE        担当の割り当てと依頼文を出力する。分割する担当には
+                       --itemsで項目IDを渡す
+    rerun ROLE         ROLEの成果物が変わったときに再実行する担当を、
+                       表の順にステップごとに出力する
+    fix [DATA...]      検査が修正を求めたデータを成果物とする担当と、
+                       修正の後に再実行する担当を出力する。--stateで状態ファイルを渡すと、
+                       最後の判定が不合格の検査の`fix_data`をすべて集め、修正させる担当ごとに
+                       渡す検査の成果物の場所を出力する
+    inputs ROLE        --stateで渡した状態ファイルから担当の入力のデータだけを取り出し、
+                       --outputのファイルに書く。状態ファイルにない入力を出力する。
+                       状態ファイルの間で共通するキーの値が食い違えば、書かずに終了コード1を返す。
+                       分割する担当には--itemsで受け持つ項目を渡し、その記録だけを取り出す
+    record ROLE        担当の起動の記録を--stateの状態ファイルのexecution.assignmentsに
+                       書く。--agent-idだけなら起動の記録を加え、--artifactを付けると
+                       成果物の場所を、--failedを付けると失敗をその記録に加える
+    merge ROLE         担当の成果物のファイル（--artifact）を、担当表のmerge_rulesに
+                       従って--stateの状態ファイルへ入れる。成果物の最上位のキーが担当の
+                       成果物のデータIDでなければ、状態ファイルを変えずに終了コード1を返す
+    selection          ファセット選択の記録（--state）の選んだ4軸と区分を写して、題材候補の
+                       探索状態を--outputに新しく作る。前の探索状態があれば置き換える
+    return             粒度判断へ戻った記録（--record）の内容を--outputの新しいファイルに写し、
+                       ファセット選択の記録（--state）のgranularity_returnsに、戻りの種類
+                       （--kind）、写しの場所、写しのSHA-256、理由（--reason）を一件加える。
+                       前の戻りの記録と同じ内容なら、加えずに終了コード1を返す
+
+終了コード:
+    0  結果を出力した
+    1  前のステップの検査が不合格、状態ファイルの間で値が食い違う、担当の成果物が状態ファイルへ
+       入れられる形ではない、または戻りの記録が前の戻りの記録と同じ内容である
+    2  担当表の不備、存在しない担当、項目IDの不備など、入力や呼出しの不備
+    3  前のステップの担当が粒度判断へ戻ると判断している、または抽選できる候補がない
+
+使用例:
+    python3 assignment_plan.py steps
+    python3 assignment_plan.py coordinate 3 --state facet.json selection.json
+    python3 assignment_plan.py assign exposure
+    python3 assignment_plan.py rerun writer
+    python3 assignment_plan.py fix propositions proposition_support
+    python3 assignment_plan.py inputs membership --state facet.json selection.json \
+        --output 004-step04/membership-input.json
+    python3 assignment_plan.py record membership --state selection.json \
+        --agent-id /root/q001/membership-1 --items K1 K2
+    python3 assignment_plan.py merge membership --state selection.json \
+        --artifact 004-step04/membership-K1_K2.json
+    python3 assignment_plan.py selection --state facet.json --output selection.json
+    python3 assignment_plan.py return --state facet.json --kind intersection \
+        --record selection.json --reason "交差領域が成立しない" \
+        --output 009-step01/return-R1.json
+"""
+
+import argparse
+import fcntl
+import hashlib
+import json
+import subprocess
+import sys
+import tempfile
+from contextlib import contextmanager
+from pathlib import Path
+
+SKILL_DIR = Path(__file__).resolve().parent.parent
+REF_DIR = SKILL_DIR / "references"
+TABLE_PATH = REF_DIR / "roles.json"
+AGENT_PREFIX = "generate-quiz"
+SIDES = {"make", "check"}
+EXIT_OK, EXIT_BLOCKED, EXIT_USAGE, EXIT_RETURN = 0, 1, 2, 3
+COORDINATOR_SECTIONS = ("検査で不合格になったとき", "修正と再実行")
+GRANULARITY_RETURN_KINDS = ("intersection", "saturation", "exhausted")
+SELECTION_FROM_FACET = ("facet_nodes", "facet_subdivisions")
+REVIEW_SECTION = "検査の進め方"
+ONLY_GIVEN_FILES = (
+    "入力として渡されたファイル、読むよう指定された仕様、資料の写しの置き場、担当の節が読んでよいと定めたファイルのほかに、"
+    "作業場所のファイル（状態ファイル、ほかの担当の成果物、前の実行の記録）を探したり読んだりしない。"
+    "成果物の書き方の例を探すためにも読まない。"
+)
+READ_REST = "ファイルは一つずつ読み、読んだ出力が途中で切り詰められたら、残りの部分を分けて読む。"
+
+
+class TableError(ValueError):
+    pass
+
+
+def require(ok, msg):
+    if not ok:
+        raise TableError(msg)
+
+
+def is_text(value):
+    return isinstance(value, str) and bool(value.strip())
+
+
+def validate_role(role, data, available, seen):
+    require(isinstance(role, dict), "担当はオブジェクトでなければならない")
+    role_id = role.get("id")
+    require(is_text(role_id), "担当のidがない")
+    require(role_id not in seen, f"担当{role_id}が重複している")
+    for key in ("name", "section"):
+        require(is_text(role.get(key)), f"担当{role_id}の{key}がない")
+    require(role.get("side") in SIDES, f"担当{role_id}のsideが不正である")
+    specs = role.get("specs")
+    require(
+        isinstance(specs, list) and specs and all(is_text(spec) for spec in specs),
+        f"担当{role_id}のspecsがない",
+    )
+    missing = [spec for spec in specs if not (REF_DIR / spec).is_file()]
+    require(not missing, f"担当{role_id}のspecsに存在しない仕様がある: {missing}")
+    rules = role.get("rules")
+    require(
+        isinstance(rules, list)
+        and rules
+        and all(
+            isinstance(rule, dict)
+            and rule.get("spec") in specs
+            and is_text(rule.get("heading"))
+            and rule.get("subsections", True) in {True, False}
+            for rule in rules
+        ),
+        f"担当{role_id}のrulesは、specsにある仕様の見出しの一覧でなければならない",
+    )
+    headings = [(rule["spec"], rule["heading"]) for rule in rules]
+    require(
+        len(headings) == len(set(headings)),
+        f"担当{role_id}のrulesに同じ見出しが重複している",
+    )
+    outputs = role.get("outputs")
+    require(
+        isinstance(outputs, list) and outputs,
+        f"担当{role_id}のoutputsがない",
+    )
+    unknown = [item for item in outputs if item not in data]
+    require(not unknown, f"担当{role_id}の成果物に未定義のデータがある: {unknown}")
+    phases = role.get("inputs")
+    require(
+        isinstance(phases, list)
+        and phases
+        and all(isinstance(phase, list) and phase for phase in phases),
+        f"担当{role_id}のinputsは空でない段階の配列でなければならない",
+    )
+    for phase in phases:
+        unknown = [item for item in phase if item not in data]
+        require(not unknown, f"担当{role_id}の入力に未定義のデータがある: {unknown}")
+        unavailable = [
+            item for item in phase if item not in available and item not in outputs
+        ]
+        require(
+            not unavailable,
+            f"担当{role_id}の入力に、前の担当や自分の成果物でも親や統括役が渡すデータでもないものがある: {unavailable}",
+        )
+    if "split_size" in role:
+        size = role["split_size"]
+        require(
+            type(size) is int and size >= 1,
+            f"担当{role_id}のsplit_sizeは1以上の整数でなければならない",
+        )
+
+
+def validate_table(table):
+    """担当表の形と、入力が前の担当や自分の成果物、親や統括役が渡すデータ、後の担当が返すデータであることを検査する。"""
+    require(isinstance(table, dict), "担当表はオブジェクトでなければならない")
+    data = table.get("data")
+    require(
+        isinstance(data, dict)
+        and data
+        and all(is_text(text) for text in data.values()),
+        "dataは説明を持つデータの一覧でなければならない",
+    )
+    given_data = table.get("given_data")
+    require(
+        isinstance(given_data, list) and set(given_data) <= set(data),
+        "given_dataは定義済みのデータの一覧でなければならない",
+    )
+    feedback_data = table.get("feedback_data", [])
+    require(
+        isinstance(feedback_data, list)
+        and set(feedback_data) <= set(data)
+        and not set(feedback_data) & set(given_data),
+        "feedback_dataは、親や統括役が渡すデータでない定義済みのデータの一覧でなければならない",
+    )
+    steps = table.get("steps")
+    require(isinstance(steps, list) and steps, "stepsがない")
+    available = set(given_data) | set(feedback_data)
+    produced = set()
+    seen = set()
+    for step in steps:
+        require(
+            isinstance(step, dict) and is_text(step.get("name")), "ステップの名前がない"
+        )
+        roles = step.get("roles")
+        require(
+            isinstance(roles, list) and roles,
+            f"ステップ{step['name']}に担当がない",
+        )
+        require(
+            "entry_check" not in step or is_text(step["entry_check"]),
+            f"ステップ{step['name']}のentry_checkが段階の名前ではない",
+        )
+        for role in roles:
+            validate_role(role, data, available, seen)
+            seen.add(role["id"])
+            produced.update(role["outputs"])
+            available.update(role["outputs"])
+    require(
+        not produced & set(given_data),
+        "親や統括役が渡すデータを担当の成果物にしている",
+    )
+    unused = set(data) - produced - set(given_data)
+    require(not unused, f"どこからも渡されないデータがある: {sorted(unused)}")
+    require(
+        set(feedback_data) <= produced,
+        "feedback_dataは、後の担当の成果物でなければならない",
+    )
+    state_keys = table.get("state_keys", {})
+    require(
+        isinstance(state_keys, dict)
+        and set(state_keys) <= set(data)
+        and all(
+            isinstance(keys, list) and keys and all(is_text(key) for key in keys)
+            for keys in state_keys.values()
+        ),
+        "state_keysは、定義済みのデータごとの状態ファイルのキーの一覧でなければならない",
+    )
+    rules = table.get("merge_rules", {})
+    union = rules.get("union", {}) if isinstance(rules, dict) else None
+    append = rules.get("append", []) if isinstance(rules, dict) else None
+    lists = rules.get("lists", []) if isinstance(rules, dict) else None
+    require(
+        isinstance(union, dict)
+        and set(union) <= produced
+        and all(
+            isinstance(keys, list) and keys and all(is_text(key) for key in keys)
+            for keys in union.values()
+        )
+        and isinstance(append, list)
+        and set(append) <= produced
+        and isinstance(lists, list)
+        and set(lists) <= produced
+        and not set(append) & set(union)
+        and not set(lists) & (set(union) | set(append)),
+        "merge_rulesは、担当の成果物のデータごとの、まとめ方の一覧でなければならない",
+    )
+    append_keys = rules.get("append_keys", {})
+    require(
+        isinstance(append_keys, dict)
+        and set(append_keys) == set(append)
+        and all(
+            isinstance(fields, list) and fields and all(is_text(f) for f in fields)
+            for fields in append_keys.values()
+        ),
+        "merge_rulesのappend_keysは、appendのデータごとの、検査した対象を表す項目でなければならない",
+    )
+    unique_fields = rules.get("unique_fields", {})
+    fixed_fields = rules.get("fixed_fields", {})
+    require(
+        isinstance(unique_fields, dict)
+        and set(unique_fields) <= set(union)
+        and all(is_text(field) for field in unique_fields.values())
+        and isinstance(fixed_fields, dict)
+        and set(fixed_fields) <= set(union)
+        and all(
+            isinstance(fields, list) and fields and all(is_text(f) for f in fields)
+            for fields in fixed_fields.values()
+        ),
+        "merge_rulesのunique_fieldsとfixed_fieldsは、unionのデータごとの項目でなければならない",
+    )
+    scopes = rules.get("scopes", {})
+    require(
+        isinstance(scopes, dict)
+        and set(scopes) <= set(data)
+        and all(
+            isinstance(scope, dict)
+            and set(scope) <= {"field", "data", "values", "where"}
+            and is_text(scope.get("field"))
+            and scope.get("data") in set(lists)
+            and is_text(scope.get("values"))
+            and isinstance(scope.get("where", {}), dict)
+            for scope in scopes.values()
+        ),
+        "merge_rulesのscopesは、データごとの、記録を残す範囲（置き換えるデータの項目）の定めでなければならない",
+    )
+    return table
+
+
+def load_table(path=TABLE_PATH):
+    return validate_table(json.loads(Path(path).read_text(encoding="utf-8")))
+
+
+def ordered_roles(table):
+    """担当を表の順に、ステップ番号とともに返す。"""
+    return [
+        (number, role)
+        for number, step in enumerate(table["steps"], 1)
+        for role in step["roles"]
+    ]
+
+
+def find_role(table, role_id):
+    roles = {role["id"]: role for _, role in ordered_roles(table)}
+    require(role_id in roles, f"担当表にない担当である: {role_id}")
+    return roles[role_id]
+
+
+def has_coordinator(step):
+    """担当を複数起動し得るステップ（担当が複数あるか、項目で分割する担当がある）なら真を返す。"""
+    return len(step["roles"]) > 1 or any("split_size" in role for role in step["roles"])
+
+
+def step_plan(table):
+    """ステップごとの担当と、統括役を置くかを返す。"""
+    return [
+        {
+            "step": number,
+            "name": step["name"],
+            "roles": [role["id"] for role in step["roles"]],
+            "coordinator": has_coordinator(step),
+        }
+        for number, step in enumerate(table["steps"], 1)
+    ]
+
+
+def entry_check(table, number, state_paths, *, specified=False):
+    """ステップの前のステップの検査を最後の状態ファイルに行い、終了コードと出力を返す。
+
+    状態ファイルを複数渡した場合は、共通するキーの値が一致することも確かめる。
+    ユーザーが解答対象を指定した場合（specified）は、解答対象ごとの作問状態を扱う
+    最初のステップでだけ、前のステップの検査をしない。
+    """
+    step = table["steps"][number - 1]
+    stage = step.get("entry_check")
+    if specified:
+        first = min(
+            position
+            for position, role in ordered_roles(table)
+            if role["id"] in target_step_roles(table)
+        )
+        require(
+            number == first,
+            f"--specifiedは、解答対象を指定して始めるステップ{first}でだけ使う",
+        )
+        return 0, ""
+    if stage is None:
+        return 0, ""
+    require(state_paths, f"ステップ{number}には--stateで状態ファイルが必要である")
+    try:
+        require_same_values([read_state(path) for path in state_paths])
+    except ArtifactError as error:
+        return EXIT_BLOCKED, f"不合格: {error}"
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(Path(__file__).with_name("work_state_check.py")),
+            "--stage",
+            stage,
+            str(state_paths[-1]),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    message = result.stderr.strip() or result.stdout.strip()
+    require(
+        result.returncode in {EXIT_OK, EXIT_BLOCKED, EXIT_RETURN},
+        f"前のステップの検査を実行できない: {message}",
+    )
+    return result.returncode, message
+
+
+def coordinator_request(table, number):
+    """統括役を置くステップについて、統括役への依頼文を返す。"""
+    require(
+        type(number) is int and 1 <= number <= len(table["steps"]),
+        f"存在しないステップである: {number}",
+    )
+    step = table["steps"][number - 1]
+    require(has_coordinator(step), f"ステップ{number}には統括役を置かない")
+    sections = "」節、「".join(
+        [
+            *dict.fromkeys(role["section"] for role in step["roles"]),
+            *COORDINATOR_SECTIONS,
+        ]
+    )
+    lines = [
+        f"あなたはステップ{number}（{step['name']}）の統括役である。",
+        f"スキルの場所：`{SKILL_DIR}`（以下のファイルはこの場所からの相対パスで示す）",
+        f"`SKILL.md`の「必須ツール」「スクリプトの呼出し」節、`references/workflow_spec.md`の「担当の構成」節、「{sections}」節、`references/work_state_spec.md`の「担当の起動の記録」節を読み、その規定に従って担当を起動し、入力と成果物のファイルを受け渡す。",
+        READ_REST,
+        "担当：",
+        *(f"- {role['name']}（{role['id']}）" for role in step["roles"]),
+        "報告は、完了したことと成果物のファイルの場所だけとする。",
+    ]
+    return {
+        "step": number,
+        "agent": coordinator_agent_name(number),
+        "request": "\n".join(lines),
+    }
+
+
+def agent_name(role):
+    """担当を起動するエージェントの名前を返す。"""
+    return f"{AGENT_PREFIX}:{role['id']}"
+
+
+def coordinator_id(number):
+    """統括役のエージェントのIDを返す。"""
+    return f"step{number:02d}_coordinator"
+
+
+def coordinator_agent_name(number):
+    """統括役を起動するエージェントの名前を返す。"""
+    return f"{AGENT_PREFIX}:{coordinator_id(number)}"
+
+
+def is_reviewer(role):
+    """検査結果を記録する担当なら真を返す。"""
+    return any(
+        rule["spec"] == "work_state_spec.md" and rule["heading"] == "検査結果"
+        for rule in role["rules"]
+    )
+
+
+def workflow_sections(role):
+    """担当が読む workflow_spec.md の節を返す。検査結果を記録する担当には検査の進め方を加える。"""
+    sections = ["担当の構成", role["section"]]
+    if is_reviewer(role):
+        sections.append(REVIEW_SECTION)
+    return sections
+
+
+def request_text(table, role, items):
+    specs = "、".join(f"`references/{spec}`" for spec in role["specs"])
+    sections = "」節、「".join(workflow_sections(role))
+    lines = [
+        f"あなたは{role['name']}である。",
+        f"スキルの場所：`{SKILL_DIR}`（以下のファイルはこの場所からの相対パスで示す）",
+        f"`SKILL.md`の「役割」「必須ツール」「スクリプトの呼出し」節、`references/workflow_spec.md`の「{sections}」節を読み、{specs}を全文読んで、その規定に従って判断する。",
+        READ_REST,
+    ]
+    phases = role["inputs"]
+    if len(phases) > 1:
+        lines.append(
+            f"入力は{len(phases)}段階で渡す。各段階の成果物を保存してから、次の段階の入力を受け取る。"
+        )
+    for index, phase in enumerate(phases, 1):
+        lines.append(f"入力（第{index}段階）：" if len(phases) > 1 else "入力：")
+        lines.extend(f"- {table['data'][item]}（`{item}`）" for item in phase)
+    if items is not None:
+        lines.append("担当する項目：" + "、".join(items))
+    lines.append(ONLY_GIVEN_FILES)
+    if "ledger" in role["outputs"]:
+        names = ["prefix"] + [
+            key
+            for item in role["outputs"]
+            for key in table.get("state_keys", {}).get(item, [item])
+        ]
+        keys = ", ".join(f'"{name}": …' for name in names)
+        lines.append(
+            f"成果物（指定された断片のファイルに、担当の接頭辞と探索状態のキーで`{{{keys}}}`の形で書く）："
+        )
+    else:
+        keys = ", ".join(f'"{item}": …' for item in role["outputs"])
+        lines.append(
+            f"成果物（指定されたファイルに、データIDをキーとするJSONのオブジェクト`{{{keys}}}`として書く）："
+        )
+    lines.extend(f"- {table['data'][item]}（`{item}`）" for item in role["outputs"])
+    lines.append("報告は、完了したことと成果物のファイルの場所だけとする。")
+    return "\n".join(lines)
+
+
+def assignments(table, role_id, items=None):
+    """担当の割り当てを返す。分割する担当は項目を件数ごとに分ける。"""
+    role = find_role(table, role_id)
+    size = role.get("split_size")
+    if size is None:
+        require(items is None, f"担当{role_id}は項目で分割しない")
+        chunks = [None]
+    else:
+        require(bool(items), f"担当{role_id}には項目IDが必要である")
+        require(len(items) == len(set(items)), "項目IDが重複している")
+        chunks = [items[start : start + size] for start in range(0, len(items), size)]
+    return [
+        {
+            "role": role_id,
+            "agent": agent_name(role),
+            "items": chunk,
+            "request": request_text(table, role, chunk),
+        }
+        for chunk in chunks
+    ]
+
+
+def role_inputs(table, role_id, states, phase=None, items=None):
+    """状態ファイルから担当の入力のデータを取り出し、取り出したものと状態ファイルにない入力を返す。
+
+    データは状態ファイルの同じ名前のキーに置く。state_keysで複数のキーを定めたデータは、
+    そのキーをすべて取り出す。同じキーが複数の状態ファイルにあれば、値が一致することを確かめる。
+    受け持つ項目（items）を渡すと、項目のIDを持つ記録の配列からは、その項目の記録だけを取り出す。
+    問題文（draft）は、解答を伏せる担当にも渡るので、版と本文だけを取り出す。
+    後ろへ加えていく検査結果は、検査した対象ごとの最後の記録だけを取り出す。
+    """
+    role = find_role(table, role_id)
+    require_same_values(states)
+    phases = role["inputs"]
+    if phase is not None:
+        require(
+            1 <= phase <= len(phases),
+            f"担当{role_id}の入力に第{phase}段階はない",
+        )
+        phases = [phases[phase - 1]]
+    extracted = {}
+    missing = []
+    append = set(table.get("merge_rules", {}).get("append", []))
+    for item in dict.fromkeys(item for names in phases for item in names):
+        keys = table.get("state_keys", {}).get(item, [item])
+        found = [key for key in keys if any(key in state for state in states)]
+        for key in found:
+            value = next(state[key] for state in states if key in state)
+            if key == "draft" and isinstance(value, dict):
+                value = {k: value[k] for k in ("version", "text") if k in value}
+            if key in append and isinstance(value, list):
+                value = latest_reviews(value)
+            extracted[key] = only_items(value, items)
+        if not found:
+            missing.append(item)
+    if items:
+        matched = {
+            record.get("id")
+            for value in extracted.values()
+            if isinstance(value, list)
+            for record in value
+            if isinstance(record, dict)
+        } & set(items)
+        require(matched, f"受け持つ項目{items}が、どの入力の記録のIDでもない")
+    return extracted, missing
+
+
+def require_same_values(states):
+    """複数の状態ファイルに共通するキー（担当の起動の記録を除く）の値が一致することを確かめる。"""
+    for index, state in enumerate(states):
+        for later in states[index + 1 :]:
+            for key in state.keys() & later.keys() - {"execution"}:
+                if state[key] != later[key]:
+                    message = f"状態ファイルの間で{key}の値が食い違う。前のステップの記録から状態ファイルを作り直す"
+                    raise ArtifactError(message)
+
+
+def selection_from_facet(facet):
+    """ファセット選択の記録の選んだ4軸と区分だけを写した、題材候補の探索状態を返す。"""
+    require(
+        isinstance(facet.get("facet_nodes"), dict),
+        "ファセット選択の記録にfacet_nodesがない",
+    )
+    return {key: facet[key] for key in SELECTION_FROM_FACET if key in facet}
+
+
+def add_granularity_return(state, kind, record_path, reason, output):
+    """戻りの記録の内容を新しいファイルに写し、その戻りをgranularity_returnsに加えた状態を返す。"""
+    require(kind in GRANULARITY_RETURN_KINDS, f"戻りの種類が不正である: {kind}")
+    require(is_text(reason), "--reasonが必要である")
+    require(not output.exists(), f"写しの場所にファイルがすでにある: {output}")
+    content = record_path.read_bytes()
+    digest = hashlib.sha256(content).hexdigest()
+    recorded = json.loads(json.dumps(state))
+    returns = recorded.setdefault("granularity_returns", [])
+    require(isinstance(returns, list), "granularity_returnsは配列でなければならない")
+    if any(item.get("sha256") == digest for item in returns):
+        message = (
+            "戻りの記録が前の戻りの記録と同じ内容である。前のステップで記録を作り直す"
+        )
+        raise ArtifactError(message)
+    output.write_bytes(content)
+    returns.append(
+        {
+            "id": f"R{len(returns) + 1}",
+            "kind": kind,
+            "ref": str(output.resolve()),
+            "sha256": digest,
+            "reason": reason,
+        }
+    )
+    return recorded
+
+
+def latest_reviews(records):
+    """後ろへ加えていく検査結果から、検査した対象ごとの最後の記録だけを返す。"""
+    latest = {}
+    for record in records:
+        if isinstance(record, dict):
+            latest.pop(review_identity(record), None)
+            latest[review_identity(record)] = record
+    return list(latest.values())
+
+
+def only_items(value, items):
+    """記録の配列に受け持つ項目のIDの記録があれば、その記録だけを返す。"""
+    if not items or not isinstance(value, list):
+        return value
+    ids = {item.get("id") for item in value if isinstance(item, dict)}
+    if not ids & set(items):
+        return value
+    return [
+        item for item in value if isinstance(item, dict) and item.get("id") in items
+    ]
+
+
+class ArtifactError(ValueError):
+    """担当の成果物が、状態ファイルへ入れられる形ではない。"""
+
+
+def merge_record(old, new):
+    """複数の担当が書く記録に、新しい記録の項目を書き加える。
+
+    IDを持つ記録の配列の項目はIDごとにまとめ、新しい記録にない項目は前の記録のまま残す。
+    """
+    merged = dict(old)
+    for field, value in new.items():
+        current = merged.get(field)
+        if (
+            isinstance(current, list)
+            and isinstance(value, list)
+            and all(isinstance(item, dict) and "id" in item for item in current + value)
+        ):
+            ids = [item["id"] for item in value]
+            merged[field] = [item for item in current if item["id"] not in ids] + value
+        else:
+            merged[field] = value
+    return merged
+
+
+def target_step_roles(table):
+    """解答対象ごとの作問状態を扱うステップ（解答対象を入力に持つ担当がいるステップ）の担当IDを返す。"""
+    return {
+        role["id"]
+        for step in table["steps"]
+        if any(
+            "answer_target" in data
+            for item in step["roles"]
+            for phase in item["inputs"]
+            for data in phase
+        )
+        for role in step["roles"]
+    }
+
+
+def merges_artifact(role):
+    """担当の成果物を、このスクリプトで状態ファイルへ入れるかを返す。
+
+    台帳か最終出力を成果物に持つ担当の成果物は、ほかの方法で入れる。
+    """
+    return not set(role["outputs"]) & {"ledger", "final_output"}
+
+
+def shared_data(table):
+    """このスクリプトで状態ファイルへ入れる担当のうち、複数の担当が書く記録のデータを返す。"""
+    writers = [role for _, role in ordered_roles(table) if merges_artifact(role)]
+    return {
+        key
+        for key in table.get("merge_rules", {}).get("union", {})
+        if sum(key in writer["outputs"] for writer in writers) > 1
+    }
+
+
+def merge_artifact(table, role_id, state, artifact):
+    """担当の成果物を状態ファイルへ入れた結果を返す。
+
+    担当表のmerge_rulesで、unionのデータは定めたキーが同じ記録を置き換えて残りを加え
+    （複数の担当が書くデータでは、同じ記録に項目を書き加え）、
+    appendのデータは後ろへ加え、そのほかのデータは置き換える。union・append・listsの
+    データは、記録の配列でなければ拒む。unionとappendのデータは、記録を識別する項目
+    （unionで定めたキーとappend_keys）のない記録を拒む。unique_fieldsの項目が記録済みの記録と同じなのに
+    別のIDを付けた記録と、fixed_fieldsの項目を記録済みの記録と同じIDのまま変えた記録は拒む。
+    scopesのデータは、範囲を定めるデータにない値を持つ記録を状態ファイルから除き、
+    成果物にそのような記録があれば拒む。
+    """
+    role = find_role(table, role_id)
+    outputs = role["outputs"]
+    require(
+        merges_artifact(role),
+        f"担当{role_id}の成果物は、状態ファイルへこのスクリプトで入れるものではない",
+    )
+    target_step = role_id in target_step_roles(table)
+    if target_step != ("answer_target" in state):
+        kind = (
+            "作問状態" if "answer_target" in state else "ファセット選択の記録や探索状態"
+        )
+        message = f"担当{role_id}の成果物は、{kind}へは入れない。担当のステップの状態ファイルを渡す"
+        raise ArtifactError(message)
+    if not isinstance(artifact, dict) or not artifact or set(artifact) - set(outputs):
+        found = (
+            sorted(artifact) if isinstance(artifact, dict) else type(artifact).__name__
+        )
+        message = f"成果物の最上位のキーは担当の成果物のデータID {outputs} でなければならない: {found}"
+        raise ArtifactError(message)
+    rules = table.get("merge_rules", {})
+    union = rules.get("union", {})
+    append = set(rules.get("append", []))
+    lists = set(rules.get("lists", []))
+    merged = json.loads(json.dumps(state))
+    shared = shared_data(table)
+    require_fix_data_ids(table, artifact)
+    for key, field in rules.get("unique_fields", {}).items():
+        if key in artifact:
+            require_one_id_per_value(key, field, state.get(key) or [], artifact[key])
+    for key, value in artifact.items():
+        current = merged.get(key)
+        if key in union or key in append or key in lists:
+            require_records(value, key)
+        if key in union or key in append:
+            require_record_keys(
+                key, union.get(key) or rules.get("append_keys", {}).get(key, []), value
+            )
+        if (key in union or key in append) and current is not None:
+            require_records(current, f"状態ファイルの{key}")
+        if key in union and current is not None:
+            fields = union[key]
+            records = list(current)
+            for record in value:
+                identity = tuple(record.get(field) for field in fields)
+                index = next(
+                    (
+                        position
+                        for position, item in enumerate(records)
+                        if tuple(item.get(field) for field in fields) == identity
+                    ),
+                    None,
+                )
+                if index is None:
+                    records.append(record)
+                    continue
+                require_fixed_fields(
+                    key,
+                    rules.get("fixed_fields", {}).get(key, []),
+                    records[index],
+                    record,
+                )
+                if key in shared:
+                    records[index] = merge_record(records[index], record)
+                else:
+                    records[index] = record
+            merged[key] = records
+        elif key in append and current is not None:
+            merged[key] = current + value
+        else:
+            merged[key] = value
+    for key, scope in rules.get("scopes", {}).items():
+        allowed = scope_values(merged, scope)
+        if allowed is None or not isinstance(merged.get(key), list):
+            continue
+        field = scope["field"]
+        outside = sorted(
+            {
+                str(record.get(field))
+                for record in artifact.get(key, [])
+                if not is_text(record.get(field)) or record[field] not in allowed
+            }
+        )
+        if outside:
+            message = (
+                f"成果物の{key}の{field}に、{scope['data']}にない値がある: {outside}"
+            )
+            raise ArtifactError(message)
+        merged[key] = [
+            record
+            for record in merged[key]
+            if not isinstance(record, dict)
+            or (is_text(record.get(field)) and record[field] in allowed)
+        ]
+    return merged
+
+
+def scope_values(state, scope):
+    """記録を残す範囲の値を、範囲を定めるデータから集める。そのデータがなければNoneを返す。"""
+    records = state.get(scope["data"])
+    if not isinstance(records, list):
+        return None
+    values = set()
+    for record in records:
+        if not isinstance(record, dict) or any(
+            record.get(field) != value
+            for field, value in scope.get("where", {}).items()
+        ):
+            continue
+        value = record.get(scope["values"])
+        values.update(
+            item
+            for item in (value if isinstance(value, list) else [value])
+            if is_text(item)
+        )
+    return values
+
+
+def record_assignment(table, role_id, state, agent_id, **fields):
+    """担当の起動の記録を加え、または既存の記録に成果物の場所や失敗を加えた状態を返す。"""
+    role = find_role(table, role_id)
+    require(is_text(agent_id), "--agent-idが必要である")
+    recorded = json.loads(json.dumps(state))
+    execution = recorded.setdefault(
+        "execution", {"delegation_available": True, "assignments": []}
+    )
+    require(isinstance(execution, dict), "executionはオブジェクトでなければならない")
+    records = execution.setdefault("assignments", [])
+    require(isinstance(records, list), "execution.assignmentsは配列でなければならない")
+    existing = [
+        item
+        for item in records
+        if item.get("agent_id") == agent_id and item.get("role") == role_id
+    ]
+    artifact = fields.get("artifact")
+    failed = fields.get("failed")
+    if artifact is None and failed is None:
+        require(not existing, f"{agent_id}の{role_id}の起動の記録はすでにある")
+        record = {
+            "role": role_id,
+            "agent": agent_name(role),
+            "agent_id": agent_id,
+            "artifact_refs": [],
+        }
+        if fields.get("items"):
+            record["items"] = fields["items"]
+        for key in ("draft_version", "output_sha256"):
+            if fields.get(key) is not None:
+                record[key] = fields[key]
+        records.append(record)
+        return recorded
+    require(existing, f"{agent_id}の{role_id}の起動の記録がない")
+    record = existing[-1]
+    if artifact is not None and artifact not in record["artifact_refs"]:
+        record["artifact_refs"].append(artifact)
+    if failed is not None:
+        record["status"] = "failed"
+        record["failure_reason"] = failed
+    for key in ("output_sha256",):
+        if fields.get(key) is not None:
+            record[key] = fields[key]
+    return recorded
+
+
+def require_fix_data_ids(table, artifact):
+    """不合格の検査結果の修正対象が、担当表のデータIDであることを確かめる。"""
+    for key, value in artifact.items():
+        records = value if isinstance(value, list) else [value]
+        for record in records:
+            if not isinstance(record, dict) or record.get("status") != "failed":
+                continue
+            fix_data = record.get("fix_data")
+            if not isinstance(fix_data, list) or not fix_data:
+                message = f"成果物の{key}の不合格の判定に、修正が必要なデータ（fix_data）がない"
+                raise ArtifactError(message)
+            unknown = sorted(
+                str(item) for item in fix_data if item not in table["data"]
+            )
+            if unknown:
+                message = (
+                    f"成果物の{key}のfix_dataに、担当表のデータIDでない値がある: {unknown}。"
+                    "依頼文の入力の各行に添えたデータIDで書き直す"
+                )
+                raise ArtifactError(message)
+            shared = sorted(set(fix_data) & shared_data(table))
+            fix_ids = record.get("fix_ids")
+            if shared and not (
+                isinstance(fix_ids, list) and fix_ids and all(map(is_text, fix_ids))
+            ):
+                message = (
+                    f"成果物の{key}のfix_dataに複数の担当が書くデータ{shared}がある。"
+                    "直す記録のIDをfix_idsに置いて書き直す"
+                )
+                raise ArtifactError(message)
+
+
+def require_one_id_per_value(key, field, current, added):
+    """記録済みの記録と同じ値の項目を持つ記録に、別のIDを付けた成果物を拒む。"""
+    require_records(added, key)
+    ids_by_value = {}
+    for record in current:
+        if isinstance(record, dict) and record.get(field):
+            ids_by_value.setdefault(record[field], record.get("id"))
+    for record in added:
+        value = record.get(field)
+        if not value:
+            continue
+        known = ids_by_value.setdefault(value, record.get("id"))
+        if known != record.get("id"):
+            message = (
+                f"成果物の{key}の{record.get('id')}は、記録済みの{known}と{field}が同じである。"
+                f"記録済みの{known}を使って書き直す"
+            )
+            raise ArtifactError(message)
+
+
+def require_fixed_fields(key, fields, current, new):
+    """記録済みの記録と同じIDで、内容を表す項目を変えた記録を拒む。配列の項目は順序を問わない。"""
+    for field in fields:
+        if (
+            field in new
+            and field in current
+            and same_content(new[field]) != same_content(current[field])
+        ):
+            message = (
+                f"成果物の{key}の{new.get('id')}は、記録済みの記録と{field}が異なる。"
+                "内容を変えるなら新しいIDを付けて書き直す"
+            )
+            raise ArtifactError(message)
+
+
+def require_record_keys(key, fields, records):
+    """記録を識別する項目がない記録を含む成果物を拒む。"""
+    for record in records:
+        missing = [field for field in fields if not is_text(record.get(field))]
+        if missing:
+            message = (
+                f"成果物の{key}に、{missing}のない記録がある。"
+                f"記録ごとに{fields}を置いて書き直す"
+            )
+            raise ArtifactError(message)
+
+
+def same_content(value):
+    """配列の順序だけの違いを無視して比べるための値を返す。"""
+    if isinstance(value, list):
+        return sorted(
+            json.dumps(item, ensure_ascii=False, sort_keys=True) for item in value
+        )
+    return value
+
+
+def require_records(value, key):
+    if not (isinstance(value, list) and all(isinstance(item, dict) for item in value)):
+        message = f"成果物の{key}は記録の配列でなければならない"
+        raise ArtifactError(message)
+
+
+def rerun_plan(table, role_id):
+    """ROLEの成果物が変わったときに再実行する担当を、表の順にステップごとに返す。"""
+    role = find_role(table, role_id)
+    changed = set(role["outputs"])
+    after = False
+    plan = []
+    for number, item in ordered_roles(table):
+        if not after:
+            after = item["id"] == role_id
+            continue
+        if any(data in changed for phase in item["inputs"] for data in phase):
+            changed.update(item["outputs"])
+            if not plan or plan[-1]["step"] != number:
+                plan.append({"step": number, "roles": []})
+            plan[-1]["roles"].append(item["id"])
+    return plan
+
+
+def fix_plan(table, data_ids, role_ids=None):
+    """検査が修正を求めたデータを成果物とする担当と、その後に再実行する担当を返す。
+
+    修正を求められたデータを成果物とする検査側の担当が、作る側の担当の修正の後で再実行される場合は、
+    その検査側の担当には修正させず、再実行だけを行う。修正させる担当（role_ids）を渡すと、
+    データを成果物とする担当のうち、その担当だけに修正させる。
+    """
+    require(bool(data_ids), "データIDが必要である")
+    unknown = sorted(set(data_ids) - set(table["data"]))
+    require(not unknown, f"担当表にないデータである: {unknown}")
+    producers = [
+        role
+        for _, role in ordered_roles(table)
+        if set(role["outputs"]) & set(data_ids)
+        and (role_ids is None or role["id"] in role_ids)
+    ]
+    require(bool(producers), f"担当の成果物ではないデータである: {data_ids}")
+    reruns = {}
+    for producer in producers:
+        for entry in rerun_plan(table, producer["id"]):
+            reruns.setdefault(entry["step"], set()).update(entry["roles"])
+    rerun_ids = set().union(*reruns.values()) if reruns else set()
+    fixed = {
+        producer["id"]
+        for producer in producers
+        if producer["side"] == "make" or producer["id"] not in rerun_ids
+    }
+    plan = []
+    for number, role in ordered_roles(table):
+        if role["id"] in reruns.get(number, set()) - fixed:
+            if not plan or plan[-1]["step"] != number:
+                plan.append({"step": number, "roles": []})
+            plan[-1]["roles"].append(role["id"])
+    return {
+        "fix": [
+            {"step": number, "role": role["id"]}
+            for number, role in ordered_roles(table)
+            if role["id"] in fixed
+        ],
+        "rerun": plan,
+    }
+
+
+def fix_from_state(table, data_ids, state_path):
+    """修正の計画を返す。状態ファイルを渡すと、最後の判定が不合格の検査の`fix_data`をすべて集める。
+
+    複数の担当が書くデータの修正は、検査が`fix_ids`に挙げた記録を成果物に書いた担当にだけ求める。
+    """
+    if state_path is None:
+        return fix_plan(table, list(data_ids))
+    state = read_state(state_path)
+    failures = failed_reviews(table, state)
+    data = list(data_ids)
+    role_ids = {
+        role["id"]
+        for _, role in ordered_roles(table)
+        if set(role["outputs"]) & set(data_ids)
+    }
+    for failure in failures:
+        fix_data = failure["record"].get("fix_data") or []
+        data.extend(item for item in fix_data if item not in data)
+        failure["roles"] = fixing_roles(table, state, failure["record"])
+        role_ids |= failure["roles"]
+    require(bool(data), "修正を求められたデータがない")
+    plan = fix_plan(table, data, role_ids)
+    for entry in plan["fix"]:
+        reviews = {}
+        for failure in failures:
+            if entry["role"] in failure["roles"]:
+                reviews[failure["data"]] = failure["artifacts"]
+        entry["reviews"] = [
+            {"data": key, "artifacts": artifacts} for key, artifacts in reviews.items()
+        ]
+    plan["failed_reviews"] = [
+        {key: value for key, value in failure.items() if key != "roles"}
+        for failure in failures
+    ]
+    return plan
+
+
+def fixing_roles(table, state, record):
+    """不合格の検査結果の修正対象を成果物とする担当のIDを返す。
+
+    複数の担当が書くデータでは、`fix_ids`の記録を成果物に書いた担当に絞る。
+    そうした担当の成果物を読めなければ、そのデータを書く担当すべてとする。
+    """
+    shared = shared_data(table)
+    fix_ids = set(record.get("fix_ids") or [])
+    assignments = (state.get("execution") or {}).get("assignments") or []
+    roles = set()
+    for key in record.get("fix_data") or []:
+        producers = {
+            role["id"] for _, role in ordered_roles(table) if key in role["outputs"]
+        }
+        if key in shared and fix_ids:
+            writers = {
+                item.get("role")
+                for item in assignments
+                if item.get("role") in producers
+                and any(
+                    fix_ids & artifact_record_ids(ref, key)
+                    for ref in item.get("artifact_refs") or []
+                )
+            }
+            producers = writers or producers
+        roles |= producers
+    return roles
+
+
+def artifact_record_ids(ref, key):
+    """担当の成果物のファイルにある、データの記録のIDを返す。読めなければ空の集合を返す。"""
+    try:
+        artifact = json.loads(Path(ref).read_text(encoding="utf-8"))
+    except OSError, ValueError:
+        return set()
+    records = artifact.get(key) if isinstance(artifact, dict) else None
+    return {
+        item["id"]
+        for item in records or []
+        if isinstance(item, dict) and is_text(item.get("id"))
+    }
+
+
+def review_identity(record):
+    """検査結果の記録が何を検査したかを表す組を返す。"""
+    return tuple(
+        sorted(
+            (key, value)
+            for key, value in record.items()
+            if (key.endswith("_id") or key == "target") and isinstance(value, str | int)
+        )
+    )
+
+
+def failed_reviews(table, state):
+    """状態ファイルの検査結果のうち、最後の判定が不合格のものを返す。"""
+    reviewers = {}
+    for _, role in ordered_roles(table):
+        if role["side"] == "check":
+            for item in role["outputs"]:
+                reviewers.setdefault(item, []).append(role["id"])
+    records = (state.get("execution") or {}).get("assignments") or []
+    failed = []
+    for key, roles in reviewers.items():
+        value = state.get(key)
+        if isinstance(value, dict):
+            latest = [value]
+        elif isinstance(value, list):
+            by_target = {}
+            for item in value:
+                if isinstance(item, dict):
+                    by_target[review_identity(item)] = item
+            latest = list(by_target.values())
+        else:
+            continue
+        artifacts = [
+            ref
+            for record in records
+            if record.get("role") in roles and "status" not in record
+            for ref in record.get("artifact_refs") or []
+        ]
+        failed.extend(
+            {"data": key, "record": item, "artifacts": artifacts}
+            for item in latest
+            if item.get("status") == "failed"
+        )
+    return failed
+
+
+def build_parser():
+    parser = argparse.ArgumentParser(description="担当表から割り当てと再実行を決める")
+    commands = parser.add_subparsers(dest="command", required=True)
+    commands.add_parser("steps")
+    coordinate = commands.add_parser("coordinate")
+    coordinate.add_argument("step", type=int)
+    coordinate.add_argument("--state", type=Path, nargs="+")
+    coordinate.add_argument("--specified", action="store_true")
+    assign = commands.add_parser("assign")
+    assign.add_argument("role")
+    assign.add_argument("--items", nargs="+")
+    rerun = commands.add_parser("rerun")
+    rerun.add_argument("role")
+    fix = commands.add_parser("fix")
+    fix.add_argument("data", nargs="*")
+    fix.add_argument("--state", type=Path)
+    inputs = commands.add_parser("inputs")
+    inputs.add_argument("role")
+    inputs.add_argument("--state", type=Path, nargs="+", required=True)
+    inputs.add_argument("--phase", type=int)
+    inputs.add_argument("--items", nargs="+")
+    inputs.add_argument("--output", type=Path, required=True)
+    record = commands.add_parser("record")
+    record.add_argument("role")
+    record.add_argument("--state", type=Path, required=True)
+    record.add_argument("--agent-id", required=True)
+    record.add_argument("--items", nargs="+")
+    record.add_argument("--draft-version", type=int)
+    record.add_argument("--output-sha256")
+    record.add_argument("--artifact")
+    record.add_argument("--failed")
+    merge = commands.add_parser("merge")
+    merge.add_argument("role")
+    merge.add_argument("--state", type=Path, required=True)
+    merge.add_argument("--artifact", type=Path, required=True)
+    selection = commands.add_parser("selection")
+    selection.add_argument("--state", type=Path, required=True)
+    selection.add_argument("--output", type=Path, required=True)
+    returned = commands.add_parser("return")
+    returned.add_argument("--state", type=Path, required=True)
+    returned.add_argument("--kind", required=True)
+    returned.add_argument("--record", type=Path, required=True)
+    returned.add_argument("--reason", required=True)
+    returned.add_argument("--output", type=Path, required=True)
+    return parser
+
+
+def read_state(path):
+    state = json.loads(path.read_text(encoding="utf-8"))
+    require(
+        isinstance(state, dict), "状態ファイルはJSONのオブジェクトでなければならない"
+    )
+    return state
+
+
+def write_state(path, state):
+    """状態ファイルを、書きかけの内容が読まれないよう、別のファイルに書いてから置き換える。"""
+    with tempfile.NamedTemporaryFile(
+        "w", encoding="utf-8", dir=path.parent, prefix=f".{path.name}.", delete=False
+    ) as handle:
+        handle.write(json.dumps(state, ensure_ascii=False, indent=2) + "\n")
+    Path(handle.name).replace(path)
+
+
+@contextmanager
+def locked_state(path):
+    """状態ファイルを読んでから書き終えるまで、同じ状態ファイルへのほかの読み書きを待たせる。"""
+    lock_path = path.with_name(f".{path.name}.lock")
+    with lock_path.open("w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        yield
+
+
+def run_state_command(table, args):
+    """状態ファイルを読み書きするサブコマンドを実行し、出力する結果を返す。"""
+    if args.command == "inputs":
+        states = [read_state(path) for path in args.state]
+        extracted, missing = role_inputs(
+            table, args.role, states, args.phase, args.items
+        )
+        args.output.write_text(
+            json.dumps(extracted, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        return {
+            "output": str(args.output),
+            "keys": list(extracted),
+            "not_in_state": missing,
+        }
+    if args.command == "selection":
+        selection = selection_from_facet(read_state(args.state))
+        write_state(args.output, selection)
+        return {"output": str(args.output), "keys": list(selection)}
+    with locked_state(args.state):
+        return update_state(table, args)
+
+
+def update_state(table, args):
+    """record、merge、returnで、状態ファイルを読み、変更して書き戻し、出力する結果を返す。"""
+    state = read_state(args.state)
+    if args.command == "return":
+        recorded = add_granularity_return(
+            state, args.kind, args.record, args.reason, args.output
+        )
+        write_state(args.state, recorded)
+        return recorded["granularity_returns"][-1]
+    if args.command == "record":
+        recorded = record_assignment(
+            table,
+            args.role,
+            state,
+            args.agent_id,
+            items=args.items,
+            draft_version=args.draft_version,
+            output_sha256=args.output_sha256,
+            artifact=args.artifact,
+            failed=args.failed,
+        )
+        write_state(args.state, recorded)
+        return next(
+            item
+            for item in reversed(recorded["execution"]["assignments"])
+            if item["agent_id"] == args.agent_id and item["role"] == args.role
+        )
+    artifact = json.loads(args.artifact.read_text(encoding="utf-8"))
+    write_state(args.state, merge_artifact(table, args.role, state, artifact))
+    return {"state": str(args.state), "keys": list(artifact)}
+
+
+def main():
+    args = build_parser().parse_args()
+    try:
+        table = load_table()
+        if args.command == "steps":
+            result = step_plan(table)
+        elif args.command == "coordinate":
+            result = coordinator_request(table, args.step)
+            code, message = entry_check(
+                table, args.step, args.state, specified=args.specified
+            )
+            if code != EXIT_OK:
+                print(message, file=sys.stderr)
+                return code
+        elif args.command == "assign":
+            result = assignments(table, args.role, args.items)
+        elif args.command == "rerun":
+            result = rerun_plan(table, args.role)
+        elif args.command == "fix":
+            result = fix_from_state(table, args.data, args.state)
+        else:
+            result = run_state_command(table, args)
+    except ArtifactError as error:
+        print(f"不合格: {error}", file=sys.stderr)
+        return EXIT_BLOCKED
+    except (OSError, json.JSONDecodeError, TableError) as error:
+        print(f"入力エラー: {error}", file=sys.stderr)
+        return EXIT_USAGE
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    return EXIT_OK
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
