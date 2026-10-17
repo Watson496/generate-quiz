@@ -91,10 +91,12 @@ python3 "$SKILL_DIR/scripts/assignment_plan.py" merge membership --state selecti
   --artifact 004-step04/membership-K1_K2.json
 ```
 
-題材候補の探索状態は、ファセット選択の記録から作る。
+題材候補の探索状態は、ファセット選択の記録から作る。粒度判断へ戻った記録は、写しを作ってファセット選択の記録へ加える。
 
 ```bash
 python3 "$SKILL_DIR/scripts/assignment_plan.py" selection --state facet.json --output selection.json
+python3 "$SKILL_DIR/scripts/assignment_plan.py" return --state facet.json --kind intersection \
+  --record selection.json --reason "交差領域が成立しない" --output 009-step01/return-R1.json
 ```
 
 ファセットカタログは全文を読まず、必要なブロックだけを取得する。

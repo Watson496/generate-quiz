@@ -33,11 +33,15 @@
                        成果物のデータIDでなければ、状態ファイルを変えずに終了コード1を返す
     selection          ファセット選択の記録（--state）の選んだ4軸と区分を写して、題材候補の
                        探索状態を--outputに新しく作る。前の探索状態があれば置き換える
+    return             粒度判断へ戻った記録（--record）の内容を--outputの新しいファイルに写し、
+                       ファセット選択の記録（--state）のgranularity_returnsに、戻りの種類
+                       （--kind）、写しの場所、写しのSHA-256、理由（--reason）を一件加える。
+                       前の戻りの記録と同じ内容なら、加えずに終了コード1を返す
 
 終了コード:
     0  結果を出力した
-    1  前のステップの検査が不合格、状態ファイルの間で値が食い違う、または担当の成果物が
-       状態ファイルへ入れられる形ではない
+    1  前のステップの検査が不合格、状態ファイルの間で値が食い違う、担当の成果物が状態ファイルへ
+       入れられる形ではない、または戻りの記録が前の戻りの記録と同じ内容である
     2  担当表の不備、存在しない担当、項目IDの不備など、入力や呼出しの不備
     3  前のステップの担当が粒度判断へ戻ると判断している、または抽選できる候補がない
 
@@ -54,10 +58,14 @@
     python3 assignment_plan.py merge membership --state selection.json \
         --artifact 004-step04/membership-K1_K2.json
     python3 assignment_plan.py selection --state facet.json --output selection.json
+    python3 assignment_plan.py return --state facet.json --kind intersection \
+        --record selection.json --reason "交差領域が成立しない" \
+        --output 009-step01/return-R1.json
 """
 
 import argparse
 import fcntl
+import hashlib
 import json
 import subprocess
 import sys
@@ -72,6 +80,7 @@ AGENT_PREFIX = "generate-quiz"
 SIDES = {"make", "check"}
 EXIT_OK, EXIT_BLOCKED, EXIT_USAGE, EXIT_RETURN = 0, 1, 2, 3
 COORDINATOR_SECTIONS = ("検査で不合格になったとき", "修正と再実行")
+GRANULARITY_RETURN_KINDS = ("intersection", "saturation", "exhausted")
 SELECTION_FROM_FACET = ("facet_nodes", "facet_subdivisions")
 REVIEW_SECTION = "検査の進め方"
 ONLY_GIVEN_FILES = (
@@ -556,6 +565,33 @@ def selection_from_facet(facet):
         "ファセット選択の記録にfacet_nodesがない",
     )
     return {key: facet[key] for key in SELECTION_FROM_FACET if key in facet}
+
+
+def add_granularity_return(state, kind, record_path, reason, output):
+    """戻りの記録の内容を新しいファイルに写し、その戻りをgranularity_returnsに加えた状態を返す。"""
+    require(kind in GRANULARITY_RETURN_KINDS, f"戻りの種類が不正である: {kind}")
+    require(is_text(reason), "--reasonが必要である")
+    require(not output.exists(), f"写しの場所にファイルがすでにある: {output}")
+    content = record_path.read_bytes()
+    digest = hashlib.sha256(content).hexdigest()
+    recorded = json.loads(json.dumps(state))
+    returns = recorded.setdefault("granularity_returns", [])
+    require(isinstance(returns, list), "granularity_returnsは配列でなければならない")
+    if any(item.get("sha256") == digest for item in returns):
+        raise ArtifactError(
+            "戻りの記録が前の戻りの記録と同じ内容である。前のステップで記録を作り直す"
+        )
+    output.write_bytes(content)
+    returns.append(
+        {
+            "id": f"R{len(returns) + 1}",
+            "kind": kind,
+            "ref": str(output.resolve()),
+            "sha256": digest,
+            "reason": reason,
+        }
+    )
+    return recorded
 
 
 def latest_reviews(records):
@@ -1131,6 +1167,12 @@ def build_parser():
     selection = commands.add_parser("selection")
     selection.add_argument("--state", type=Path, required=True)
     selection.add_argument("--output", type=Path, required=True)
+    returned = commands.add_parser("return")
+    returned.add_argument("--state", type=Path, required=True)
+    returned.add_argument("--kind", required=True)
+    returned.add_argument("--record", type=Path, required=True)
+    returned.add_argument("--reason", required=True)
+    returned.add_argument("--output", type=Path, required=True)
     return parser
 
 
@@ -1185,8 +1227,14 @@ def run_state_command(table, args):
 
 
 def update_state(table, args):
-    """recordとmergeで、状態ファイルを読み、変更して書き戻し、出力する結果を返す。"""
+    """record、merge、returnで、状態ファイルを読み、変更して書き戻し、出力する結果を返す。"""
     state = read_state(args.state)
+    if args.command == "return":
+        recorded = add_granularity_return(
+            state, args.kind, args.record, args.reason, args.output
+        )
+        write_state(args.state, recorded)
+        return recorded["granularity_returns"][-1]
     if args.command == "record":
         recorded = record_assignment(
             table,

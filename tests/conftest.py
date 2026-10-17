@@ -269,6 +269,8 @@ def grouped_facet_state(load_script):
         "reason": "東アジアで止める",
     }
     state["facet_levels"].insert(position + 1, group_level)
+    for later in state["facet_levels"][position:]:
+        later["return_id"] = "R2"
     state["facet_level_reviews"].append(
         {"level_id": "F-group", "status": "passed", "reason": "東アジアで止める判断"}
     )
@@ -281,12 +283,14 @@ def grouped_facet_state(load_script):
             "id": "R1",
             "kind": "exhausted",
             "ref": "q001/030-step05/state.selection.json",
+            "sha256": "1" * 64,
             "reason": "朝鮮で抽選できる候補が残っていない",
         },
         {
             "id": "R2",
             "kind": "intersection",
             "ref": "q001/032-step02/intersection.json",
+            "sha256": "2" * 64,
             "reason": "アジアでは広すぎて探索しきれない",
         },
     ]

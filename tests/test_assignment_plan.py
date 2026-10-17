@@ -1330,6 +1330,59 @@ class TestSelectionState:
         }
 
 
+class TestGranularityReturn:
+    """粒度判断へ戻った記録を写し、ファセット選択の記録へ加えることを確認する。"""
+
+    @staticmethod
+    def add_return(run_script, facet, record, output):
+        return run_script(
+            "assignment_plan.py",
+            "return",
+            "--state",
+            facet,
+            "--kind",
+            "intersection",
+            "--record",
+            record,
+            "--reason",
+            "交差領域が成立しない",
+            "--output",
+            output,
+        )
+
+    def test_return_keeps_copy_of_record(self, run_script, tmp_path):
+        """戻りの記録を写しておき、元の記録が後で書き換えられても写しを指す。"""
+        facet = tmp_path / "facet.json"
+        facet.write_text(json.dumps({"facet_levels": []}))
+        record = tmp_path / "selection.json"
+        record.write_text('{"intersection_review": {"result": "not_viable"}}')
+        output = tmp_path / "return-R1.json"
+        result = self.add_return(run_script, facet, record, output)
+        assert result.returncode == 0, result.stderr
+        record.write_text("{}")
+        returns = json.loads(facet.read_text())["granularity_returns"]
+        assert [(item["id"], item["ref"]) for item in returns] == [
+            ("R1", str(output.resolve()))
+        ]
+        assert output.read_text() == '{"intersection_review": {"result": "not_viable"}}'
+
+    def test_return_rejects_same_record_as_previous(self, run_script, tmp_path):
+        """前の戻りと同じ内容の記録では、新しい戻りを加えない。"""
+        facet = tmp_path / "facet.json"
+        facet.write_text(json.dumps({"facet_levels": []}))
+        record = tmp_path / "selection.json"
+        record.write_text('{"intersection_review": {"result": "not_viable"}}')
+        assert (
+            self.add_return(run_script, facet, record, tmp_path / "R1.json").returncode
+            == 0
+        )
+        result = self.add_return(run_script, facet, record, tmp_path / "R2.json")
+        assert result.returncode == 1
+        assert "前の戻りの記録と同じ内容である" in result.stderr
+        assert len(json.loads(facet.read_text())["granularity_returns"]) == 1
+        assert not (tmp_path / "R2.json").exists()
+
+
 class TestRerun:
     """修正時に再実行する担当の判定を確認する。"""
 

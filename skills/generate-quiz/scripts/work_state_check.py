@@ -675,11 +675,12 @@ def validate_group_level(level, name, node, subdivisions):
 
 
 def validate_granularity_returns(state, levels):
-    """粒度判断へ戻った記録が一件ずつ別の記録を指し、最後の戻りに応じて判断し直したことを検査する。"""
+    """粒度判断へ戻った記録が一件ずつ別の内容の記録を指し、最後の戻りに応じて判断し直したことを検査する。"""
     returns, return_ids = records_with_ids(
         state.get("granularity_returns", []), "granularity_returns"
     )
     refs = set()
+    digests = set()
     for item in returns:
         name = f"granularity_returns.{item['id']}"
         require_condition(
@@ -690,20 +691,31 @@ def validate_granularity_returns(state, levels):
             ref not in refs, f"{name}.refが前の戻りと同じ記録を指している"
         )
         refs.add(ref)
+        digest = required_text(item, "sha256", name)
+        require_condition(
+            re.fullmatch(r"[0-9a-f]{64}", digest) is not None,
+            f"{name}.sha256が不正である",
+        )
+        require_condition(
+            digest not in digests, f"{name}の記録が前の戻りの記録と同じ内容である"
+        )
+        digests.add(digest)
         required_text(item, "reason", name)
-    referenced = []
     for level in levels:
         if "return_id" in level:
             require_condition(
                 level["return_id"] in return_ids,
                 f"facet_levels.{level['id']}.return_idが戻りの記録にない",
             )
-            referenced.append(level["return_id"])
     if returns:
-        require_condition(
-            returns[-1]["id"] in referenced,
-            "最後の戻りに応じて判断し直した階層がない",
-        )
+        latest = returns[-1]["id"]
+        rejudged = [level.get("return_id") == latest for level in levels]
+        require_condition(any(rejudged), "最後の戻りに応じて判断し直した階層がない")
+        for level in levels[rejudged.index(True) :]:
+            require_condition(
+                level.get("return_id") == latest,
+                f"facet_levels.{level['id']}は最後の戻りの後に判断し直した階層だが、最後の戻りのIDがない",
+            )
 
 
 def validate_intersection_state(state):

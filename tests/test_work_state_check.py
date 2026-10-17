@@ -1161,10 +1161,17 @@ class TestFacetSelectionState:
         assert check_state(run_script, "facet-selection", facet_state).returncode == 0
 
     @staticmethod
-    def add_returns(state, *refs):
+    def add_returns(state, *refs, digests=None):
+        digests = digests or [str(i) * 64 for i in range(1, len(refs) + 1)]
         state["granularity_returns"] = [
-            {"id": f"R{i}", "kind": "intersection", "ref": ref, "reason": "広すぎる"}
-            for i, ref in enumerate(refs, 1)
+            {
+                "id": f"R{i}",
+                "kind": "intersection",
+                "ref": ref,
+                "sha256": digest,
+                "reason": "広すぎる",
+            }
+            for i, (ref, digest) in enumerate(zip(refs, digests, strict=True), 1)
         ]
         state["facet_levels"][-1]["return_id"] = f"R{len(refs)}"
 
@@ -1179,6 +1186,24 @@ class TestFacetSelectionState:
         result = check_state(run_script, "facet-selection", facet_state)
         assert result.returncode == 1
         assert "前の戻りと同じ記録を指している" in result.stderr
+
+    def test_return_must_not_copy_previous_record(self, run_script, facet_state):
+        """前の戻りと同じ内容の記録を、別の場所に写して新しい戻りの理由にしない。"""
+        self.add_returns(
+            facet_state, "a/return.json", "b/return.json", digests=["3" * 64] * 2
+        )
+        result = check_state(run_script, "facet-selection", facet_state)
+        assert result.returncode == 1
+        assert "前の戻りの記録と同じ内容である" in result.stderr
+
+    def test_every_rejudged_level_needs_latest_return(self, run_script, facet_state):
+        """最後の戻りの後に判断し直した階層には、すべて最後の戻りのIDを要求する。"""
+        self.add_returns(facet_state, "a/intersection.json")
+        facet_state["facet_levels"][-1].pop("return_id")
+        facet_state["facet_levels"][-2]["return_id"] = "R1"
+        result = check_state(run_script, "facet-selection", facet_state)
+        assert result.returncode == 1
+        assert "最後の戻りのIDがない" in result.stderr
 
     def test_latest_return_needs_rejudgment(self, run_script, facet_state):
         """最後の戻りに応じて判断し直した階層を要求する。"""
