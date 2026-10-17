@@ -1211,6 +1211,18 @@ class TestEntryCheck:
         assert result.returncode == 2
         assert "--stateで状態ファイルが必要" in result.stderr
 
+    def test_specified_target_starts_research_without_entry_check(self, run_script):
+        """解答対象を指定した場合は、素材の調査のステップを前のステップの検査なしで始める。"""
+        result = run_script("assignment_plan.py", "coordinate", "7", "--specified")
+        assert result.returncode == 0, result.stderr
+        assert json.loads(result.stdout)["agent"] == "generate-quiz:step07_coordinator"
+
+    def test_specified_is_only_for_research_step(self, run_script):
+        """解答対象の指定を理由に、ほかのステップの前の検査を省かない。"""
+        result = run_script("assignment_plan.py", "coordinate", "9", "--specified")
+        assert result.returncode == 2
+        assert "ステップ7でだけ使う" in result.stderr
+
     def test_coordinate_returns_when_intersection_is_not_viable(
         self, run_script, tmp_path, selection_state
     ):

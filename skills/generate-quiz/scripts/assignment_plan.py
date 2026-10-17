@@ -9,7 +9,9 @@
     steps              ステップごとの担当と、統括役を置くかを出力する
     coordinate STEP    統括役のエージェントの名前と依頼文を出力する。担当表で前のステップの
                        検査（entry_check）を定めたステップでは、--stateで渡した状態
-                       ファイルをその段階で検査し、合格した場合だけ出力する
+                       ファイルをその段階で検査し、合格した場合だけ出力する。ユーザーが
+                       解答対象を指定して素材の調査から始める場合は、--specifiedを付けて
+                       前のステップの検査をしない
     assign ROLE        担当の割り当てと依頼文を出力する。分割する担当には
                        --itemsで項目IDを渡す
     rerun ROLE         ROLEの成果物が変わったときに再実行する担当を、
@@ -314,10 +316,25 @@ def step_plan(table):
     ]
 
 
-def entry_check(table, number, state_path):
-    """ステップの前のステップの検査を状態ファイルに行い、終了コードと出力を返す。"""
+def entry_check(table, number, state_path, *, specified=False):
+    """ステップの前のステップの検査を状態ファイルに行い、終了コードと出力を返す。
+
+    ユーザーが解答対象を指定した場合（specified）は、解答対象ごとの作問状態を扱う
+    最初のステップでだけ、前のステップの検査をしない。
+    """
     step = table["steps"][number - 1]
     stage = step.get("entry_check")
+    if specified:
+        first = min(
+            position
+            for position, role in ordered_roles(table)
+            if role["id"] in target_step_roles(table)
+        )
+        require(
+            number == first,
+            f"--specifiedは、解答対象を指定して始めるステップ{first}でだけ使う",
+        )
+        return 0, ""
     if stage is None:
         return 0, ""
     require(
@@ -1052,6 +1069,7 @@ def build_parser():
     coordinate = commands.add_parser("coordinate")
     coordinate.add_argument("step", type=int)
     coordinate.add_argument("--state", type=Path)
+    coordinate.add_argument("--specified", action="store_true")
     assign = commands.add_parser("assign")
     assign.add_argument("role")
     assign.add_argument("--items", nargs="+")
@@ -1162,7 +1180,9 @@ def main():
             result = step_plan(table)
         elif args.command == "coordinate":
             result = coordinator_request(table, args.step)
-            code, message = entry_check(table, args.step, args.state)
+            code, message = entry_check(
+                table, args.step, args.state, specified=args.specified
+            )
             if code != EXIT_OK:
                 print(message, file=sys.stderr)
                 return code
