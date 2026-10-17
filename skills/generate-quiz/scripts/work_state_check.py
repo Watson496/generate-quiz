@@ -1388,7 +1388,9 @@ def validate_execution_assignments(state, stage):
             )
             required_text(record, "failure_reason", name)
         required_id_list(
-            record.get("artifact_refs"), f"{name}.artifact_refs", nonempty=not failed
+            record.get("artifact_refs"),
+            f"{name}.artifact_refs",
+            nonempty=not failed and role in STAGE_ROLES[stage],
         )
         require_condition(
             roles_by_agent.setdefault(agent_id, role) == role,

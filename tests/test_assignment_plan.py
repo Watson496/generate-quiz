@@ -1295,6 +1295,25 @@ class TestEntryCheck:
         assert "facet_nodesの値が食い違う" in result.stderr
         assert result.stdout == ""
 
+    def test_coordinate_continues_step_with_unfinished_assignments(
+        self, run_script, tmp_path, selection_state
+    ):
+        """同じステップを続けるときは、そのステップの成果物を回収していない起動の記録を前のステップの検査で拒まない。"""
+        selection_state["execution"]["assignments"].append(
+            {
+                "role": "exploration",
+                "agent": "generate-quiz:exploration",
+                "agent_id": "agent-unfinished",
+                "artifact_refs": [],
+                "items": ["D1"],
+            }
+        )
+        path = tmp_path / "selection.json"
+        path.write_text(json.dumps(selection_state, ensure_ascii=False))
+        result = run_script("assignment_plan.py", "coordinate", "3", "--state", path)
+        assert result.returncode == 0, result.stderr
+
+
 class TestSelectionState:
     """ファセット選択の記録から題材候補の探索状態を作ることを確認する。"""
 
