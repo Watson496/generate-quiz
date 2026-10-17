@@ -553,9 +553,8 @@ def require_same_values(states):
         for later in states[index + 1 :]:
             for key in state.keys() & later.keys() - {"execution"}:
                 if state[key] != later[key]:
-                    raise ArtifactError(
-                        f"状態ファイルの間で{key}の値が食い違う。前のステップの記録から状態ファイルを作り直す"
-                    )
+                    message = f"状態ファイルの間で{key}の値が食い違う。前のステップの記録から状態ファイルを作り直す"
+                    raise ArtifactError(message)
 
 
 def selection_from_facet(facet):
@@ -578,9 +577,10 @@ def add_granularity_return(state, kind, record_path, reason, output):
     returns = recorded.setdefault("granularity_returns", [])
     require(isinstance(returns, list), "granularity_returnsは配列でなければならない")
     if any(item.get("sha256") == digest for item in returns):
-        raise ArtifactError(
+        message = (
             "戻りの記録が前の戻りの記録と同じ内容である。前のステップで記録を作り直す"
         )
+        raise ArtifactError(message)
     output.write_bytes(content)
     returns.append(
         {
