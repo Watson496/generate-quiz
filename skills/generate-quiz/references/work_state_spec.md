@@ -20,7 +20,7 @@
 
 ## ファセットの交差領域
 
-ファセット選択後、題材探索前に4軸の正規ノードキーと交差領域の確認記録を題材候補の探索状態へ保存し、区分に分けたノードを選んだ場合は`facet_subdivisions`も写して、`work_state_check.py --stage intersection-checkpoint`で検査する。確認記録には、開いた資料のURL、交差領域の広さを判断した理由、資料中に実名がある異なる候補二つ以上と各資料のURL、うち一件以上の初級学習資料と扱いの根拠、成立の判定（`result`：成立は`viable`、不成立は`not_viable`）を含める。`intersection-checkpoint`も題材探索以降の段階の検査も、記録に不備がなく`not_viable`なら、粒度判断へ戻ることを終了コード`3`で示す。広さの理由には、選択範囲に入る大区分と、異なる用途の資料で確かめた対象の種類・下位領域を対応させ、候補探索の経路を設けられるかを記す。選んだ4軸の範囲に挙がる対象や項目ごとに、入る下位領域を`intersection_review`の`scope_mapping`に、項目を`item`、下位領域IDを`coverage_area_id`として記録する。探索する下位領域は、`coverage_areas`に`id`、名前を`label`、区分の根拠を`basis`、含まれる解答対象の種類を`target_kinds`、第6節の候補に当たる対象の数の見積もりを`estimated_candidates`として記録する。下位領域の一覧の検査結果は`coverage_area_reviews`に、`target`を`all`として、判定を`status`（`passed`・`failed`）、理由を`reason`として置く。担当の起動は「担当の起動の記録」節に従って記録する。形式検査は資料の独立性や判断の妥当性を保証しない。
+ファセット選択後、題材探索前に、`assignment_plan.py selection`で4軸の正規ノードキー（区分に分けたノードを選んだ場合は`facet_subdivisions`も）を写した題材候補の探索状態を作り、交差領域の確認記録を保存して、`work_state_check.py --stage intersection-checkpoint`で検査する。確認記録には、開いた資料のURL、交差領域の広さを判断した理由、資料中に実名がある異なる候補二つ以上と各資料のURL、うち一件以上の初級学習資料と扱いの根拠、成立の判定（`result`：成立は`viable`、不成立は`not_viable`）を含める。`intersection-checkpoint`も題材探索以降の段階の検査も、記録に不備がなく`not_viable`なら、粒度判断へ戻ることを終了コード`3`で示す。広さの理由には、選択範囲に入る大区分と、異なる用途の資料で確かめた対象の種類・下位領域を対応させ、候補探索の経路を設けられるかを記す。選んだ4軸の範囲に挙がる対象や項目ごとに、入る下位領域を`intersection_review`の`scope_mapping`に、項目を`item`、下位領域IDを`coverage_area_id`として記録する。探索する下位領域は、`coverage_areas`に`id`、名前を`label`、区分の根拠を`basis`、含まれる解答対象の種類を`target_kinds`、第6節の候補に当たる対象の数の見積もりを`estimated_candidates`として記録する。下位領域の一覧の検査結果は`coverage_area_reviews`に、`target`を`all`として、判定を`status`（`passed`・`failed`）、理由を`reason`として置く。担当の起動は「担当の起動の記録」節に従って記録する。形式検査は資料の独立性や判断の妥当性を保証しない。
 
 ## 題材候補の探索状態
 

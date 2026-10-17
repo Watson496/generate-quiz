@@ -389,8 +389,9 @@ class TestInputs:
         facet.write_text(
             json.dumps(
                 {
-                    "facet_nodes": {"subject": "subject::1"},
+                    "facet_nodes": {"subject": "subject::2"},
                     "facet_levels": [{"id": "L1"}],
+                    "execution": {"assignments": [{"role": "facet_granularity"}]},
                 }
             )
         )
@@ -427,6 +428,29 @@ class TestInputs:
             "facet_subdivisions",
             "facet_scope",
         ]
+
+    def test_inputs_reject_states_that_disagree(self, run_script, tmp_path):
+        """状態ファイルの間で同じキーの値が食い違えば、入力を書き出さない。"""
+        facet = tmp_path / "facet.json"
+        facet.write_text(json.dumps({"facet_nodes": {"subject": "subject::1"}}))
+        selection = tmp_path / "selection.json"
+        selection.write_text(
+            json.dumps({"facet_nodes": {"subject": "subject::2"}, "candidates": []})
+        )
+        output = tmp_path / "input.json"
+        result = run_script(
+            "assignment_plan.py",
+            "inputs",
+            "membership",
+            "--state",
+            facet,
+            selection,
+            "--output",
+            output,
+        )
+        assert result.returncode == 1
+        assert "facet_nodesの値が食い違う" in result.stderr
+        assert not output.exists()
 
     def test_inputs_take_only_assigned_items(self, run_script, tmp_path):
         """分割する担当には、受け持つ項目の記録だけを取り出す。"""
@@ -1254,6 +1278,56 @@ class TestEntryCheck:
         result = run_script("assignment_plan.py", "coordinate", "3", "--state", path)
         assert result.returncode == 0
         assert json.loads(result.stdout)["agent"] == "generate-quiz:step03_coordinator"
+
+    def test_coordinate_rejects_selection_from_other_facets(
+        self, run_script, tmp_path, selection_state
+    ):
+        """探索状態の4軸がファセット選択の記録と食い違えば、前のステップの記録を検査に通さない。"""
+        facet = tmp_path / "facet.json"
+        nodes = {**selection_state["facet_nodes"], "type": "type::abstract"}
+        facet.write_text(json.dumps({"facet_nodes": nodes}, ensure_ascii=False))
+        selection = tmp_path / "selection.json"
+        selection.write_text(json.dumps(selection_state, ensure_ascii=False))
+        result = run_script(
+            "assignment_plan.py", "coordinate", "3", "--state", facet, selection
+        )
+        assert result.returncode == 1
+        assert "facet_nodesの値が食い違う" in result.stderr
+        assert result.stdout == ""
+
+class TestSelectionState:
+    """ファセット選択の記録から題材候補の探索状態を作ることを確認する。"""
+
+    def test_selection_copies_only_chosen_facets(self, run_script, tmp_path):
+        """選んだ4軸と区分だけを写し、前の探索状態の記録を残さない。"""
+        facet = tmp_path / "facet.json"
+        facet.write_text(
+            json.dumps(
+                {
+                    "facet_nodes": {"subject": "subject::17*1"},
+                    "facet_subdivisions": [{"parent": "subject::17"}],
+                    "facet_levels": [{"id": "L1"}],
+                    "execution": {"assignments": []},
+                }
+            )
+        )
+        selection = tmp_path / "selection.json"
+        selection.write_text(
+            json.dumps(
+                {
+                    "facet_nodes": {"subject": "subject::1"},
+                    "intersection_review": {"result": "not_viable"},
+                }
+            )
+        )
+        result = run_script(
+            "assignment_plan.py", "selection", "--state", facet, "--output", selection
+        )
+        assert result.returncode == 0, result.stderr
+        assert json.loads(selection.read_text()) == {
+            "facet_nodes": {"subject": "subject::17*1"},
+            "facet_subdivisions": [{"parent": "subject::17"}],
+        }
 
 
 class TestRerun:

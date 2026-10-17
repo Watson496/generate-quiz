@@ -8,8 +8,9 @@
 サブコマンド:
     steps              ステップごとの担当と、統括役を置くかを出力する
     coordinate STEP    統括役のエージェントの名前と依頼文を出力する。担当表で前のステップの
-                       検査（entry_check）を定めたステップでは、--stateで渡した状態
-                       ファイルをその段階で検査し、合格した場合だけ出力する。ユーザーが
+                       検査（entry_check）を定めたステップでは、--stateで渡した最後の状態
+                       ファイルをその段階で検査し、合格した場合だけ出力する。状態ファイルを
+                       複数渡した場合は、共通するキーの値が一致することも確かめる。ユーザーが
                        解答対象を指定して素材の調査から始める場合は、--specifiedを付けて
                        前のステップの検査をしない
     assign ROLE        担当の割り当てと依頼文を出力する。分割する担当には
@@ -22,6 +23,7 @@
                        渡す検査の成果物の場所を出力する
     inputs ROLE        --stateで渡した状態ファイルから担当の入力のデータだけを取り出し、
                        --outputのファイルに書く。状態ファイルにない入力を出力する。
+                       状態ファイルの間で共通するキーの値が食い違えば、書かずに終了コード1を返す。
                        分割する担当には--itemsで受け持つ項目を渡し、その記録だけを取り出す
     record ROLE        担当の起動の記録を--stateの状態ファイルのexecution.assignmentsに
                        書く。--agent-idだけなら起動の記録を加え、--artifactを付けると
@@ -29,16 +31,19 @@
     merge ROLE         担当の成果物のファイル（--artifact）を、担当表のmerge_rulesに
                        従って--stateの状態ファイルへ入れる。成果物の最上位のキーが担当の
                        成果物のデータIDでなければ、状態ファイルを変えずに終了コード1を返す
+    selection          ファセット選択の記録（--state）の選んだ4軸と区分を写して、題材候補の
+                       探索状態を--outputに新しく作る。前の探索状態があれば置き換える
 
 終了コード:
     0  結果を出力した
-    1  前のステップの検査が不合格、または担当の成果物が状態ファイルへ入れられる形ではない
+    1  前のステップの検査が不合格、状態ファイルの間で値が食い違う、または担当の成果物が
+       状態ファイルへ入れられる形ではない
     2  担当表の不備、存在しない担当、項目IDの不備など、入力や呼出しの不備
     3  前のステップの担当が粒度判断へ戻ると判断している、または抽選できる候補がない
 
 使用例:
     python3 assignment_plan.py steps
-    python3 assignment_plan.py coordinate 3 --state selection.json
+    python3 assignment_plan.py coordinate 3 --state facet.json selection.json
     python3 assignment_plan.py assign exposure
     python3 assignment_plan.py rerun writer
     python3 assignment_plan.py fix propositions proposition_support
@@ -48,6 +53,7 @@
         --agent-id /root/q001/membership-1 --items K1 K2
     python3 assignment_plan.py merge membership --state selection.json \
         --artifact 004-step04/membership-K1_K2.json
+    python3 assignment_plan.py selection --state facet.json --output selection.json
 """
 
 import argparse
@@ -66,6 +72,7 @@ AGENT_PREFIX = "generate-quiz"
 SIDES = {"make", "check"}
 EXIT_OK, EXIT_BLOCKED, EXIT_USAGE, EXIT_RETURN = 0, 1, 2, 3
 COORDINATOR_SECTIONS = ("検査で不合格になったとき", "修正と再実行")
+SELECTION_FROM_FACET = ("facet_nodes", "facet_subdivisions")
 REVIEW_SECTION = "検査の進め方"
 ONLY_GIVEN_FILES = (
     "入力として渡されたファイル、読むよう指定された仕様、資料の写しの置き場、担当の節が読んでよいと定めたファイルのほかに、"
@@ -316,9 +323,10 @@ def step_plan(table):
     ]
 
 
-def entry_check(table, number, state_path, *, specified=False):
-    """ステップの前のステップの検査を状態ファイルに行い、終了コードと出力を返す。
+def entry_check(table, number, state_paths, *, specified=False):
+    """ステップの前のステップの検査を最後の状態ファイルに行い、終了コードと出力を返す。
 
+    状態ファイルを複数渡した場合は、共通するキーの値が一致することも確かめる。
     ユーザーが解答対象を指定した場合（specified）は、解答対象ごとの作問状態を扱う
     最初のステップでだけ、前のステップの検査をしない。
     """
@@ -337,16 +345,18 @@ def entry_check(table, number, state_path, *, specified=False):
         return 0, ""
     if stage is None:
         return 0, ""
-    require(
-        state_path is not None, f"ステップ{number}には--stateで状態ファイルが必要である"
-    )
+    require(state_paths, f"ステップ{number}には--stateで状態ファイルが必要である")
+    try:
+        require_same_values([read_state(path) for path in state_paths])
+    except ArtifactError as error:
+        return EXIT_BLOCKED, f"不合格: {error}"
     result = subprocess.run(
         [
             sys.executable,
             str(Path(__file__).with_name("work_state_check.py")),
             "--stage",
             stage,
-            str(state_path),
+            str(state_paths[-1]),
         ],
         capture_output=True,
         text=True,
@@ -487,12 +497,13 @@ def role_inputs(table, role_id, states, phase=None, items=None):
     """状態ファイルから担当の入力のデータを取り出し、取り出したものと状態ファイルにない入力を返す。
 
     データは状態ファイルの同じ名前のキーに置く。state_keysで複数のキーを定めたデータは、
-    そのキーをすべて取り出す。同じキーが複数の状態ファイルにあれば、後に渡したファイルのものを使う。
+    そのキーをすべて取り出す。同じキーが複数の状態ファイルにあれば、値が一致することを確かめる。
     受け持つ項目（items）を渡すと、項目のIDを持つ記録の配列からは、その項目の記録だけを取り出す。
     問題文（draft）は、解答を伏せる担当にも渡るので、版と本文だけを取り出す。
     後ろへ加えていく検査結果は、検査した対象ごとの最後の記録だけを取り出す。
     """
     role = find_role(table, role_id)
+    require_same_values(states)
     phases = role["inputs"]
     if phase is not None:
         require(
@@ -507,7 +518,7 @@ def role_inputs(table, role_id, states, phase=None, items=None):
         keys = table.get("state_keys", {}).get(item, [item])
         found = [key for key in keys if any(key in state for state in states)]
         for key in found:
-            value = next(state[key] for state in reversed(states) if key in state)
+            value = next(state[key] for state in states if key in state)
             if key == "draft" and isinstance(value, dict):
                 value = {k: value[k] for k in ("version", "text") if k in value}
             if key in append and isinstance(value, list):
@@ -525,6 +536,26 @@ def role_inputs(table, role_id, states, phase=None, items=None):
         } & set(items)
         require(matched, f"受け持つ項目{items}が、どの入力の記録のIDでもない")
     return extracted, missing
+
+
+def require_same_values(states):
+    """複数の状態ファイルに共通するキー（担当の起動の記録を除く）の値が一致することを確かめる。"""
+    for index, state in enumerate(states):
+        for later in states[index + 1 :]:
+            for key in state.keys() & later.keys() - {"execution"}:
+                if state[key] != later[key]:
+                    raise ArtifactError(
+                        f"状態ファイルの間で{key}の値が食い違う。前のステップの記録から状態ファイルを作り直す"
+                    )
+
+
+def selection_from_facet(facet):
+    """ファセット選択の記録の選んだ4軸と区分だけを写した、題材候補の探索状態を返す。"""
+    require(
+        isinstance(facet.get("facet_nodes"), dict),
+        "ファセット選択の記録にfacet_nodesがない",
+    )
+    return {key: facet[key] for key in SELECTION_FROM_FACET if key in facet}
 
 
 def latest_reviews(records):
@@ -1068,7 +1099,7 @@ def build_parser():
     commands.add_parser("steps")
     coordinate = commands.add_parser("coordinate")
     coordinate.add_argument("step", type=int)
-    coordinate.add_argument("--state", type=Path)
+    coordinate.add_argument("--state", type=Path, nargs="+")
     coordinate.add_argument("--specified", action="store_true")
     assign = commands.add_parser("assign")
     assign.add_argument("role")
@@ -1097,6 +1128,9 @@ def build_parser():
     merge.add_argument("role")
     merge.add_argument("--state", type=Path, required=True)
     merge.add_argument("--artifact", type=Path, required=True)
+    selection = commands.add_parser("selection")
+    selection.add_argument("--state", type=Path, required=True)
+    selection.add_argument("--output", type=Path, required=True)
     return parser
 
 
@@ -1142,6 +1176,10 @@ def run_state_command(table, args):
             "keys": list(extracted),
             "not_in_state": missing,
         }
+    if args.command == "selection":
+        selection = selection_from_facet(read_state(args.state))
+        write_state(args.output, selection)
+        return {"output": str(args.output), "keys": list(selection)}
     with locked_state(args.state):
         return update_state(table, args)
 

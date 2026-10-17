@@ -62,7 +62,7 @@ argument-hint: <作問条件（主題・問題数・文字数・履歴など。�
 
 ```bash
 python3 "$SKILL_DIR/scripts/assignment_plan.py" steps
-python3 "$SKILL_DIR/scripts/assignment_plan.py" coordinate 3 --state selection.json
+python3 "$SKILL_DIR/scripts/assignment_plan.py" coordinate 3 --state facet.json selection.json
 python3 "$SKILL_DIR/scripts/assignment_plan.py" assign exploration
 python3 "$SKILL_DIR/scripts/assignment_plan.py" rerun writer
 python3 "$SKILL_DIR/scripts/assignment_plan.py" fix propositions proposition_support
@@ -89,6 +89,12 @@ python3 "$SKILL_DIR/scripts/assignment_plan.py" record membership --state select
 ```bash
 python3 "$SKILL_DIR/scripts/assignment_plan.py" merge membership --state selection.json \
   --artifact 004-step04/membership-K1_K2.json
+```
+
+題材候補の探索状態は、ファセット選択の記録から作る。
+
+```bash
+python3 "$SKILL_DIR/scripts/assignment_plan.py" selection --state facet.json --output selection.json
 ```
 
 ファセットカタログは全文を読まず、必要なブロックだけを取得する。
